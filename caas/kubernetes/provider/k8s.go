@@ -49,12 +49,7 @@ const (
 	labelVersion     = "juju-version"
 	labelApplication = "juju-application"
 
-	// Well known storage pool attributes.
-	jujuStorageClassKey = "juju-storage-class"
-	jujuStorageLabelKey = "juju-storage-label"
-
-	jujuDefaultStorageClassName = "juju-unit-storage"
-	operatorStorageClassName    = "juju-operator-storage"
+	operatorStorageClassName = "juju-operator-storage"
 	// TODO(caas) - make this configurable using application config
 	operatorStorageSize = "10Mi"
 )
@@ -154,6 +149,48 @@ func (k *kubernetesClient) deleteNamespace() error {
 	return errors.Trace(err)
 }
 
+// EnsureSecret ensures a secret exists for use with retrieving images from private registries
+func (k *kubernetesClient) EnsureSecret(imageSecretName, appName string, imageDetails *caas.ImageDetails) error {
+	if imageDetails.Password == "" {
+		return errors.New("attempting to create a secret with no password")
+	}
+	secretData, err := createDockerConfigJSON(imageDetails)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	secrets := k.CoreV1().Secrets(k.namespace)
+	// imageSecretName := appSecretName(appName, containerSpec.Name)
+
+	newSecret := &core.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      imageSecretName,
+			Namespace: k.namespace,
+			Labels:    map[string]string{labelApplication: appName}},
+		Type: core.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			core.DockerConfigJsonKey: secretData,
+		},
+	}
+
+	_, err = secrets.Update(newSecret)
+	if k8serrors.IsNotFound(err) {
+		_, err = secrets.Create(newSecret)
+	}
+	return errors.Trace(err)
+}
+
+func (k *kubernetesClient) deleteSecret(appName, containerName string) error {
+	imageSecretName := appSecretName(appName, containerName)
+	secrets := k.CoreV1().Secrets(k.namespace)
+	err := secrets.Delete(imageSecretName, &v1.DeleteOptions{
+		PropagationPolicy: &defaultPropagationPolicy,
+	})
+	if k8serrors.IsNotFound(err) {
+		return nil
+	}
+	return errors.Trace(err)
+}
+
 // EnsureOperator creates or updates an operator pod with the given application
 // name, agent path, and operator config.
 func (k *kubernetesClient) EnsureOperator(appName, agentPath string, config *caas.OperatorConfig) error {
@@ -174,7 +211,7 @@ func (k *kubernetesClient) EnsureOperator(appName, agentPath string, config *caa
 	// If there are none, that's ok, we'll just use ephemeral storage.
 	volStorageLabel := fmt.Sprintf("%s-operator-storage", appName)
 	params := volumeParams{
-		storageClassName:    operatorStorageClassName,
+		storageConfig:       &storageConfig{storageClass: operatorStorageClassName},
 		storageLabels:       []string{volStorageLabel, k.namespace, "default"},
 		pvcName:             operatorVolumeClaim(appName),
 		requestedVolumeSize: operatorStorageSize,
@@ -266,13 +303,12 @@ func operatorVolumeClaim(appName string) string {
 }
 
 type volumeParams struct {
-	storageLabels            []string
-	storageClassName         string
-	fallbackStorageClassName string
-	pvcName                  string
-	requestedVolumeSize      string
-	labels                   map[string]string
-	accessMode               core.PersistentVolumeAccessMode
+	storageLabels       []string
+	storageConfig       *storageConfig
+	pvcName             string
+	requestedVolumeSize string
+	labels              map[string]string
+	accessMode          core.PersistentVolumeAccessMode
 }
 
 // maybeGetVolumeClaimSpec returns a persistent volume claim spec, and a bool indicating
@@ -293,12 +329,12 @@ func (k *kubernetesClient) maybeGetVolumeClaimSpec(params volumeParams) (*core.P
 	// We need to create a new claim.
 	logger.Debugf("creating new persistent volume claim for %v", params.pvcName)
 
-	storageClassName := params.storageClassName
+	storageClassName := params.storageConfig.storageClass
 	if storageClassName != "" {
 		// If a specific storage class has been requested, make sure it exists.
-		_, err := k.StorageV1().StorageClasses().Get(storageClassName, v1.GetOptions{})
+		err := k.ensureStorageClass(params.storageConfig)
 		if err != nil {
-			if !k8serrors.IsNotFound(err) {
+			if !errors.IsNotFound(err) {
 				return nil, false, errors.Trace(err)
 			}
 			storageClassName = ""
@@ -311,7 +347,7 @@ func (k *kubernetesClient) maybeGetVolumeClaimSpec(params volumeParams) (*core.P
 		if err == nil {
 			storageClassName = sc.Name
 		} else {
-			storageClassName = params.fallbackStorageClassName
+			storageClassName = defaultStorageClass
 		}
 	}
 	if storageClassName == "" {
@@ -336,6 +372,36 @@ func (k *kubernetesClient) maybeGetVolumeClaimSpec(params volumeParams) (*core.P
 		},
 		AccessModes: []core.PersistentVolumeAccessMode{accessMode},
 	}, false, nil
+}
+
+func (k *kubernetesClient) ensureStorageClass(cfg *storageConfig) error {
+	// First see if the named storage class exists.
+	storageClasses := k.StorageV1().StorageClasses()
+	_, err := storageClasses.Get(cfg.storageClass, v1.GetOptions{})
+	if err == nil {
+		return nil
+	}
+
+	if !k8serrors.IsNotFound(err) {
+		return errors.Trace(err)
+	}
+	// If it's not found but there's no provisioner specified, we can't
+	// create it so just return not found.
+	if err != nil && cfg.storageProvisioner == "" {
+		return errors.NewNotFound(nil,
+			fmt.Sprintf("storage class %q doesn't exist, but no storage provisioner has been specified",
+				cfg.storageClass))
+	}
+
+	// Create the storage class with the specified provisioner.
+	_, err = storageClasses.Create(&k8sstorage.StorageClass{
+		ObjectMeta: v1.ObjectMeta{
+			Name: cfg.storageClass,
+		},
+		Provisioner: cfg.storageProvisioner,
+		Parameters:  cfg.parameters,
+	})
+	return errors.Trace(err)
 }
 
 // DeleteOperator deletes the specified operator.
@@ -458,9 +524,21 @@ func (k *kubernetesClient) EnsureService(
 		}
 	}()
 
-	unitSpec, err := makeUnitSpec(params.PodSpec)
+	unitSpec, err :=
+		makeUnitSpec(appName, params.PodSpec)
 	if err != nil {
 		return errors.Annotatef(err, "parsing unit spec for %s", appName)
+	}
+
+	for _, c := range params.PodSpec.Containers {
+		if c.ImageDetails.Password == "" {
+			continue
+		}
+		imageSecretName := appSecretName(appName, c.Name)
+		if err := k.EnsureSecret(imageSecretName, appName, &c.ImageDetails); err != nil {
+			return errors.Annotatef(err, "creating secrets for container: %s", c.Name)
+		}
+		cleanups = append(cleanups, func() { k.deleteSecret(appName, c.Name) })
 	}
 
 	// Add a deployment controller configured to create the specified number of units/pods.
@@ -518,13 +596,12 @@ func (k *kubernetesClient) configureStorage(
 			requestedVolumeSize: fmt.Sprintf("%dMi", fs.Size),
 			labels:              map[string]string{labelApplication: appName},
 		}
-		if storageClassName, ok := fs.Attributes[jujuStorageClassKey]; ok {
-			params.storageClassName = fmt.Sprintf("%v", storageClassName)
-		} else {
-			params.fallbackStorageClassName = jujuDefaultStorageClassName
-		}
-		if storageLabel, ok := fs.Attributes[jujuStorageLabelKey]; ok {
+		if storageLabel, ok := fs.Attributes[storageLabel]; ok {
 			params.storageLabels = append([]string{fmt.Sprintf("%v", storageLabel)}, params.storageLabels...)
+		}
+		params.storageConfig, err = newStorageConfig(fs.Attributes)
+		if err != nil {
+			return errors.Annotatef(err, "invalid storage configuration for %v", fs.StorageName)
 		}
 
 		pvcSpec, _, err := k.maybeGetVolumeClaimSpec(params)
@@ -1173,7 +1250,6 @@ pod:
   containers:
   {{- range .Containers }}
   - name: {{.Name}}
-    image: {{.Image}}
     {{if .Ports}}
     ports:
     {{- range .Ports }}
@@ -1201,7 +1277,7 @@ pod:
   {{- end}}
 `[1:]
 
-func makeUnitSpec(podSpec *caas.PodSpec) (*unitSpec, error) {
+func makeUnitSpec(appName string, podSpec *caas.PodSpec) (*unitSpec, error) {
 	// Fill out the easy bits using a template.
 	tmpl := template.Must(template.New("").Parse(defaultPodTemplate))
 	var buf bytes.Buffer
@@ -1216,8 +1292,19 @@ func makeUnitSpec(podSpec *caas.PodSpec) (*unitSpec, error) {
 		return nil, errors.Trace(err)
 	}
 
+	var imageSecretNames []core.LocalObjectReference
 	// Now fill in the hard bits progamatically.
 	for i, c := range podSpec.Containers {
+		if c.Image != "" {
+			logger.Warningf("Image parameter deprecated, use ImageDetails")
+			unitSpec.Pod.Containers[i].Image = c.Image
+		} else {
+			unitSpec.Pod.Containers[i].Image = c.ImageDetails.ImagePath
+		}
+		if c.ImageDetails.Password != "" {
+			imageSecretNames = append(imageSecretNames, core.LocalObjectReference{Name: appSecretName(appName, c.Name)})
+		}
+
 		if c.ProviderContainer == nil {
 			continue
 		}
@@ -1233,6 +1320,7 @@ func makeUnitSpec(podSpec *caas.PodSpec) (*unitSpec, error) {
 			unitSpec.Pod.Containers[i].ReadinessProbe = spec.ReadinessProbe
 		}
 	}
+	unitSpec.Pod.ImagePullSecrets = imageSecretNames
 	return &unitSpec, nil
 }
 
@@ -1254,4 +1342,9 @@ func deploymentName(appName string) string {
 
 func resourceNamePrefix(appName string) string {
 	return "juju-" + names.NewApplicationTag(appName).String() + "-"
+}
+
+func appSecretName(appName, containerName string) string {
+	// A pod may have multiple containers with different images and thus different secrets
+	return "juju-" + appName + "-" + containerName + "-secret"
 }

@@ -12,9 +12,12 @@ import (
 )
 
 var (
-	MakeUnitSpec    = makeUnitSpec
-	ParseK8sPodSpec = parseK8sPodSpec
-	OperatorPod     = operatorPod
+	MakeUnitSpec           = makeUnitSpec
+	ParseK8sPodSpec        = parseK8sPodSpec
+	OperatorPod            = operatorPod
+	ExtractRegistryURL     = extractRegistryURL
+	CreateDockerConfigJSON = createDockerConfigJSON
+	NewStorageConfig       = newStorageConfig
 )
 
 func PodSpec(u *unitSpec) core.PodSpec {
@@ -27,4 +30,16 @@ func NewProvider() caas.ContainerEnvironProvider {
 
 func StorageProvider(k8sClient kubernetes.Interface, namespace string) storage.Provider {
 	return &storageProvider{&kubernetesClient{Interface: k8sClient, namespace: namespace}}
+}
+
+func StorageClass(cfg *storageConfig) string {
+	return cfg.storageClass
+}
+
+func StorageProvisioner(cfg *storageConfig) string {
+	return cfg.storageProvisioner
+}
+
+func StorageParameters(cfg *storageConfig) map[string]string {
+	return cfg.parameters
 }
