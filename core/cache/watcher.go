@@ -194,6 +194,10 @@ func (w *stringsWatcherBase) Changes() <-chan []string {
 func (w *stringsWatcherBase) Kill() {
 	w.mu.Lock()
 	w.closed = true
+	if w.closed {
+		w.mu.Unlock()
+		return
+	}
 	close(w.changes)
 	w.mu.Unlock()
 	w.tomb.Kill(nil)

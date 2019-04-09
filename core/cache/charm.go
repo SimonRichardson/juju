@@ -9,8 +9,11 @@ import (
 	"github.com/juju/juju/core/lxdprofile"
 )
 
-func newCharm(metrics *ControllerGauges, hub *pubsub.SimpleHub) *Charm {
+func newCharm(metrics *ControllerGauges, hub *pubsub.SimpleHub, resources *Resources) *Charm {
 	c := &Charm{
+		entity: entity{
+			resources: resources,
+		},
 		metrics: metrics,
 		hub:     hub,
 	}
@@ -26,8 +29,9 @@ type Charm struct {
 	entity
 
 	// Link to model?
-	metrics *ControllerGauges
-	hub     *pubsub.SimpleHub
+	metrics   *ControllerGauges
+	hub       *pubsub.SimpleHub
+	resources *Resources
 
 	details CharmChange
 }
@@ -45,11 +49,6 @@ func (c *Charm) removalDelta() interface{} {
 		ModelUUID: c.details.ModelUUID,
 		CharmURL:  c.details.CharmURL,
 	}
-}
-
-// remove cleans up any associated data with the charm
-func (c *Charm) remove() {
-	// TODO (stickupkid): clean watchers
 }
 
 func (c *Charm) setDetails(details CharmChange) {

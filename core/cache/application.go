@@ -14,8 +14,11 @@ const (
 	applicationConfigChange = "application-config-change"
 )
 
-func newApplication(metrics *ControllerGauges, hub *pubsub.SimpleHub) *Application {
+func newApplication(metrics *ControllerGauges, hub *pubsub.SimpleHub, resources *Resources) *Application {
 	a := &Application{
+		entity: entity{
+			resources: resources,
+		},
 		metrics: metrics,
 		hub:     hub,
 	}
@@ -57,9 +60,10 @@ func (a *Application) Config() map[string]interface{} {
 }
 
 // WatchConfig creates a watcher for the application config.
-func (a *Application) WatchConfig(keys ...string) *ConfigWatcher {
+func (a *Application) WatchConfig(keys ...string) (*ConfigWatcher, uint64) {
 	w := newConfigWatcher(keys, a.hashCache, a.hub, a.topic(applicationConfigChange))
-	return w
+	identifier := a.resources.Register(w)
+	return w, identifier
 }
 
 // removalDelta returns a delta that is required to remove the Application. If this
@@ -70,11 +74,6 @@ func (a *Application) removalDelta() interface{} {
 		ModelUUID: a.details.ModelUUID,
 		Name:      a.details.Name,
 	}
-}
-
-// remove cleans up any associated data with the application
-func (a *Application) remove() {
-	// TODO (stickupkid): clean watchers
 }
 
 // appCharmUrlChange contains an appName and it's charm URL.  To be used

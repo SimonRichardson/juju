@@ -38,12 +38,13 @@ func (c *ControllerConfig) Validate() error {
 
 // Controller is the primary cached object.
 type Controller struct {
-	config  ControllerConfig
-	tomb    tomb.Tomb
-	mu      sync.Mutex
-	models  map[string]*Model
-	hub     *pubsub.SimpleHub
-	metrics *ControllerGauges
+	config    ControllerConfig
+	tomb      tomb.Tomb
+	mu        sync.Mutex
+	models    map[string]*Model
+	hub       *pubsub.SimpleHub
+	metrics   *ControllerGauges
+	resources *Resources
 }
 
 // NewController creates a new cached controller intance.
@@ -60,7 +61,8 @@ func NewController(config ControllerConfig) (*Controller, error) {
 			// TODO: (thumper) add a get child method to loggers.
 			Logger: loggo.GetLogger("juju.core.cache.hub"),
 		}),
-		metrics: createControllerGauges(),
+		metrics:   createControllerGauges(),
+		resources: newResources(newIdentifier()),
 	}
 	c.tomb.Go(c.loop)
 	return c, nil
@@ -211,6 +213,21 @@ func (c *Controller) Model(uuid string) (*Model, error) {
 	return model, nil
 }
 
+// StopWatcher will attempt to stop a watcher found within a controller, it will
+// walk over the models and it's sub entities to locate it.
+// Returns an error attempting to stop the watcher or NotFound if the watcher
+// doesn't exist for the resource
+func (c *Controller) StopWatcher(identifier uint64) error {
+	return c.resources.Stop(identifier)
+}
+
+// StopAllWatchers will stop all watchers found within a controller, it will
+// walk over all the models and all it's sub entities and stop all watchers.
+// Returns an error attempting to stop the watcher
+func (c *Controller) StopAllWatchers() error {
+	return c.resources.StopAll()
+}
+
 // updateModel will add or update the model details as
 // described in the ModelChange.
 func (c *Controller) updateModel(ch ModelChange) {
@@ -305,7 +322,7 @@ func (c *Controller) removeMachine(ch RemoveMachine) {
 func (c *Controller) ensureModel(modelUUID string) *Model {
 	model, found := c.models[modelUUID]
 	if !found {
-		model = newModel(c.metrics, c.hub)
+		model = newModel(c.metrics, c.hub, c.resources.Namespace(modelUUID))
 		c.models[modelUUID] = model
 	}
 	return model

@@ -26,7 +26,7 @@ type entity struct {
 	freshness    entityFreshness
 	mu           sync.Mutex
 	removalDelta func() interface{}
-	watchers     []Watcher
+	resources    *Resources
 }
 
 // mark updates the state to be classified as stale.
@@ -61,6 +61,11 @@ func (e *entity) sweep() (*SweepDeltas, error) {
 	return &SweepDeltas{
 		FreshCount: 1,
 	}, nil
+}
+
+// remove cleans up any associated data with the entity
+func (e *entity) remove() error {
+	return e.resources.StopAll()
 }
 
 // SweepInfo represents the information gathered whilst doing a sweep

@@ -14,8 +14,11 @@ import (
 	"github.com/juju/juju/core/instance"
 )
 
-func newMachine(model *Model) *Machine {
+func newMachine(model *Model, resources *Resources) *Machine {
 	m := &Machine{
+		entity: entity{
+			resources: resources,
+		},
 		model: model,
 	}
 	// wire up the removalDelta so that the entity can collate all the deltas
@@ -87,13 +90,13 @@ func (m *Machine) Units() ([]*Unit, error) {
 // WatchContainers creates a PredicateStringsWatcher (strings watcher) to notify
 // about added and removed containers on this machine.  The initial event
 // contains a slice of the current container machine ids.
-func (m *Machine) WatchContainers() (*PredicateStringsWatcher, error) {
+func (m *Machine) WatchContainers() (*PredicateStringsWatcher, uint64, error) {
 	m.model.mu.Lock()
 
 	// Create a compiled regexp to match containers on this machine.
 	compiled, err := m.containerRegexp()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Gather initial slice of containers on this machine.
@@ -114,7 +117,8 @@ func (m *Machine) WatchContainers() (*PredicateStringsWatcher, error) {
 	})
 
 	m.model.mu.Unlock()
-	return w, nil
+	identifier := m.resources.Register(w)
+	return w, identifier, nil
 }
 
 // WatchApplicationLXDProfiles notifies if any of the following happen
@@ -124,10 +128,10 @@ func (m *Machine) WatchContainers() (*PredicateStringsWatcher, error) {
 //        exist on the machine.
 //     3. The lxdprofile of an application with a unit on this
 //        machine is added, removed, or exists.
-func (m *Machine) WatchApplicationLXDProfiles() (*MachineAppLXDProfileWatcher, error) {
+func (m *Machine) WatchApplicationLXDProfiles() (*MachineAppLXDProfileWatcher, uint64, error) {
 	units, err := m.Units()
 	if err != nil {
-		return nil, errors.Annotatef(err, "failed to get units to start MachineAppLXDProfileWatcher")
+		return nil, 0, errors.Annotatef(err, "failed to get units to start MachineAppLXDProfileWatcher")
 	}
 	m.model.mu.Lock()
 	applications := make(map[string]appInfo)
@@ -146,7 +150,7 @@ func (m *Machine) WatchApplicationLXDProfiles() (*MachineAppLXDProfileWatcher, e
 			// to what is watched when the machineId is assigned.
 			// Otherwise return an error.
 			if unit.details.MachineId != "" {
-				return nil, errors.Errorf("programming error, unit %s has machineId but not application", unitName)
+				return nil, 0, errors.Errorf("programming error, unit %s has machineId but not application", unitName)
 			}
 			logger.Errorf("unit %s has no application, nor machine id, start watching when machine id assigned.", unitName)
 			m.model.metrics.LXDProfileChangeError.Inc()
@@ -174,7 +178,8 @@ func (m *Machine) WatchApplicationLXDProfiles() (*MachineAppLXDProfileWatcher, e
 		hub:          m.model.hub,
 	})
 	m.model.mu.Unlock()
-	return w, nil
+	identifier := m.resources.Register(w)
+	return w, identifier, nil
 }
 
 // removalDelta returns a delta that is required to remove the Machine. If this
@@ -185,11 +190,6 @@ func (m *Machine) removalDelta() interface{} {
 		ModelUUID: m.details.ModelUUID,
 		Id:        m.details.Id,
 	}
-}
-
-// remove cleans up any associated data with the machine
-func (m *Machine) remove() {
-	// TODO (stickupkid): clean watchers
 }
 
 func (m *Machine) containerRegexp() (*regexp.Regexp, error) {

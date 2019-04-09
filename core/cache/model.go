@@ -18,8 +18,11 @@ const (
 	modelUnitLXDProfileChange = "model-unit-lxd-profile-change"
 )
 
-func newModel(metrics *ControllerGauges, hub *pubsub.SimpleHub) *Model {
+func newModel(metrics *ControllerGauges, hub *pubsub.SimpleHub, resources *Resources) *Model {
 	m := &Model{
+		entity: entity{
+			resources: resources,
+		},
 		metrics: metrics,
 		// TODO: consider a separate hub per model for better scalability
 		// when many models.
@@ -71,9 +74,10 @@ func (m *Model) Name() string {
 }
 
 // WatchConfig creates a watcher for the model config.
-func (m *Model) WatchConfig(keys ...string) *ConfigWatcher {
+func (m *Model) WatchConfig(keys ...string) (*ConfigWatcher, uint64) {
 	w := newConfigWatcher(keys, m.hashCache, m.hub, m.topic(modelConfigChange))
-	return w
+	identifier := m.resources.Register(w)
+	return w, identifier
 }
 
 // Report returns information that is used in the dependency engine report.
@@ -254,25 +258,35 @@ func (m *Model) removalDelta() interface{} {
 
 // remove the other entities associated with the model, so everything is cleanly
 // cleaned up
-func (m *Model) remove() {
+func (m *Model) remove() error {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	for key, app := range m.applications {
-		app.remove()
+		if err := app.remove(); err != nil {
+			return errors.Trace(err)
+		}
 		delete(m.applications, key)
 	}
 	for key, charm := range m.charms {
-		charm.remove()
+		if err := charm.remove(); err != nil {
+			return errors.Trace(err)
+		}
 		delete(m.charms, key)
 	}
 	for key, machine := range m.machines {
-		machine.remove()
+		if err := machine.remove(); err != nil {
+			return errors.Trace(err)
+		}
 		delete(m.machines, key)
 	}
 	for key, unit := range m.units {
-		unit.remove()
+		if err := unit.remove(); err != nil {
+			return errors.Trace(err)
+		}
 		delete(m.units, key)
 	}
-	m.mu.Unlock()
+	// Finally go through and clean up all the watchers with in the resource
+	return m.entity.remove()
 }
 
 // updateApplication adds or updates the application in the model.
@@ -282,7 +296,7 @@ func (m *Model) updateApplication(ch ApplicationChange) {
 
 	app, found := m.applications[ch.Name]
 	if !found {
-		app = newApplication(m.metrics, m.hub)
+		app = newApplication(m.metrics, m.hub, m.resources.Namespace("applications"))
 		m.applications[ch.Name] = app
 	}
 	app.setDetails(ch)
@@ -293,12 +307,15 @@ func (m *Model) updateApplication(ch ApplicationChange) {
 // removeApplication removes the application from the model.
 func (m *Model) removeApplication(ch RemoveApplication) {
 	m.mu.Lock()
-	if _, ok := m.applications[ch.Name]; ok {
-		// TODO (stickupkid): ensure we clean up the application, so that it
-		// also cleans up the watchers
+	defer m.mu.Unlock()
+
+	if app, ok := m.applications[ch.Name]; ok {
+		if err := app.remove(); err != nil {
+			logger.Errorf("error removing application %q with %v", ch.Name, err)
+			return
+		}
 		delete(m.applications, ch.Name)
 	}
-	m.mu.Unlock()
 }
 
 // updateCharm adds or updates the charm in the model.
@@ -308,7 +325,7 @@ func (m *Model) updateCharm(ch CharmChange) {
 
 	charm, found := m.charms[ch.CharmURL]
 	if !found {
-		charm = newCharm(m.metrics, m.hub)
+		charm = newCharm(m.metrics, m.hub, m.resources.Namespace("charms"))
 		m.charms[ch.CharmURL] = charm
 	}
 	charm.setDetails(ch)
@@ -319,9 +336,11 @@ func (m *Model) updateCharm(ch CharmChange) {
 // removeCharm removes the charm from the model.
 func (m *Model) removeCharm(ch RemoveCharm) {
 	m.mu.Lock()
-	if _, ok := m.charms[ch.CharmURL]; ok {
-		// TODO (stickupkid): ensure we clean up the charm, so that it
-		// also cleans up the watchers
+	if charm, ok := m.charms[ch.CharmURL]; ok {
+		if err := charm.remove(); err != nil {
+			logger.Errorf("error removing charm %q with %v", ch.CharmURL, err)
+			return
+		}
 		delete(m.charms, ch.CharmURL)
 	}
 	m.mu.Unlock()
@@ -334,7 +353,7 @@ func (m *Model) updateUnit(ch UnitChange) {
 
 	unit, found := m.units[ch.Name]
 	if !found {
-		unit = newUnit(m.metrics, m.hub)
+		unit = newUnit(m.metrics, m.hub, m.resources.Namespace("units"))
 		m.units[ch.Name] = unit
 		m.hub.Publish(m.topic(modelUnitLXDProfileChange), unit)
 	}
@@ -347,8 +366,10 @@ func (m *Model) updateUnit(ch UnitChange) {
 func (m *Model) removeUnit(ch RemoveUnit) {
 	m.mu.Lock()
 	if unit, ok := m.units[ch.Name]; ok {
-		// TODO (stickupkid): ensure we clean up the unit, so that it
-		// also cleans up the watchers
+		if err := unit.remove(); err != nil {
+			logger.Errorf("error removing unit %q with %v", ch.Name, err)
+			return
+		}
 		delete(m.units, ch.Name)
 		m.hub.Publish(m.topic(modelUnitLXDProfileChange), []string{ch.Name, unit.details.Application})
 	}
@@ -362,7 +383,7 @@ func (m *Model) updateMachine(ch MachineChange) {
 
 	machine, found := m.machines[ch.Id]
 	if !found {
-		machine = newMachine(m)
+		machine = newMachine(m, m.resources.Namespace("machines"))
 		m.machines[ch.Id] = machine
 		m.hub.Publish(m.topic(modelAddRemoveMachine), []string{ch.Id})
 	}
@@ -374,9 +395,11 @@ func (m *Model) updateMachine(ch MachineChange) {
 // removeMachine removes the machine from the model.
 func (m *Model) removeMachine(ch RemoveMachine) {
 	m.mu.Lock()
-	if _, ok := m.machines[ch.Id]; ok {
-		// TODO (stickupkid): ensure we clean up the machine, so that it
-		// also cleans up the watchers
+	if machine, ok := m.machines[ch.Id]; ok {
+		if err := machine.remove(); err != nil {
+			logger.Errorf("error removing machine %q with %v", ch.Id, err)
+			return
+		}
 		delete(m.machines, ch.Id)
 		m.hub.Publish(m.topic(modelAddRemoveMachine), []string{ch.Id})
 	}

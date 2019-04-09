@@ -18,8 +18,11 @@ type Unit struct {
 	configHash string
 }
 
-func newUnit(metrics *ControllerGauges, hub *pubsub.SimpleHub) *Unit {
+func newUnit(metrics *ControllerGauges, hub *pubsub.SimpleHub, resources *Resources) *Unit {
 	u := &Unit{
+		entity: entity{
+			resources: resources,
+		},
 		metrics: metrics,
 		hub:     hub,
 	}
@@ -43,11 +46,6 @@ func (u *Unit) removalDelta() interface{} {
 		ModelUUID: u.details.ModelUUID,
 		Name:      u.details.Name,
 	}
-}
-
-// remove cleans up any associated data with the unit
-func (u *Unit) remove() {
-	// TODO (stickupkid): clean watchers
 }
 
 func (u *Unit) setDetails(details UnitChange) {
