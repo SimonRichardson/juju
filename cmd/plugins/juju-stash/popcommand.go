@@ -5,6 +5,7 @@ package main
 import (
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
+	"github.com/juju/gnuflag"
 
 	jujucmd "github.com/juju/juju/cmd"
 	"github.com/juju/juju/cmd/modelcmd"
@@ -23,6 +24,14 @@ type popCommand struct {
 
 	clientStore jujuclient.ClientStore
 	history     *history
+	store       bool
+}
+
+// SetFlags implements Command.SetFlags.
+func (c *popCommand) SetFlags(f *gnuflag.FlagSet) {
+	c.ModelCommandBase.SetFlags(f)
+
+	f.BoolVar(&c.store, "store", false, "store pop in history to allow flip-flopping")
 }
 
 // Init implements Command.Init.
@@ -41,6 +50,10 @@ func (c *popCommand) Info() *cmd.Info {
 		Purpose: "pop moves to a model from the stash history",
 		Doc: `
 Pop moves to a model from the stash history that was put in last.
+
+Examples:
+	juju stash pop
+	juju stash pop --store
 
 See:
 	juju stash push
@@ -66,5 +79,15 @@ func (c *popCommand) Run(ctx *cmd.Context) error {
 		return errors.Trace(err)
 	}
 	logSwitch(ctx, modelName, snapshot.modelName)
-	return nil
+	if !c.store {
+		return nil
+	}
+	controllerName, err := modelcmd.DetermineCurrentController(store)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return c.history.Push(historySnapshot{
+		controllerName: controllerName,
+		modelName:      modelName,
+	})
 }
