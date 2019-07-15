@@ -200,5 +200,6 @@ local-operator-update: check-k8s-model operator-image
 .PHONY: rebuild-dependencies
 .PHONY: dep check-deps
 
-lint-copyright:
+lint:
+	@echo "Running..."
 	@./scripts/copyright.bash

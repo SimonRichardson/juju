@@ -4,7 +4,7 @@ workflow "Build" {
 }
 
 action "Lint" {
-  uses = "actions/action-builder/shell@master"
+  uses = "./.github/lint/"
   runs = "make"
-  args = "lint-copyright"
+  args = "lint"
 }
