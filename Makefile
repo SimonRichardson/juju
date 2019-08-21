@@ -204,3 +204,7 @@ local-operator-update: check-k8s-model operator-image
 .PHONY: install-dependencies
 .PHONY: rebuild-dependencies
 .PHONY: dep check-deps
+
+static-analysis:
+	@cd tests
+	./main.sh static_analysis "${STATIC_ANALYSIS_ARGS}"
