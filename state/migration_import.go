@@ -50,13 +50,6 @@ func (ctrl *Controller) Import(model description.Model) (_ *Model, _ *State, err
 		return nil, nil, errors.AlreadyExistsf("model %s", modelUUID)
 	}
 
-	if len(model.RemoteApplications()) != 0 {
-		// Cross-model relations are currently limited to models on
-		// the same controller, while migration is for getting the
-		// model to a new controller.
-		return nil, nil, errors.New("can't import models with remote applications")
-	}
-
 	// Unfortunately a version was released that exports v4 models
 	// with the Type field blank. Treat this as IAAS.
 	modelType := ModelTypeIAAS
@@ -183,6 +176,9 @@ func (ctrl *Controller) Import(model description.Model) (_ *Model, _ *State, err
 	}
 	if err := restore.applications(); err != nil {
 		return nil, nil, errors.Annotate(err, "applications")
+	}
+	if err := restore.remoteApplications(); err != nil {
+		return nil, nil, errors.Annotate(err, "remoteapplications")
 	}
 	if err := restore.relations(); err != nil {
 		return nil, nil, errors.Annotate(err, "relations")
@@ -741,7 +737,6 @@ func (i *importer) loadUnits() error {
 	}
 	i.applicationUnits = result
 	return nil
-
 }
 
 // makeStatusDoc assumes status is non-nil.
@@ -1142,6 +1137,81 @@ func (i *importer) unitStorageAttachmentCount(unit names.UnitTag) int {
 		}
 	}
 	return count
+}
+
+func (i *importer) remoteApplications() error {
+	i.logger.Debugf("importing remote applications")
+
+	for _, app := range i.model.RemoteApplications() {
+		if err := i.remoteApplication(app); err != nil {
+			i.logger.Errorf("error importing remote application %s: %s", app.Name(), err)
+			return errors.Annotate(err, app.Name())
+		}
+	}
+
+	i.logger.Debugf("importing remote applications succeeded")
+	return nil
+}
+
+func (i *importer) remoteApplication(app description.RemoteApplication) error {
+	remoteApplicationDoc := i.makeRemoteApplicationDoc(app)
+	ops := []txn.Op{
+		{
+			C:      remoteApplicationsC,
+			Id:     remoteApplicationDoc.Name,
+			Assert: txn.DocMissing,
+			Insert: remoteApplicationDoc,
+		},
+	}
+	if err := i.st.db().RunTransaction(ops); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func (i *importer) makeRemoteApplicationDoc(app description.RemoteApplication) *remoteApplicationDoc {
+	endpoints := app.Endpoints()
+	spaces := app.Spaces()
+	doc := &remoteApplicationDoc{
+		Name:      app.Name(),
+		OfferUUID: app.OfferUUID(),
+		URL:       app.URL(),
+		Endpoints: make([]remoteEndpointDoc, len(endpoints)),
+		Spaces:    make([]remoteSpaceDoc, len(spaces)),
+		Life:      Alive,
+	}
+	for i, ep := range endpoints {
+		doc.Endpoints[i] = remoteEndpointDoc{
+			Name:      ep.Name(),
+			Interface: ep.Interface(),
+			Role:      charm.RelationRole(ep.Role()),
+			//Limit:     ep.Limit(),
+			//Scope:     charm.RelationScope(ep.Scope()),
+		}
+	}
+	for i, sp := range spaces {
+		subnets := sp.Subnets()
+		doc.Spaces[i] = remoteSpaceDoc{
+			CloudType:          sp.CloudType(),
+			Name:               sp.Name(),
+			ProviderId:         sp.ProviderId(),
+			ProviderAttributes: sp.ProviderAttributes(),
+			Subnets:            make([]remoteSubnetDoc, len(subnets)),
+		}
+		// Import the subnets, even though it doesn't currently look like it's
+		// being used.
+		for k, sub := range subnets {
+			doc.Spaces[i].Subnets[k] = remoteSubnetDoc{
+				CIDR:              sub.CIDR(),
+				ProviderId:        sub.ProviderId(),
+				VLANTag:           sub.VLANTag(),
+				AvailabilityZones: sub.AvailabilityZones(),
+				ProviderSpaceId:   sub.ProviderSpaceId(),
+				ProviderNetworkId: sub.ProviderNetworkId(),
+			}
+		}
+	}
+	return doc
 }
 
 func (i *importer) relations() error {

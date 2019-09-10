@@ -1938,7 +1938,7 @@ func (s *MigrationImportSuite) TestRemoteApplications(c *gc.C) {
 	if err == nil {
 		defer newSt.Close()
 	}
-	c.Assert(err, gc.ErrorMatches, "can't import models with remote applications")
+	c.Assert(err, jc.ErrorIsNil)
 }
 
 func (s *MigrationImportSuite) TestApplicationsWithNilConfigValues(c *gc.C) {
