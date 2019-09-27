@@ -1,0 +1,82 @@
+name: "Client Tests"
+on: [push]
+jobs:
+
+  test-client-ubuntu:
+    name: "Client Tests: Ubuntu"
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo
+        ports:
+          - 27017:27017
+
+    steps:
+
+    - name: Set up Go 1.12
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.12
+      id: go
+
+    - name: Set GOPATH
+      # temporary fix
+      # see https://github.com/actions/setup-go/issues/14
+      run: |
+        echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
+        echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
+      shell: bash
+
+    - name: Check out code
+      uses: actions/checkout@v1
+      with:
+        path: src/github.com/juju/juju
+
+    - name: Install vendor dependencies
+      run: |
+        make dep
+      shell: bash
+
+    - name: Test client
+      run: |
+        go test -v ./cmd/... -check.v
+
+  test-client-macos:
+    name: "Client Tests: MacOS"
+    runs-on: macOS-latest
+
+    steps:
+
+    - name: Set up mongo
+      run: |
+        brew cask install mongodb
+      shell: bash
+
+    - name: Set up Go 1.12
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.12
+      id: go
+
+    - name: Set GOPATH
+      # temporary fix
+      # see https://github.com/actions/setup-go/issues/14
+      run: |
+        echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
+        echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
+      shell: bash
+
+    - name: Check out code
+      uses: actions/checkout@v1
+      with:
+        path: src/github.com/juju/juju
+
+    - name: Install vendor dependencies
+      run: |
+        make dep
+      shell: bash
+
+    - name: Test client
+      run: |
+        go test -v ./cmd/... -check.v
