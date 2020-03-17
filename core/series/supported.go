@@ -74,6 +74,8 @@ func (s *SupportedInfo) Compile(now time.Time) error {
 		s.values[seriesName] = SeriesVersion{
 			WorkloadType:             version.WorkloadType,
 			Version:                  version.Version,
+			Released:                 distroInfo.Released,
+			EOL:                      distroInfo.EOL,
 			LTS:                      version.LTS,
 			Supported:                supported,
 			ESMSupported:             version.ESMSupported,
@@ -83,6 +85,13 @@ func (s *SupportedInfo) Compile(now time.Time) error {
 	}
 
 	return nil
+}
+
+// SeriesVersion gets the underlying SeriesVersion.
+// If not found, then returning False for the bool.
+func (s *SupportedInfo) SeriesVersion(name string) (SeriesVersion, bool) {
+	version, ok := s.values[SeriesName(name)]
+	return version, ok
 }
 
 // ControllerSeries returns a slice of series that are supported to run on a
@@ -144,7 +153,9 @@ type SeriesVersion struct {
 	WorkloadType WorkloadType
 
 	// Version represents the version of the series.
-	Version string
+	Version  string
+	Released time.Time
+	EOL      time.Time
 
 	// LTS provides a lookup for a LTS series.  Like seriesVersions,
 	// the values here are current at the time of writing.
@@ -165,6 +176,31 @@ type SeriesVersion struct {
 	// by the local distro-info information on the system.
 	// This is useful to understand why a version appears yet is not supported.
 	UpdatedByLocalDistroInfo bool
+}
+
+// SeriesWindow represents if the series falls within or outside of the release
+// window.
+type SeriesWindow int
+
+const (
+	BeforeRelease SeriesWindow = iota
+	Supported
+	AfterEOL
+	Unknown
+)
+
+// SupportedWindow returns Before if the underlying series is before the
+// released window. Returns After if the series after the EOL and shows
+// Supported if it's in between the two.
+// It expects the time to be in UTC.
+func (v SeriesVersion) SupportedWindow(now time.Time) SeriesWindow {
+	if now.Before(v.Released.UTC()) {
+		return BeforeRelease
+	}
+	if now.After(v.EOL.UTC()) {
+		return AfterEOL
+	}
+	return Supported
 }
 
 // DefaultSeries returns back all the series that Juju is aware of.
@@ -207,40 +243,60 @@ const (
 	Focal   SeriesName = "focal"
 )
 
+func date(year, month, day int) time.Time {
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+}
+
 var ubuntuSeries = map[SeriesName]SeriesVersion{
 	Precise: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "12.04",
+		Released:     date(2012, 4, 26),
+		EOL:          date(2017, 4, 26),
 	},
 	Quantal: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "12.10",
+		Released:     date(2012, 10, 18),
+		EOL:          date(2014, 5, 16),
 	},
 	Raring: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "13.04",
+		Released:     date(2013, 04, 25),
+		EOL:          date(2014, 1, 27),
 	},
 	Saucy: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "13.10",
+		Released:     date(2013, 10, 17),
+		EOL:          date(2014, 7, 17),
 	},
 	Trusty: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "14.04",
 		LTS:          true,
 		ESMSupported: true,
+		Released:     date(2014, 4, 17),
+		EOL:          date(2019, 4, 25),
 	},
 	Utopic: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "14.10",
+		Released:     date(2014, 10, 23),
+		EOL:          date(2015, 7, 23),
 	},
 	Vivid: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "15.04",
+		Released:     date(2015, 4, 23),
+		EOL:          date(2016, 1, 23),
 	},
 	Wily: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "15.10",
+		Released:     date(2015, 10, 22),
+		EOL:          date(2016, 7, 22),
 	},
 	Xenial: {
 		WorkloadType: ControllerWorkloadType,
@@ -248,18 +304,26 @@ var ubuntuSeries = map[SeriesName]SeriesVersion{
 		LTS:          true,
 		Supported:    true,
 		ESMSupported: true,
+		Released:     date(2016, 4, 21),
+		EOL:          date(2021, 4, 21),
 	},
 	Yakkety: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "16.10",
+		Released:     date(2016, 10, 13),
+		EOL:          date(2017, 7, 20),
 	},
 	Zesty: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "17.04",
+		Released:     date(2017, 4, 13),
+		EOL:          date(2018, 1, 13),
 	},
 	Artful: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "17.10",
+		Released:     date(2017, 10, 19),
+		EOL:          date(2018, 7, 19),
 	},
 	Bionic: {
 		WorkloadType: ControllerWorkloadType,
@@ -267,19 +331,27 @@ var ubuntuSeries = map[SeriesName]SeriesVersion{
 		LTS:          true,
 		Supported:    true,
 		ESMSupported: true,
+		Released:     date(2018, 4, 26),
+		EOL:          date(2023, 4, 26),
 	},
 	Cosmic: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "18.10",
+		Released:     date(2018, 10, 18),
+		EOL:          date(2019, 7, 18),
 	},
 	Disco: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "19.04",
+		Released:     date(2019, 4, 18),
+		EOL:          date(2020, 1, 18),
 	},
 	Eoan: {
 		WorkloadType: ControllerWorkloadType,
 		Version:      "19.10",
 		Supported:    true,
+		Released:     date(2019, 10, 17),
+		EOL:          date(2020, 7, 17),
 	},
 	Focal: {
 		WorkloadType:           ControllerWorkloadType,
@@ -287,6 +359,8 @@ var ubuntuSeries = map[SeriesName]SeriesVersion{
 		LTS:                    true,
 		Supported:              true,
 		IgnoreDistroInfoUpdate: true,
+		Released:               date(2020, 4, 23),
+		EOL:                    date(2025, 4, 23),
 	},
 }
 
