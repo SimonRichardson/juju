@@ -420,21 +420,26 @@ var getBootstrapFuncs = func() BootstrapInterface {
 	return &bootstrapFuncs{}
 }
 
-var supportedJujuSeries = func(now time.Time) (set.Strings, error) {
+var supportedJujuSeries = func(now time.Time, bootstrapSeries string) (set.Strings, series.SeriesWindow, error) {
 	// We support all of the juju series AND all the ESM supported series.
 	// Juju is congruent with the Ubuntu release cycle for it's own series (not
 	// including centos and windows), so that should be reflected here.
 	//
 	// For non-LTS releases; they'll appear in juju/os as default available, but
 	// after reading the `/usr/share/distro-info/ubuntu.csv` on the Ubuntu distro
-	// the non-LTS should disapear if they're not in the release window for that
+	// the non-LTS should disappear if they're not in the release window for that
 	// series.
 	source := series.NewDistroInfo(series.UbuntuDistroInfo)
 	supported := series.NewSupportedInfo(source, series.DefaultSeries())
-	if err := supported.Compile(now); err != nil {
-		return nil, errors.Trace(err)
+	if err := supported.Compile(now.UTC()); err != nil {
+		return nil, series.Unknown, errors.Trace(err)
 	}
-	return set.NewStrings(supported.ControllerSeries()...), nil
+
+	controllerSeries := set.NewStrings(supported.ControllerSeries()...)
+	if version, ok := supported.SeriesVersion(bootstrapSeries); ok {
+		return controllerSeries, version.SupportedWindow(now.UTC()), nil
+	}
+	return controllerSeries, series.Unknown, nil
 }
 
 var (
@@ -688,9 +693,14 @@ to create a new model to deploy k8s workloads.
 	}()
 
 	// Get the supported bootstrap series.
-	supportedBootstrapSeries, err := supportedJujuSeries(c.clock.Now())
+	supportedBootstrapSeries, window, err := supportedJujuSeries(c.clock.Now(), c.BootstrapSeries)
 	if err != nil {
 		return errors.Annotate(err, "error reading supported bootstrap series")
+	}
+	if c.BootstrapSeries != "" && window == series.BeforeRelease {
+		if stream, ok := bootstrapCfg.bootstrapModel["image-stream"]; ok && stream == "released" {
+			ctx.Warningf("Bootstrap series %q is not yet supported, ensure you set image-stream config correctly.", c.BootstrapSeries)
+		}
 	}
 
 	bootstrapCtx := modelcmd.BootstrapContext(ctx)

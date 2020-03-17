@@ -38,6 +38,7 @@ import (
 	"github.com/juju/juju/core/constraints"
 	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/network"
+	coreseries "github.com/juju/juju/core/series"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/bootstrap"
 	"github.com/juju/juju/environs/config"
@@ -217,8 +218,8 @@ type bootstrapTest struct {
 func (s *BootstrapSuite) patchVersionAndSeries(c *gc.C, hostSeries string) {
 	resetJujuXDGDataHome(c)
 	s.PatchValue(&series.MustHostSeries, func() string { return hostSeries })
-	s.PatchValue(&supportedJujuSeries, func(time.Time) (set.Strings, error) {
-		return set.NewStrings(hostSeries).Union(defaultSupportedJujuSeries), nil
+	s.PatchValue(&supportedJujuSeries, func(time.Time, string) (set.Strings, coreseries.SeriesWindow, error) {
+		return set.NewStrings(hostSeries).Union(defaultSupportedJujuSeries), coreseries.Unknown, nil
 	})
 	s.patchVersion(c)
 }
@@ -1312,8 +1313,8 @@ func (s *BootstrapSuite) setupAutoUploadTest(c *gc.C, vers, ser string) {
 	// so we can test that an upload is forced.
 	s.PatchValue(&jujuversion.Current, version.MustParse(vers))
 	s.PatchValue(&series.MustHostSeries, func() string { return ser })
-	s.PatchValue(&supportedJujuSeries, func(time.Time) (set.Strings, error) {
-		return set.NewStrings(ser).Union(defaultSupportedJujuSeries), nil
+	s.PatchValue(&supportedJujuSeries, func(time.Time, string) (set.Strings, coreseries.SeriesWindow, error) {
+		return set.NewStrings(ser).Union(defaultSupportedJujuSeries), coreseries.Unknown, nil
 	})
 
 	// Create home with dummy provider and remove all

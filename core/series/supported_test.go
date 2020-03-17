@@ -5,6 +5,7 @@ package series
 
 import (
 	"sort"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/juju/clock"
@@ -230,4 +231,50 @@ func (s *SupportedSuite) TestCompileForWorkloads(c *gc.C) {
 	sort.Strings(ctrlSeries)
 
 	c.Assert(ctrlSeries, jc.DeepEquals, []string{"ctrl-supported", "ctrl-updated"})
+}
+
+func (s *SupportedSuite) TestSeriesVersionSupportedWindow(c *gc.C) {
+	now := clock.WallClock.Now()
+
+	tests := []struct {
+		Name     string
+		Released time.Time
+		EOL      time.Time
+		Now      time.Time
+		Expected SeriesWindow
+	}{
+		{
+			Name:     "within date range",
+			Released: now.AddDate(0, 0, -1),
+			EOL:      now.AddDate(0, 0, 1),
+			Now:      now,
+			Expected: Supported,
+		},
+		{
+			Name:     "before date range",
+			Released: now.AddDate(0, 0, -1),
+			EOL:      now.AddDate(0, 0, 1),
+			Now:      now.AddDate(0, 0, -2),
+			Expected: BeforeRelease,
+		},
+		{
+			Name:     "after date range",
+			Released: now.AddDate(0, 0, -1),
+			EOL:      now.AddDate(0, 0, 1),
+			Now:      now.AddDate(0, 0, 2),
+			Expected: AfterEOL,
+		},
+	}
+
+	for i, test := range tests {
+		c.Logf("test %d %s", i, test.Name)
+
+		version := SeriesVersion{
+			Released: test.Released,
+			EOL:      test.EOL,
+		}
+
+		supported := version.SupportedWindow(test.Now.UTC())
+		c.Assert(supported, gc.Equals, test.Expected)
+	}
 }
