@@ -7,6 +7,7 @@ import (
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 	"github.com/juju/gnuflag"
+	"gopkg.in/yaml.v2"
 
 	"github.com/juju/juju/api/charmhub"
 	jujucmd "github.com/juju/juju/cmd"
@@ -85,7 +86,18 @@ func (c *infoCommand) Run(ctx *cmd.Context) error {
 	}
 	defer func() { _ = client.Close() }()
 
-	return errors.NotImplementedf("business logic of info command")
+	info, err := client.Info(c.charmOrBundle)
+	if err != nil {
+		return err
+	}
+
+	encoder := yaml.NewEncoder(ctx.Stdout)
+	defer encoder.Close()
+	err = encoder.Encode(info)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
 func (c *infoCommand) validateCharmOrBundle(_ string) error {

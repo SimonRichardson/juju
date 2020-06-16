@@ -3,6 +3,8 @@
 
 package params
 
+import "github.com/juju/juju/charmhub"
+
 // ApplicationCharmResults contains a set of ApplicationCharmResults.
 type ApplicationCharmResults struct {
 	Results []ApplicationCharmResult `json:"results"`
@@ -196,4 +198,13 @@ type ContainerProfileResult struct {
 // on the container.
 type ContainerProfileResults struct {
 	Results []ContainerProfileResult `json:"results"`
+}
+
+type CharmHubCharmInfoResult struct {
+	Result    charmhub.InfoResponse  `json:"result"`
+	ErrorList charmhub.ErrorResponse `json:"error-list"`
+	//Type    string `json:"type"`
+	//ID      string `json:"id"`
+	//Name    string `json:"name"`
+	//Summary string `json:"summary"`
 }
