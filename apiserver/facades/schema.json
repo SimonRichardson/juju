@@ -9223,6 +9223,305 @@
         }
     },
     {
+        "Name": "CharmHub",
+        "Description": "API provides the charmhub API facade for version 1.",
+        "Version": 1,
+        "AvailableTo": [
+            "model-user"
+        ],
+        "Schema": {
+            "type": "object",
+            "properties": {
+                "Info": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/EntityString"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/CharmHubCharmInfoResult"
+                        }
+                    }
+                }
+            },
+            "definitions": {
+                "Category": {
+                    "type": "object",
+                    "properties": {
+                        "featured": {
+                            "type": "boolean"
+                        },
+                        "name": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "featured",
+                        "name"
+                    ]
+                },
+                "Channel": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "platform": {
+                            "$ref": "#/definitions/Platform"
+                        },
+                        "released-at": {
+                            "type": "string"
+                        },
+                        "risk": {
+                            "type": "string"
+                        },
+                        "track": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "name",
+                        "platform",
+                        "released-at",
+                        "risk",
+                        "track"
+                    ]
+                },
+                "ChannelMap": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {
+                            "$ref": "#/definitions/Channel"
+                        },
+                        "revision": {
+                            "$ref": "#/definitions/Revision"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "Charm": {
+                    "type": "object",
+                    "properties": {
+                        "categories": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/Category"
+                            }
+                        },
+                        "description": {
+                            "type": "string"
+                        },
+                        "license": {
+                            "type": "string"
+                        },
+                        "publisher": {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "summary": {
+                            "type": "string"
+                        },
+                        "used-by": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "categories",
+                        "description",
+                        "license",
+                        "publisher",
+                        "summary",
+                        "used-by"
+                    ]
+                },
+                "CharmHubCharmInfoResult": {
+                    "type": "object",
+                    "properties": {
+                        "error-list": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        },
+                        "result": {
+                            "$ref": "#/definitions/InfoResponse"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "result",
+                        "error-list"
+                    ]
+                },
+                "Download": {
+                    "type": "object",
+                    "properties": {
+                        "hash-sha-265": {
+                            "type": "string"
+                        },
+                        "size": {
+                            "type": "integer"
+                        },
+                        "url": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "hash-sha-265",
+                        "size",
+                        "url"
+                    ]
+                },
+                "EntityString": {
+                    "type": "object",
+                    "properties": {
+                        "tag": {
+                            "type": "string"
+                        },
+                        "value": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "tag",
+                        "value"
+                    ]
+                },
+                "Error": {
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "code",
+                        "message"
+                    ]
+                },
+                "ErrorResponse": {
+                    "type": "object",
+                    "properties": {
+                        "error-list": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/Error"
+                            }
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "error-list"
+                    ]
+                },
+                "InfoResponse": {
+                    "type": "object",
+                    "properties": {
+                        "channel-map": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ChannelMap"
+                            }
+                        },
+                        "charm": {
+                            "$ref": "#/definitions/Charm"
+                        },
+                        "default-release": {
+                            "$ref": "#/definitions/ChannelMap"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "type": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "type",
+                        "id",
+                        "name"
+                    ]
+                },
+                "Platform": {
+                    "type": "object",
+                    "properties": {
+                        "architecture": {
+                            "type": "string"
+                        },
+                        "os": {
+                            "type": "string"
+                        },
+                        "series": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "architecture",
+                        "os",
+                        "series"
+                    ]
+                },
+                "Revision": {
+                    "type": "object",
+                    "properties": {
+                        "config-yaml": {
+                            "type": "string"
+                        },
+                        "created-at": {
+                            "type": "string"
+                        },
+                        "download": {
+                            "$ref": "#/definitions/Download"
+                        },
+                        "metadata-yaml": {
+                            "type": "string"
+                        },
+                        "platforms": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/Platform"
+                            }
+                        },
+                        "revision": {
+                            "type": "integer"
+                        },
+                        "version": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "config-yaml",
+                        "created-at",
+                        "download",
+                        "metadata-yaml",
+                        "platforms",
+                        "revision",
+                        "version"
+                    ]
+                }
+            }
+        }
+    },
+    {
         "Name": "CharmRevisionUpdater",
         "Description": "CharmRevisionUpdaterAPI implements the CharmRevisionUpdater interface and is the concrete\nimplementation of the api end point.",
         "Version": 2,

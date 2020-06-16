@@ -260,17 +260,11 @@ var logger = loggo.GetLogger("juju.charmhub")
 //Supports the following optional query params:
 //
 //fields: A comma separated list of field names to include in the response. Optional. The following are always returned: type, id, name. Possible field names are in the successful response description below.
-func (c *Client) Info(name string) (corecharmhub.CharmInfo, error) {
+func (c *Client) Info(name string) (corecharmhub.InfoResponse, error) {
 	infoURL := "/info/" + name
 	logger.Criticalf("Info(%s): %s", name, infoURL)
-	resp := InfoResponse{}
+	resp := corecharmhub.InfoResponse{}
 	err := c.get(infoURL, &resp)
 	logger.Criticalf("Info(%s): %s", name, spew.Sdump(resp))
-	info := corecharmhub.CharmInfo{
-		Type:    resp.Type,
-		ID:      resp.ID,
-		Name:    resp.Name,
-		Summary: resp.Charm.Summary,
-	}
-	return info, err
+	return resp, err
 }

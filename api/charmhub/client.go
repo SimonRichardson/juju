@@ -28,12 +28,11 @@ func NewClient(st base.APICallCloser) *Client {
 	}
 }
 
-func (c *Client) Info(name string) (*charmhub.CharmInfo, error) {
+func (c *Client) Info(name string) (charmhub.InfoResponse, error) {
 	args := params.EntityString{Value: name}
-	var info params.CharmHubCharmInfoResult
-	if err := c.facade.FacadeCall("Info", args, &info); err != nil {
-		return nil, errors.Trace(err)
+	var result params.CharmHubCharmInfoResult
+	if err := c.facade.FacadeCall("Info", args, &result); err != nil {
+		return charmhub.InfoResponse{}, errors.Trace(err)
 	}
-	chInfo := charmhub.CharmInfo(info)
-	return &chInfo, nil
+	return result.Result, nil
 }
