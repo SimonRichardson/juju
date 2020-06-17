@@ -1,6 +1,18 @@
 // Copyright 2020 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
+// CharmHub is a client for communication with charmhub.  Unlike
+// the charmstore client within juju, this package does not rely on
+// wrapping an external package client. Generic client code for this
+// package has been copied from "github.com/juju/charmrepo/v5/csclient".
+//
+// TODO: (hml) 2020-06-17
+// Implement:
+// - use of macaroons, at that time consider refactoring the local
+//   charmstore pkg to share macaroonJar.
+// - user/password ?
+// - allow for use of the channel pieces
+
 package charmhub
 
 import (
@@ -22,10 +34,11 @@ import (
 	corecharmhub "github.com/juju/juju/core/charmhub"
 )
 
+var logger = loggo.GetLogger("juju.charmhub")
+
 // ServerURL holds the default location of the global charm hub.
-// An alternate location can be configured by changing the URL field in the
-// Params struct.
-// https://api.snapcraft.io/charms/v5
+// An alternate location can be configured by changing the URL
+// field in the Params struct.
 var (
 	ServerURL = "https://api.snapcraft.io/"
 )
@@ -249,17 +262,7 @@ func (c *Client) get(path string, result interface{}) error {
 	return nil
 }
 
-var logger = loggo.GetLogger("juju.charmhub")
-
-//Summary: GET /v2/charms/info/<name>
-//
-//"Get charm info" handler.
-//
-//Given a name, return the details of the corresponding charm or bundle, and its released revisions.
-//
-//Supports the following optional query params:
-//
-//fields: A comma separated list of field names to include in the response. Optional. The following are always returned: type, id, name. Possible field names are in the successful response description below.
+// Info returns charm info on the provided charm name from charmhub.
 func (c *Client) Info(name string) (corecharmhub.InfoResponse, error) {
 	infoURL := "/info/" + name
 	logger.Criticalf("Info(%s): %s", name, infoURL)

@@ -91,6 +91,10 @@ func (c *infoCommand) Run(ctx *cmd.Context) error {
 		return err
 	}
 
+	// TODO: (hml) 2020-06-17
+	// Format display properly.  What data should be given as a
+	// default, and what should be provided with additional formatting
+	// like with juju status --format yaml.
 	encoder := yaml.NewEncoder(ctx.Stdout)
 	defer encoder.Close()
 	err = encoder.Encode(info)

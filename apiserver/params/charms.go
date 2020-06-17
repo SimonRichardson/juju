@@ -200,6 +200,8 @@ type ContainerProfileResults struct {
 	Results []ContainerProfileResult `json:"results"`
 }
 
+// TODO (hml) 2020-06-17
+// Create actual params.InfoResponse and params.ErrorResponse structs for use here.
 type CharmHubCharmInfoResult struct {
 	Result    charmhub.InfoResponse  `json:"result"`
 	ErrorList charmhub.ErrorResponse `json:"error-list"`
