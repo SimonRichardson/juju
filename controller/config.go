@@ -19,6 +19,7 @@ import (
 	"gopkg.in/juju/environschema.v1"
 	"gopkg.in/macaroon-bakery.v2/bakery"
 
+	"github.com/juju/juju/charmhub"
 	"github.com/juju/juju/core/resources"
 	"github.com/juju/juju/pki"
 )
@@ -98,6 +99,9 @@ const (
 
 	// CharmStoreURL is the key for the url to use for charmstore API calls
 	CharmStoreURL = "charmstore-url"
+
+	// CharmhubURL is the key for the url to use for charmhub API calls
+	CharmhubURL = "charmhub-url"
 
 	// ControllerUUIDKey is the key for the controller UUID attribute.
 	ControllerUUIDKey = "controller-uuid"
@@ -329,6 +333,7 @@ var (
 		AutocertURLKey,
 		CACertKey,
 		CharmStoreURL,
+		CharmhubURL,
 		ControllerAPIPort,
 		ControllerName,
 		ControllerUUIDKey,
@@ -638,6 +643,15 @@ func (c Config) CharmStoreURL() string {
 	url := c.asString(CharmStoreURL)
 	if url == "" {
 		return csclient.ServerURL
+	}
+	return url
+}
+
+// CharmhubURL returns the URL to use for charmhub api calls.
+func (c Config) CharmhubURL() string {
+	url := c.asString(CharmhubURL)
+	if url == "" {
+		return charmhub.CharmhubServerURL
 	}
 	return url
 }
@@ -1046,6 +1060,12 @@ func Validate(c Config) error {
 		return errors.Errorf("invalid max charm/agent state sizes: combined value should not exceed mongo's 16M per-document limit, got %d", maxUnitStateSize)
 	}
 
+	if v, ok := c[CharmhubURL].(string); ok && v != "" {
+		if _, err := url.Parse(v); err != nil {
+			return errors.NotValidf("charmhub url %q", v)
+		}
+	}
+
 	return nil
 }
 
@@ -1134,6 +1154,7 @@ var configChecker = schema.FieldMap(schema.Fields{
 	CAASImageRepo:            schema.String(),
 	Features:                 schema.List(schema.String()),
 	CharmStoreURL:            schema.String(),
+	CharmhubURL:              schema.String(),
 	MeteringURL:              schema.String(),
 	MaxCharmStateSize:        schema.ForceInt(),
 	MaxAgentStateSize:        schema.ForceInt(),
@@ -1174,6 +1195,7 @@ var configChecker = schema.FieldMap(schema.Fields{
 	CAASImageRepo:            schema.Omit,
 	Features:                 schema.Omit,
 	CharmStoreURL:            csclient.ServerURL,
+	CharmhubURL:              charmhub.CharmhubServerURL,
 	MeteringURL:              romulus.DefaultAPIRoot,
 	MaxCharmStateSize:        DefaultMaxCharmStateSize,
 	MaxAgentStateSize:        DefaultMaxAgentStateSize,
@@ -1329,6 +1351,10 @@ Use "caas-image-repo" instead.`,
 	CharmStoreURL: {
 		Type:        environschema.Tstring,
 		Description: `The url for charmstore API calls`,
+	},
+	CharmhubURL: {
+		Type:        environschema.Tstring,
+		Description: `The url for charmhub API calls`,
 	},
 	MeteringURL: {
 		Type:        environschema.Tstring,

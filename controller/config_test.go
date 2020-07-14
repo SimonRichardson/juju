@@ -14,6 +14,7 @@ import (
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
+	"github.com/juju/juju/charmhub"
 	"github.com/juju/juju/controller"
 	"github.com/juju/juju/testing"
 )
@@ -339,7 +340,13 @@ var newConfigTests = []struct {
 		controller.NonSyncedWritesToRaftLog: "I live dangerously",
 	},
 	expectError: `non-synced-writes-to-raft-log: expected bool, got string\("I live dangerously"\)`,
-}, {}}
+}, {
+	about: "invalid charmhub url - string",
+	config: controller.Config{
+		controller.CharmhubURL: "http:// api.com",
+	},
+	expectError: `charmhub url "http:// api.com" not valid`,
+}}
 
 func (s *ConfigSuite) TestNewConfig(c *gc.C) {
 	for i, test := range newConfigTests {
@@ -596,6 +603,42 @@ func (s *ConfigSuite) TestCharmstoreURLDefault(c *gc.C) {
 	c.Check(cfg.CharmStoreURL(), gc.Equals, csclient.ServerURL)
 }
 
+func (s *ConfigSuite) TestCharmstoreURLSettingValue(c *gc.C) {
+	csURL := "http://homestarrunner.com/charmstore"
+	cfg, err := controller.NewConfig(
+		testing.ControllerTag.Id(),
+		testing.CACert,
+		map[string]interface{}{
+			controller.CharmStoreURL: csURL,
+		},
+	)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(cfg.CharmStoreURL(), gc.Equals, csURL)
+}
+
+func (s *ConfigSuite) TestCharmhubURLDefault(c *gc.C) {
+	cfg, err := controller.NewConfig(
+		testing.ControllerTag.Id(),
+		testing.CACert,
+		map[string]interface{}{},
+	)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Check(cfg.CharmhubURL(), gc.Equals, charmhub.CharmhubServerURL)
+}
+
+func (s *ConfigSuite) TestCharmhubURLSettingValue(c *gc.C) {
+	chURL := "http://homestarrunner.com/charmhub"
+	cfg, err := controller.NewConfig(
+		testing.ControllerTag.Id(),
+		testing.CACert,
+		map[string]interface{}{
+			controller.CharmStoreURL: chURL,
+		},
+	)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Check(cfg.CharmhubURL(), gc.Equals, chURL)
+}
+
 func (s *ConfigSuite) TestControllerNameDefault(c *gc.C) {
 	cfg := controller.Config{}
 	c.Check(cfg.ControllerName(), gc.Equals, "")
@@ -611,19 +654,6 @@ func (s *ConfigSuite) TestControllerNameSetGet(c *gc.C) {
 	)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Check(cfg.ControllerName(), gc.Equals, "test")
-}
-
-func (s *ConfigSuite) TestCharmstoreURLSettingValue(c *gc.C) {
-	csURL := "http://homestarrunner.com/charmstore"
-	cfg, err := controller.NewConfig(
-		testing.ControllerTag.Id(),
-		testing.CACert,
-		map[string]interface{}{
-			controller.CharmStoreURL: csURL,
-		},
-	)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(cfg.CharmStoreURL(), gc.Equals, csURL)
 }
 
 func (s *ConfigSuite) TestMeteringURLDefault(c *gc.C) {

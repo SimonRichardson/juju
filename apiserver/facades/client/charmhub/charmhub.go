@@ -36,11 +36,18 @@ type CharmHubAPI struct {
 
 // NewFacade creates a new CharmHubAPI facade.
 func NewFacade(ctx facade.Context) (*CharmHubAPI, error) {
-	auth := ctx.Auth()
-	client, err := charmhub.NewClient(charmhub.CharmhubConfig())
+	ctrlConfig, err := ctx.State().ControllerConfig()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+
+	config := charmhub.CharmhubConfigFromURL(ctrlConfig.CharmStoreURL())
+	client, err := charmhub.NewClient(config)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	auth := ctx.Auth()
 	return newCharmHubAPI(auth, client)
 }
 
