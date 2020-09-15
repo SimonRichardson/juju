@@ -12,9 +12,11 @@ import (
 	csparams "github.com/juju/charmrepo/v6/csclient/params"
 	jujuclock "github.com/juju/clock"
 	"github.com/juju/errors"
+	"github.com/juju/featureflag"
 
 	"github.com/juju/juju/cmd/juju/application/store"
 	"github.com/juju/juju/cmd/juju/application/utils"
+	"github.com/juju/juju/feature"
 )
 
 // ErrExhausted reveals if a refresher was exhausted in it's task. If so, then
@@ -40,23 +42,22 @@ type RefresherConfig struct {
 	ForceSeries     bool
 }
 
+type RefresherFn = func(RefresherConfig) (Refresher, error)
+
 type factory struct {
-	authorizer    store.MacaroonGetter
-	charmAdder    store.CharmAdder
-	charmRepo     CharmRepo
-	charmResolver CharmResolver
-	clock         jujuclock.Clock
+	refreshers []RefresherFn
+	clock      jujuclock.Clock
 }
 
 // NewRefresherFactory returns a factory setup with the API and
 // function dependencies required by every refresher.
 func NewRefresherFactory(deps RefresherDependencies) RefresherFactory {
 	d := &factory{
-		authorizer:    deps.Authorizer,
-		charmAdder:    deps.CharmAdder,
-		charmResolver: deps.CharmResolver,
-		charmRepo:     defaultCharmRepo{},
-		clock:         jujuclock.WallClock,
+		clock: jujuclock.WallClock,
+	}
+	d.refreshers = []RefresherFn{
+		d.maybeReadLocal(deps.CharmAdder, defaultCharmRepo{}),
+		d.maybeCharmStore(deps.Authorizer, deps.CharmAdder, deps.CharmResolver),
 	}
 	return d
 }
@@ -64,16 +65,19 @@ func NewRefresherFactory(deps RefresherDependencies) RefresherFactory {
 // GetRefresher returns the correct deployer to use based on the cfg provided.
 // A ModelConfigGetter and CharmStoreAdaptor needed to find the deployer.
 func (d *factory) Run(cfg RefresherConfig) (*CharmID, error) {
-	refreshers := []func(RefresherConfig) (Refresher, error){
-		d.maybeReadLocal(d.charmAdder, d.charmRepo),
-		d.maybeCharmStore(d.authorizer, d.charmAdder, d.charmResolver),
-	}
-	for _, d := range refreshers {
+	for _, fn := range d.refreshers {
 		// Failure to correctly setup a refresher will call all of the
 		// refreshers to fail.
-		refresh, err := d(cfg)
+		refresh, err := fn(cfg)
 		if err != nil {
 			return nil, errors.Trace(err)
+		}
+		// If a refresher doesn't allow the config, then continue to the next
+		// one.
+		if allowed, err := refresh.Allowed(cfg); err != nil {
+			return nil, errors.Trace(err)
+		} else if !allowed {
+			continue
 		}
 
 		charmID, err := refresh.Refresh()
@@ -130,6 +134,11 @@ type localCharmRefresher struct {
 	forceSeries    bool
 }
 
+func (d *localCharmRefresher) Allowed(cfg RefresherConfig) (bool, error) {
+	// We should always return true here, because of the current design.
+	return true, nil
+}
+
 func (d *localCharmRefresher) Refresh() (*CharmID, error) {
 	ch, newURL, err := d.charmRepo.NewCharmAtPathForceSeries(d.charmRef, d.deployedSeries, d.forceSeries)
 	if err == nil {
@@ -173,6 +182,27 @@ type charmStoreRefresher struct {
 	deployedSeries string
 	force          bool
 	forceSeries    bool
+}
+
+func (r *charmStoreRefresher) Allowed(cfg RefresherConfig) (bool, error) {
+	// If we're a charm hub charm reference, then skip the charm store and
+	// move onto the next
+	if featureflag.Enabled(feature.CharmHubIntegration) {
+		path, err := charm.EnsureSchema(cfg.CharmRef)
+		if err != nil {
+			return false, errors.Trace(err)
+		}
+
+		curl, err := charm.ParseURL(path)
+		if err != nil {
+			return false, errors.Trace(err)
+		}
+
+		if charm.CharmHub.Matches(curl.Schema) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (r *charmStoreRefresher) Refresh() (*CharmID, error) {
