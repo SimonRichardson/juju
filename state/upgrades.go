@@ -5,6 +5,7 @@ package state
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -3287,4 +3288,93 @@ func RemoveUnusedLinkLayerDeviceProviderIDs(pool *StatePool) error {
 
 	logger.Infof("deleted %d unused link-layer device provider IDs", before-after)
 	return nil
+}
+
+// AddDefaultArchitectureToModelConfig inserts the default-architecture into the
+// model-config if it's missing one. To ensure we have a good representation
+// of the correct architecture we query the units for their existing architecture
+// and get a quorum, if it's a split quorum, we'll use the controller as the
+// deciding factor.
+func AddDefaultArchitectureToModelConfig(pool *StatePool) error {
+	st := pool.SystemState()
+	return errors.Trace(applyToAllModelSettings(st, func(doc *settingsDoc) (bool, error) {
+		value, keySet := doc.Settings[config.DefaultArchitectureKey]
+		if keySet || value != "" {
+			return false, nil
+		}
+
+		type machine struct {
+			DocID string `bson:"_id"`
+			ID    string `bson:"machineid"`
+		}
+
+		col, closer := st.db().GetCollection(machinesC)
+		defer closer()
+
+		var err error
+		var machines []machine
+		if err = col.Find(nil).All(&machines); err != nil {
+			return false, errors.Trace(err)
+		}
+
+		arches := make(map[string]int)
+		for _, machine := range machines {
+			instData, err := getInstanceData(st, machine.DocID)
+			if err != nil {
+				return false, errors.Trace(err)
+			}
+
+			if instData.Arch == nil {
+				continue
+			}
+
+			arches[*instData.Arch]++
+		}
+
+		// We don't have any arches, so the only sane thing we can do is to
+		// fallback to the default architecture.
+		if num := len(arches); num < 0 {
+			doc.Settings[config.DefaultArchitectureKey] = config.DefaultArchitecture
+			return true, nil
+		} else if num == 1 {
+			// If we have one architecture and it doesn't equal an empty string,
+			// then use that as the default architecture otherwise fallback
+			// to the default architecture.
+			arch := config.DefaultArchitecture
+			for a := range arches {
+				if a != "" {
+					arch = a
+				}
+				break
+			}
+			doc.Settings[config.DefaultArchitectureKey] = arch
+			return true, nil
+		}
+
+		// We have multiple architectures here and we need to resolve them
+		// to gain some quorum and set that. If there is a split decision then
+		// we need to somehow decide what to use.
+
+		type archCount struct {
+			Arch  string
+			Count int
+		}
+
+		var values []archCount
+		for arch, count := range arches {
+			values = append(values, archCount{
+				Arch:  arch,
+				Count: count,
+			})
+		}
+
+		sort.Slice(values, func(i, j int) bool {
+			if values[i].Arch == values[j].Arch {
+				return values[i].Arch < values[j].Arch
+			}
+			return values[i].Count < values[j].Count
+		})
+
+		return false, nil
+	}))
 }

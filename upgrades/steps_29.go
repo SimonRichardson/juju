@@ -54,6 +54,13 @@ func stateStepsFor29() []Step {
 				return context.State().RemoveLinkLayerDevicesRefsCollection()
 			},
 		},
+		&upgradeStep{
+			description: "add default-architecture to model config",
+			targets:     []Target{DatabaseMaster},
+			run: func(context Context) error {
+				return context.State().AddDefaultArchitectureToModelConfig()
+			},
+		},
 	}
 }
 
