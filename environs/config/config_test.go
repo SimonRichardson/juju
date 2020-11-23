@@ -55,6 +55,7 @@ var sampleConfig = testing.Attrs{
 	"ssl-hostname-verification":  true,
 	"development":                false,
 	"default-series":             jujuversion.DefaultSupportedLTS(),
+	"default-architecture":       config.DefaultArchitecture,
 	"disable-network-management": false,
 	"ignore-machine-addresses":   false,
 	"automatically-retry-hooks":  true,
@@ -395,6 +396,7 @@ var configTests = []configTest{
 			"authorized-keys":            "ssh-rsa mykeys rog@rog-x220\n",
 			"region":                     "us-east-1",
 			"default-series":             "precise",
+			"default-architecture":       config.DefaultArchitecture,
 			"secret-key":                 "a-secret-key",
 			"access-key":                 "an-access-key",
 			"agent-version":              "1.13.2",
@@ -672,6 +674,14 @@ func (test configTest) check(c *gc.C, home *gitjujutesting.FakeHome) {
 		c.Assert(defaultSeries, gc.Equals, seriesAttr)
 	} else {
 		c.Assert(defaultSeries, gc.Equals, jujuversion.DefaultSupportedLTS())
+	}
+
+	archAttr, _ := test.attrs["default-architecture"].(string)
+	defaultArch := cfg.DefaultArchitecture()
+	if archAttr != "" {
+		c.Assert(defaultArch, gc.Equals, archAttr)
+	} else {
+		c.Assert(defaultArch, gc.Equals, config.DefaultArchitecture)
 	}
 
 	if m, _ := test.attrs["firewall-mode"].(string); m != "" {

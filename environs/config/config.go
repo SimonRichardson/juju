@@ -250,6 +250,10 @@ const (
 	// endpoint bindings.
 	DefaultSpace = "default-space"
 
+	// DefaultArchitectureKey is the key to identify which architecture to use
+	// when non is set.
+	DefaultArchitectureKey = "default-architecture"
+
 	// LXDSnapChannel selects the channel to use when installing LXD from a snap.
 	LXDSnapChannel = "lxd-snap-channel"
 
@@ -448,6 +452,10 @@ const (
 
 	// DefaultActionResultsSize is the default size of the action results.
 	DefaultActionResultsSize = "5G"
+
+	// DefaultArchitecture is the default architecture if non is
+	// specified.
+	DefaultArchitecture = "amd64"
 )
 
 var defaultConfigValues = map[string]interface{}{
@@ -479,6 +487,7 @@ var defaultConfigValues = map[string]interface{}{
 	ContainerNetworkingMethod:  "",
 
 	"default-series":              jujuversion.DefaultSupportedLTS(),
+	DefaultArchitectureKey:        DefaultArchitecture,
 	ProvisionerHarvestModeKey:     HarvestDestroyed.String(),
 	ResourceTagsKey:               "",
 	"logging-config":              "",
@@ -897,13 +906,21 @@ func (c *Config) validateDefaultSpace() error {
 	return nil
 }
 
-// DefaultSpace returns the default-space for unspecified default endpoint bindings.
+// DefaultSpace returns the default-space for unspecified default endpoint
+// bindings.
 func (c *Config) DefaultSpace() string {
 	return c.asString(DefaultSpace)
 }
 
-// DefaultSeries returns the configured default Ubuntu series for the environment,
-// and whether the default series was explicitly configured on the environment.
+// DefaultArchitecture returns the default-architecture for unspecified default
+// architectures when deploying a charm.
+func (c *Config) DefaultArchitecture() string {
+	return c.getWithFallback(DefaultArchitectureKey, DefaultArchitecture)
+}
+
+// DefaultSeries returns the configured default Ubuntu series for the
+// environment, and whether the default series was explicitly configured on the
+// environment.
 func (c *Config) DefaultSeries() (string, bool) {
 	s, ok := c.defined["default-series"]
 	if !ok {
@@ -1026,13 +1043,16 @@ func (c *Config) JujuNoProxy() string {
 	return c.asString(JujuNoProxyKey)
 }
 
-func (c *Config) getWithFallback(key, fallback1, fallback2 string) string {
+func (c *Config) getWithFallback(key string, fallbacks ...string) string {
 	value := c.asString(key)
-	if value == "" {
-		value = c.asString(fallback1)
+	if value != "" {
+		return value
 	}
-	if value == "" {
-		value = c.asString(fallback2)
+
+	for _, fallback := range fallbacks {
+		if value = c.asString(fallback); value != "" {
+			break
+		}
 	}
 	return value
 }
@@ -1637,6 +1657,7 @@ var alwaysOptional = schema.Defaults{
 	ContainerImageStreamKey:       schema.Omit,
 	ContainerImageMetadataURLKey:  schema.Omit,
 	"default-series":              schema.Omit,
+	DefaultArchitectureKey:        schema.Omit,
 	"development":                 schema.Omit,
 	"ssl-hostname-verification":   schema.Omit,
 	"proxy-ssh":                   schema.Omit,
@@ -1869,6 +1890,11 @@ var configSchema = environschema.Fields{
 	},
 	"default-series": {
 		Description: "The default series of Ubuntu to use for deploying charms",
+		Type:        environschema.Tstring,
+		Group:       environschema.EnvironGroup,
+	},
+	DefaultArchitectureKey: {
+		Description: "The default architecture to use for deploy charms",
 		Type:        environschema.Tstring,
 		Group:       environschema.EnvironGroup,
 	},
