@@ -136,7 +136,43 @@ show_help() {
 	exit 1
 }
 
-while getopts "hH?vAs:a:x:rl:p:S:" opt; do
+PROMPT_SKIP=true
+
+function prompt {
+  if [[ "$PROMPT_SKIP" == true ]]; then
+    return
+  fi
+
+  if [[ -n "$BASH_COMMAND" ]]; then
+    # Show the command in green with a simple -> prompt
+    echo -n -e "-> \x1B[0;32m"
+    echo -n $BASH_COMMAND
+    echo -e "\x1B[0m"
+
+    # Loop user input until a valid answer comes
+    while true; do
+      # Ask for only a single character of input, so the user does not need to type an extra enter
+      read -n1 -s -p "Run command? [Y/n] "
+      echo
+
+      case "$REPLY" in
+        "y" | "Y" )
+          break
+          ;;
+        "n" | "N" )
+          # Bright red indication that that script stopped
+          echo -e "\x1B[1;31mStopped!\x1B[0m"
+          exit 1
+          ;;
+        * )
+          echo "Please answer by typing n (for no), y (for yes), or Enter (also for yes)"
+          ;;
+      esac
+    done
+  fi
+}
+
+while getopts "hH?vdAs:a:x:rl:p:S:" opt; do
 	case "${opt}" in
 	h | \?)
 		show_help
@@ -147,6 +183,10 @@ while getopts "hH?vAs:a:x:rl:p:S:" opt; do
 	v)
 		VERBOSE=2
 		alias juju="juju --debug"
+		;;
+	d)
+		set -o functrace
+		trap prompt DEBUG
 		;;
 	A)
 		RUN_ALL="true"
@@ -289,6 +329,7 @@ run_test() {
 	# shellcheck disable=SC2046,SC2086
 	echo "==> TEST BEGIN: ${TEST_CURRENT_DESCRIPTION} ($(green $(basename ${TEST_DIR})))"
 	START_TIME=$(date +%s)
+	PROMPT_SKIP=false
 	${TEST_CURRENT}
 	END_TIME=$(date +%s)
 
