@@ -5,6 +5,7 @@ package stateauthenticator_test
 
 import (
 	"context"
+	"github.com/golang/mock/gomock"
 
 	"github.com/juju/clock"
 	"github.com/juju/names/v4"
@@ -23,13 +24,19 @@ import (
 type agentAuthenticatorSuite struct {
 	statetesting.StateSuite
 	authenticator *stateauthenticator.Authenticator
+	cc            *MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&agentAuthenticatorSuite{})
 
 func (s *agentAuthenticatorSuite) SetUpTest(c *gc.C) {
 	s.StateSuite.SetUpTest(c)
-	authenticator, err := stateauthenticator.NewAuthenticator(s.StatePool, clock.WallClock)
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = NewMockControllerConfigGetter(ctrl)
+
+	authenticator, err := stateauthenticator.NewAuthenticator(s.StatePool, clock.WallClock, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	s.authenticator = authenticator
 }

@@ -4,6 +4,8 @@
 package upgrader
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
@@ -12,6 +14,7 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
@@ -19,6 +22,10 @@ import (
 	"github.com/juju/juju/state/watcher"
 	jujuversion "github.com/juju/juju/version"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 type Upgrader interface {
 	WatchAPIVersion(args params.Entities) (params.NotifyWatchResults, error)
@@ -37,6 +44,7 @@ type UpgraderAPI struct {
 	resources  facade.Resources
 	authorizer facade.Authorizer
 	logger     loggo.Logger
+	cc         ControllerConfigGetter
 }
 
 // NewUpgraderAPI creates a new server-side UpgraderAPI facade.
@@ -46,6 +54,7 @@ func NewUpgraderAPI(
 	resources facade.Resources,
 	authorizer facade.Authorizer,
 	logger loggo.Logger,
+	cc ControllerConfigGetter,
 ) (*UpgraderAPI, error) {
 	if !authorizer.AuthMachineAgent() && !authorizer.AuthApplicationAgent() && !authorizer.AuthModelAgent() && !authorizer.AuthUnitAgent() {
 		return nil, apiservererrors.ErrPerm
@@ -62,7 +71,7 @@ func NewUpgraderAPI(
 	newEnviron := common.EnvironFuncForModel(model, configGetter)
 	toolsFinder := common.NewToolsFinder(configGetter, st, urlGetter, newEnviron)
 	return &UpgraderAPI{
-		ToolsGetter: common.NewToolsGetter(st, configGetter, st, urlGetter, toolsFinder, getCanReadWrite),
+		ToolsGetter: common.NewToolsGetter(st, configGetter, st, urlGetter, toolsFinder, getCanReadWrite, cc),
 		ToolsSetter: common.NewToolsSetter(st, getCanReadWrite),
 		st:          st,
 		m:           model,

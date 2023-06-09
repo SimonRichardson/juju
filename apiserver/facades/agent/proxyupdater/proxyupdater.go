@@ -4,6 +4,8 @@
 package proxyupdater
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
 	"github.com/juju/proxy"
@@ -11,12 +13,20 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/network"
+	"github.com/juju/juju/domain"
+	ccservice "github.com/juju/juju/domain/controllerconfig/service"
+	ccstate "github.com/juju/juju/domain/controllerconfig/state"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/watcher"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 // ProxyUpdaterV2 defines the pubic methods for the v2 facade.
 type ProxyUpdaterV2 interface {
@@ -38,11 +48,19 @@ func newFacadeBase(ctx facade.Context) (*API, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	ccService := ccservice.NewService(
+		ccstate.NewState(domain.NewTxnRunnerFactory(ctx.ControllerDB)),
+		domain.NewWatcherFactory(
+			ctx.ControllerDB,
+			ctx.Logger().Child("controllerconfig"),
+		),
+	)
 	return NewAPIV2(
 		systemState,
 		model,
 		ctx.Resources(),
 		ctx.Auth(),
+		ccService,
 	)
 }
 
@@ -52,6 +70,7 @@ type API struct {
 	controller ControllerBackend
 	resources  facade.Resources
 	authorizer facade.Authorizer
+	cc         ControllerConfigGetter
 }
 
 // Backend defines the model state methods this facade needs,
@@ -64,12 +83,12 @@ type Backend interface {
 // ControllerBackend defines the controller state methods this facade needs,
 // so they can be mocked for testing.
 type ControllerBackend interface {
-	APIHostPortsForAgents() ([]network.SpaceHostPorts, error)
+	APIHostPortsForAgents(controller.Config) ([]network.SpaceHostPorts, error)
 	WatchAPIHostPortsForAgents() state.NotifyWatcher
 }
 
 // NewAPIV2 creates a new server-side API facade with the given Backing.
-func NewAPIV2(controller ControllerBackend, backend Backend, resources facade.Resources, authorizer facade.Authorizer) (*API, error) {
+func NewAPIV2(controller ControllerBackend, backend Backend, resources facade.Resources, authorizer facade.Authorizer, cc ControllerConfigGetter) (*API, error) {
 	if !(authorizer.AuthMachineAgent() || authorizer.AuthUnitAgent() || authorizer.AuthApplicationAgent() || authorizer.AuthModelAgent()) {
 		return nil, apiservererrors.ErrPerm
 	}
@@ -78,6 +97,7 @@ func NewAPIV2(controller ControllerBackend, backend Backend, resources facade.Re
 		controller: controller,
 		resources:  resources,
 		authorizer: authorizer,
+		cc:         cc,
 	}, nil
 }
 
@@ -156,7 +176,12 @@ func (api *API) proxyConfig() params.ProxyConfigResult {
 		return result
 	}
 
-	apiHostPorts, err := api.controller.APIHostPortsForAgents()
+	controllerConfig, err := api.cc.ControllerConfig(context.TODO())
+	if err != nil {
+		result.Error = apiservererrors.ServerError(err)
+		return result
+	}
+	apiHostPorts, err := api.controller.APIHostPortsForAgents(controllerConfig)
 	if err != nil {
 		result.Error = apiservererrors.ServerError(err)
 		return result

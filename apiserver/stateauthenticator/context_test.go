@@ -5,6 +5,7 @@ package stateauthenticator_test
 
 import (
 	"context"
+	"github.com/golang/mock/gomock"
 	"time"
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
@@ -33,12 +34,18 @@ type macaroonCommonSuite struct {
 	discharger    *bakerytest.Discharger
 	authenticator *stateauthenticator.Authenticator
 	clock         *testclock.Clock
+	cc            *MockControllerConfigGetter
 }
 
 func (s *macaroonCommonSuite) SetUpTest(c *gc.C) {
 	s.StateSuite.SetUpTest(c)
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = NewMockControllerConfigGetter(ctrl)
+
 	s.clock = testclock.NewClock(time.Now())
-	authenticator, err := stateauthenticator.NewAuthenticator(s.StatePool, s.clock)
+	authenticator, err := stateauthenticator.NewAuthenticator(s.StatePool, s.clock, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	s.authenticator = authenticator
 }

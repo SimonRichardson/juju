@@ -4,7 +4,10 @@
 package peergrouper
 
 import (
+	"context"
 	"fmt"
+	"github.com/juju/juju/core/changestream"
+	"github.com/juju/juju/domain"
 	"net"
 	"reflect"
 	"sort"
@@ -23,13 +26,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/juju/juju/controller"
+	coredatabase "github.com/juju/juju/core/database"
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/core/status"
+	ccservice "github.com/juju/juju/domain/controllerconfig/service"
+	ccstate "github.com/juju/juju/domain/controllerconfig/state"
 	"github.com/juju/juju/pubsub/apiserver"
 	"github.com/juju/juju/state"
 )
 
 var logger = loggo.GetLogger("juju.worker.peergrouper")
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 type State interface {
 	RemoveControllerReference(m ControllerNode) error
@@ -75,7 +85,7 @@ type MongoSession interface {
 }
 
 type APIHostPortsSetter interface {
-	SetAPIHostPorts([]network.SpaceHostPorts) error
+	SetAPIHostPorts([]network.SpaceHostPorts, controller.Config) error
 }
 
 var (
@@ -139,6 +149,8 @@ type pgWorker struct {
 	metrics *Collector
 
 	idleFunc func()
+
+	trackedDB changestream.WatchableDBGetter
 }
 
 // Config holds the configuration for a peergrouper worker.
@@ -150,6 +162,7 @@ type Config struct {
 	MongoPort          int
 	APIPort            int
 	ControllerAPIPort  int
+	WatchableDBGetter  changestream.WatchableDBGetter
 
 	// ControllerId is the id of the controller running this worker.
 	// It is used in checking if this working is running on the
@@ -197,6 +210,9 @@ func (config Config) Validate() error {
 	if config.APIPort <= 0 {
 		return errors.NotValidf("non-positive APIPort")
 	}
+	if config.WatchableDBGetter == nil {
+		return errors.NotValidf("nil TxnRunner")
+	}
 	// TODO Juju 3.0: make ControllerAPIPort required.
 	return nil
 }
@@ -215,6 +231,7 @@ func New(config Config) (worker.Worker, error) {
 		detailsRequests:    make(chan string),
 		idleFunc:           IdleFunc,
 		metrics:            NewMetricsCollector(),
+		trackedDB:          config.WatchableDBGetter,
 	}
 	err := catacomb.Invoke(catacomb.Plan{
 		Site: &w.catacomb,
@@ -332,8 +349,26 @@ func (w *pgWorker) loop() error {
 			apiHostPorts = append(apiHostPorts, serverHostPorts)
 		}
 
+		ccService := ccservice.NewService(
+			ccstate.NewState(domain.NewTxnRunnerFactoryForNamespace(
+				w.trackedDB.GetWatchableDB,
+				coredatabase.ControllerNS,
+			)),
+			domain.NewWatcherFactory(
+				func() (changestream.WatchableDB, error) {
+					return w.trackedDB.GetWatchableDB(coredatabase.ControllerNS)
+				},
+				loggo.GetLogger("juju.worker.peergrouper"),
+			),
+		)
+
+		controllerConfig, err := ccService.ControllerConfig(context.TODO())
+		if err != nil {
+			return errors.Annotate(err, "unable to get controller config")
+		}
+
 		var failed bool
-		if err := w.config.APIHostPortsSetter.SetAPIHostPorts(apiHostPorts); err != nil {
+		if err := w.config.APIHostPortsSetter.SetAPIHostPorts(apiHostPorts, controllerConfig); err != nil {
 			logger.Errorf("cannot write API server addresses: %v", err)
 			failed = true
 		}
@@ -780,7 +815,19 @@ func (w *pgWorker) peerGroupInfo() (*peerGroupInfo, error) {
 // getHASpaceFromConfig returns a space based on the controller's
 // configuration for the HA space.
 func (w *pgWorker) getHASpaceFromConfig() (network.SpaceInfo, error) {
-	config, err := w.config.State.ControllerConfig()
+	ccService := ccservice.NewService(
+		ccstate.NewState(domain.NewTxnRunnerFactoryForNamespace(
+			w.trackedDB.GetWatchableDB,
+			coredatabase.ControllerNS,
+		)),
+		domain.NewWatcherFactory(
+			func() (changestream.WatchableDB, error) {
+				return w.trackedDB.GetWatchableDB(coredatabase.ControllerNS)
+			},
+			loggo.GetLogger("juju.worker.peergrouper"),
+		),
+	)
+	config, err := ccService.ControllerConfig(context.TODO())
 	if err != nil {
 		return network.SpaceInfo{}, errors.Trace(err)
 	}

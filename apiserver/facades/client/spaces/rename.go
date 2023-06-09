@@ -4,6 +4,8 @@
 package spaces
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/mgo/v3/txn"
 	"github.com/juju/names/v4"
@@ -64,10 +66,11 @@ type spaceRenameModelOp struct {
 	space        RenameSpace
 	settings     Settings
 	toName       string
+	cc           ControllerConfigGetter
 }
 
 func NewRenameSpaceOp(
-	isController bool, settings Settings, st RenameSpaceState, space RenameSpace, toName string,
+	isController bool, settings Settings, st RenameSpaceState, space RenameSpace, toName string, cc ControllerConfigGetter,
 ) *spaceRenameModelOp {
 	return &spaceRenameModelOp{
 		st:           st,
@@ -75,6 +78,7 @@ func NewRenameSpaceOp(
 		space:        space,
 		isController: isController,
 		toName:       toName,
+		cc:           cc,
 	}
 }
 
@@ -116,7 +120,7 @@ func (o *spaceRenameModelOp) Build(attempt int) ([]txn.Op, error) {
 
 // getSettingsChanges get's skipped and returns nil if we are not in the controllerModel
 func (o *spaceRenameModelOp) getSettingsChanges(fromSpaceName, toName string) (settings.ItemChanges, error) {
-	currentControllerConfig, err := o.st.ControllerConfig()
+	currentControllerConfig, err := o.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

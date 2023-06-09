@@ -4,6 +4,7 @@
 package certupdater
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/juju/errors"
@@ -20,6 +21,10 @@ var (
 	logger = loggo.GetLogger("juju.worker.certupdater")
 )
 
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
+
 // CertificateUpdater is responsible for generating controller certificates.
 //
 // In practice, CertificateUpdater is used by a controller's machine agent to watch
@@ -30,6 +35,7 @@ type CertificateUpdater struct {
 	authority       pki.Authority
 	hostPortsGetter APIHostPortsGetter
 	addresses       network.SpaceAddresses
+	cc              ControllerConfigGetter
 }
 
 // AddressWatcher is an interface that is provided to NewCertificateUpdater
@@ -48,7 +54,7 @@ type StateServingInfoGetter interface {
 // APIHostPortsGetter is an interface that is provided to NewCertificateUpdater.
 // It returns all known API addresses.
 type APIHostPortsGetter interface {
-	APIHostPortsForClients() ([]network.SpaceHostPorts, error)
+	APIHostPortsForClients(controller.Config) ([]network.SpaceHostPorts, error)
 }
 
 // Config holds the configuration for the certificate updater worker.
@@ -56,6 +62,7 @@ type Config struct {
 	AddressWatcher     AddressWatcher
 	Authority          pki.Authority
 	APIHostPortsGetter APIHostPortsGetter
+	Cc                 ControllerConfigGetter
 }
 
 // NewCertificateUpdater returns a worker.Worker that watches for changes to
@@ -67,6 +74,7 @@ func NewCertificateUpdater(config Config) (worker.Worker, error) {
 			addressWatcher:  config.AddressWatcher,
 			authority:       config.Authority,
 			hostPortsGetter: config.APIHostPortsGetter,
+			cc:              config.Cc,
 		},
 	})
 }
@@ -74,7 +82,13 @@ func NewCertificateUpdater(config Config) (worker.Worker, error) {
 // SetUp is defined on the NotifyWatchHandler interface.
 func (c *CertificateUpdater) SetUp() (watcher.NotifyWatcher, error) {
 	// Populate certificate SAN with any addresses we know about now.
-	apiHostPorts, err := c.hostPortsGetter.APIHostPortsForClients()
+
+	controllerConfig, err := c.cc.ControllerConfig(context.TODO())
+	if err != nil {
+		return nil, errors.Annotate(err, "unable to get controller config")
+	}
+
+	apiHostPorts, err := c.hostPortsGetter.APIHostPortsForClients(controllerConfig)
 	if err != nil {
 		return nil, errors.Annotate(err, "retrieving initial server addresses")
 	}

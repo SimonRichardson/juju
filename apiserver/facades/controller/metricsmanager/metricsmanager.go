@@ -4,6 +4,7 @@
 package metricsmanager
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/juju/clock"
@@ -16,6 +17,7 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/apiserver/facades/agent/metricsender"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/instance"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
@@ -26,6 +28,10 @@ var (
 	maxBatchesPerSend = metricsender.DefaultMaxBatchesPerSend()
 	senderFactory     = metricsender.DefaultSenderFactory()
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 // MetricsManager defines the methods on the metricsmanager API end point.
 type MetricsManager interface {
@@ -42,6 +48,7 @@ type MetricsManagerAPI struct {
 	accessModel common.GetAuthFunc
 	clock       clock.Clock
 	sender      metricsender.MetricSender
+	cc          ControllerConfigGetter
 }
 
 var _ MetricsManager = (*MetricsManagerAPI)(nil)
@@ -58,6 +65,7 @@ func NewMetricsManagerAPI(
 	authorizer facade.Authorizer,
 	pool *state.StatePool,
 	clock clock.Clock,
+	cc ControllerConfigGetter,
 ) (*MetricsManagerAPI, error) {
 	if !authorizer.AuthController() {
 		return nil, apiservererrors.ErrPerm
@@ -78,7 +86,7 @@ func NewMetricsManagerAPI(
 		}, nil
 	}
 
-	config, err := st.ControllerConfig()
+	config, err := cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -93,6 +101,7 @@ func NewMetricsManagerAPI(
 		accessModel: accessModel,
 		clock:       clock,
 		sender:      sender,
+		cc:          cc,
 	}, nil
 }
 

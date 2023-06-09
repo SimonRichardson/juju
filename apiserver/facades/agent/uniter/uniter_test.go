@@ -6,6 +6,7 @@ package uniter_test
 import (
 	stdcontext "context"
 	"fmt"
+	"github.com/golang/mock/gomock"
 	"time"
 
 	"github.com/juju/charm/v11"
@@ -28,6 +29,7 @@ import (
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/apiserver/facade/facadetest"
 	"github.com/juju/juju/apiserver/facades/agent/uniter"
+	"github.com/juju/juju/apiserver/facades/agent/uniter/mocks"
 	apiservertesting "github.com/juju/juju/apiserver/testing"
 	"github.com/juju/juju/caas"
 	"github.com/juju/juju/caas/kubernetes/provider"
@@ -76,6 +78,7 @@ type uniterSuiteBase struct {
 	mysql             *state.Application
 	mysqlUnit         *state.Unit
 	leadershipChecker *fakeLeadershipChecker
+	cc                *mocks.MockControllerConfigGetter
 }
 
 type leadershipRevoker struct {
@@ -244,6 +247,12 @@ func (s *uniterSuiteBase) setupCAASModel(c *gc.C, isSidecar bool) (*apiuniter.Cl
 
 	u, err := apiuniter.NewFromConnection(apiState)
 	c.Assert(err, jc.ErrorIsNil)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
+
 	return u, cm, app, unit
 }
 
@@ -581,6 +590,7 @@ func (s *uniterSuite) TestPublicAddress(c *gc.C) {
 
 	// Now set it an try again.
 	err = s.machine0.SetProviderAddresses(
+		s.ControllerConfigAttrs,
 		network.NewSpaceAddress("1.2.3.4", network.WithScope(network.ScopePublic)),
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -621,6 +631,7 @@ func (s *uniterSuite) TestPrivateAddress(c *gc.C) {
 
 	// Now set it and try again.
 	err = s.machine0.SetProviderAddresses(
+		s.ControllerConfigAttrs,
 		network.NewSpaceAddress("1.2.3.4", network.WithScope(network.ScopeCloudLocal)),
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -643,6 +654,7 @@ func (s *uniterSuite) TestPrivateAddress(c *gc.C) {
 // all the spaces set up.
 func (s *uniterSuite) TestNetworkInfoSpaceless(c *gc.C) {
 	err := s.machine0.SetProviderAddresses(
+		s.ControllerConfigAttrs,
 		network.NewSpaceAddress("1.2.3.4", network.WithScope(network.ScopeCloudLocal)),
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -1971,6 +1983,7 @@ func (s *uniterSuite) TestProviderType(c *gc.C) {
 func (s *uniterSuite) TestEnterScope(c *gc.C) {
 	// Set wordpressUnit's private address first.
 	err := s.machine0.SetProviderAddresses(
+		s.ControllerConfigAttrs,
 		network.NewSpaceAddress("1.2.3.4", network.WithScope(network.ScopeCloudLocal)),
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -2924,7 +2937,7 @@ func (s *uniterSuite) TestAPIAddresses(c *gc.C) {
 	hostPorts := []network.SpaceHostPorts{
 		network.NewSpaceHostPorts(1234, "0.1.2.3"),
 	}
-	err := s.State.SetAPIHostPorts(hostPorts)
+	err := s.State.SetAPIHostPorts(hostPorts, s.ControllerConfigAttrs)
 	c.Assert(err, jc.ErrorIsNil)
 
 	result, err := s.uniter.APIAddresses()
@@ -3315,6 +3328,7 @@ func (s *uniterSuite) setupRemoteRelationScenario(c *gc.C) (names.Tag, *state.Re
 
 	// Set mysql's addresses first.
 	err := s.machine1.SetProviderAddresses(
+		s.ControllerConfigAttrs,
 		network.NewSpaceAddress("1.2.3.4", network.WithScope(network.ScopeCloudLocal)),
 		network.NewSpaceAddress("4.3.2.1", network.WithScope(network.ScopePublic)),
 	)
@@ -3361,6 +3375,7 @@ func (s *uniterSuite) TestPrivateAddressWithRemoteRelationNoPublic(c *gc.C) {
 	thisUniter := s.makeMysqlUniter(c)
 	// Set mysql's addresses - no public address.
 	err := s.machine1.SetProviderAddresses(
+		s.ControllerConfigAttrs,
 		network.NewSpaceAddress("1.2.3.4", network.WithScope(network.ScopeCloudLocal)),
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -3838,7 +3853,7 @@ func (s *uniterNetworkInfoSuite) addProvisionedMachineWithDevicesAndAddresses(c 
 	for i, addr := range machineAddrs {
 		netAddrs[i] = network.NewSpaceAddress(addr.Value())
 	}
-	err = machine.SetProviderAddresses(netAddrs...)
+	err = machine.SetProviderAddresses(s.ControllerConfigAttrs, netAddrs...)
 	c.Assert(err, jc.ErrorIsNil)
 
 	return machine

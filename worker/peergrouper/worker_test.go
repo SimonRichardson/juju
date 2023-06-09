@@ -6,6 +6,7 @@ package peergrouper
 import (
 	"errors"
 	"fmt"
+	"github.com/juju/juju/controller"
 	"net"
 	"sort"
 	"strconv"
@@ -487,7 +488,7 @@ func (s *workerSuite) TestSetMembersErrorIsNotFatal(c *gc.C) {
 
 type SetAPIHostPortsFunc func(apiServers []network.SpaceHostPorts) error
 
-func (f SetAPIHostPortsFunc) SetAPIHostPorts(apiServers []network.SpaceHostPorts) error {
+func (f SetAPIHostPortsFunc) SetAPIHostPorts(apiServers []network.SpaceHostPorts, config controller.Config) error {
 	return f(apiServers)
 }
 
@@ -1150,7 +1151,7 @@ func mustNextStatus(c *gc.C, w *voyeur.Watcher, context string) *replicaset.Stat
 
 type nopAPIHostPortsSetter struct{}
 
-func (nopAPIHostPortsSetter) SetAPIHostPorts(apiServers []network.SpaceHostPorts) error {
+func (nopAPIHostPortsSetter) SetAPIHostPorts(apiServers []network.SpaceHostPorts, config controller.Config) error {
 	return nil
 }
 

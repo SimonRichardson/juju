@@ -31,6 +31,7 @@ type upgradeStepsSuite struct {
 	entity     *mocks.MockEntity
 	resources  *facademocks.MockResources
 	state      *mocks.MockUpgradeStepsState
+	cc         *mocks.MockControllerConfigGetter
 }
 
 type machineUpgradeStepsSuite struct {
@@ -175,6 +176,7 @@ func (s *upgradeStepsSuite) setup(c *gc.C) *gomock.Controller {
 	s.entity = mocks.NewMockEntity(ctlr)
 	s.state = mocks.NewMockUpgradeStepsState(ctlr)
 	s.resources = facademocks.NewMockResources(ctlr)
+	s.cc = mocks.NewMockControllerConfigGetter(ctlr)
 
 	return ctlr
 }
@@ -186,7 +188,7 @@ func (s *upgradeStepsSuite) expectAuthCalls() {
 }
 
 func (s *upgradeStepsSuite) setupFacadeAPI(c *gc.C) {
-	api, err := upgradesteps.NewUpgradeStepsAPI(s.state, s.resources, s.authorizer, loggo.GetLogger("juju.apiserver.upgradesteps"))
+	api, err := upgradesteps.NewUpgradeStepsAPI(s.state, s.resources, s.authorizer, loggo.GetLogger("juju.apiserver.upgradesteps"), s.cc)
 	c.Assert(err, gc.IsNil)
 	s.api = api
 }

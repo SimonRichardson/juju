@@ -15,6 +15,9 @@ import (
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/apiserver/facades/agent/meterstatus"
 	"github.com/juju/juju/apiserver/facades/agent/secretsmanager"
+	"github.com/juju/juju/domain"
+	ccservice "github.com/juju/juju/domain/controllerconfig/service"
+	ccstate "github.com/juju/juju/domain/controllerconfig/state"
 )
 
 // Register is called to expose a package of facades onto a given registry.
@@ -62,7 +65,15 @@ func newUniterAPI(context facade.Context) (*UniterAPI, error) {
 		return nil, errors.Trace(err)
 	}
 
-	msAPI, err := meterstatus.NewMeterStatusAPI(st, resources, authorizer, context.Logger().Child("meterstatus"))
+	ccService := ccservice.NewService(
+		ccstate.NewState(domain.NewTxnRunnerFactory(context.ControllerDB)),
+		domain.NewWatcherFactory(
+			context.ControllerDB,
+			context.Logger().Child("controllerconfig"),
+		),
+	)
+
+	msAPI, err := meterstatus.NewMeterStatusAPI(st, resources, authorizer, context.Logger().Child("meterstatus"), ccService)
 	if err != nil {
 		return nil, errors.Annotate(err, "could not create meter status API handler")
 	}
@@ -89,11 +100,11 @@ func newUniterAPI(context facade.Context) (*UniterAPI, error) {
 		LifeGetter:                 common.NewLifeGetter(st, accessUnitOrApplication),
 		DeadEnsurer:                common.NewDeadEnsurer(st, common.RevokeLeadershipFunc(leadershipRevoker), accessUnit),
 		AgentEntityWatcher:         common.NewAgentEntityWatcher(st, resources, accessUnitOrApplication),
-		APIAddresser:               common.NewAPIAddresser(systemState, resources),
+		APIAddresser:               common.NewAPIAddresser(systemState, resources, ccService),
 		ModelWatcher:               common.NewModelWatcher(m, resources, authorizer),
 		RebootRequester:            common.NewRebootRequester(st, accessMachine),
 		UpgradeSeriesAPI:           common.NewExternalUpgradeSeriesAPI(st, resources, authorizer, accessMachine, accessUnit, logger),
-		UnitStateAPI:               common.NewExternalUnitStateAPI(st, resources, authorizer, accessUnit, logger),
+		UnitStateAPI:               common.NewExternalUnitStateAPI(st, resources, authorizer, accessUnit, logger, ccService),
 		SecretsManagerAPI:          secretsAPI,
 		LeadershipSettingsAccessor: leadershipSettingsAccessorFactory(st, leadershipChecker, resources, authorizer),
 		MeterStatus:                msAPI,
@@ -116,5 +127,6 @@ func newUniterAPI(context facade.Context) (*UniterAPI, error) {
 		cloudSpecer:       cloudSpec,
 		StorageAPI:        storageAPI,
 		logger:            logger,
+		cc:                ccService,
 	}, nil
 }

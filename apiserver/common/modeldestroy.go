@@ -4,6 +4,7 @@
 package common
 
 import (
+	"context"
 	"time"
 
 	"github.com/juju/clock"
@@ -15,8 +16,8 @@ import (
 	stateerrors "github.com/juju/juju/state/errors"
 )
 
-var sendMetrics = func(st metricsender.ModelBackend) error {
-	ccfg, err := st.ControllerConfig()
+var sendMetrics = func(st metricsender.ModelBackend, cc ControllerConfigGetter) error {
+	ccfg, err := cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return errors.Annotate(err, "failed to get controller config")
 	}
@@ -47,6 +48,7 @@ func DestroyController(
 	force *bool,
 	maxWait *time.Duration,
 	modelTimeout *time.Duration,
+	cc ControllerConfigGetter,
 ) error {
 	modelTag := st.ModelTag()
 	controllerModelTag := st.ControllerModelTag()
@@ -77,13 +79,13 @@ func DestroyController(
 			if err = check.DestroyAllowed(); err != nil {
 				return errors.Trace(err)
 			}
-			err = sendMetrics(modelSt)
+			err = sendMetrics(modelSt, cc)
 			if err != nil {
 				logger.Errorf("failed to send leftover metrics: %v", err)
 			}
 		}
 	}
-	return destroyModel(st, state.DestroyModelParams{
+	return destroyModel(st, cc, state.DestroyModelParams{
 		DestroyHostedModels: destroyHostedModels,
 		DestroyStorage:      destroyStorage,
 		Force:               force,
@@ -100,8 +102,9 @@ func DestroyModel(
 	force *bool,
 	maxWait *time.Duration,
 	timeout *time.Duration,
+	cc ControllerConfigGetter,
 ) error {
-	return destroyModel(st, state.DestroyModelParams{
+	return destroyModel(st, cc, state.DestroyModelParams{
 		DestroyStorage: destroyStorage,
 		Force:          force,
 		MaxWait:        MaxWait(maxWait),
@@ -109,7 +112,7 @@ func DestroyModel(
 	})
 }
 
-func destroyModel(st ModelManagerBackend, args state.DestroyModelParams) error {
+func destroyModel(st ModelManagerBackend, cc ControllerConfigGetter, args state.DestroyModelParams) error {
 	check := NewBlockChecker(st)
 	if err := check.DestroyAllowed(); err != nil {
 		return errors.Trace(err)
@@ -140,7 +143,7 @@ func destroyModel(st ModelManagerBackend, args state.DestroyModelParams) error {
 		}
 	}
 
-	err = sendMetrics(st)
+	err = sendMetrics(st, cc)
 	if err != nil {
 		logger.Errorf("failed to send leftover metrics: %v", err)
 	}

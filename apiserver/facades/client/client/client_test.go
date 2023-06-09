@@ -380,9 +380,19 @@ func (s *clientWatchSuite) TestClientWatchAllAdminPermission(c *gc.C) {
 
 type findToolsSuite struct {
 	jtesting.IsolationSuite
+
+	cc *mocks.MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&findToolsSuite{})
+
+func (s *findToolsSuite) SetUpTest(c *gc.C) {
+	s.IsolationSuite.SetUpTest(c)
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
+}
 
 func (s *findToolsSuite) TestFindToolsIAAS(c *gc.C) {
 	ctrl := gomock.NewController(c)
@@ -406,7 +416,7 @@ func (s *findToolsSuite) TestFindToolsIAAS(c *gc.C) {
 		authorizer.EXPECT().HasPermission(permission.WriteAccess, coretesting.ModelTag).Return(nil),
 
 		backend.EXPECT().Model().Return(model, nil),
-		toolsFinder.EXPECT().FindAgents(common.FindAgentsParams{MajorVersion: 2}).
+		toolsFinder.EXPECT().FindAgents(common.FindAgentsParams{MajorVersion: 2}, s.cc).
 			Return(simpleStreams, nil),
 		model.EXPECT().Type().Return(state.ModelTypeIAAS),
 	)
@@ -462,7 +472,7 @@ func (s *findToolsSuite) TestFindToolsCAASReleased(c *gc.C) {
 		authorizer.EXPECT().HasPermission(permission.WriteAccess, coretesting.ModelTag).Return(nil),
 
 		backend.EXPECT().Model().Return(model, nil),
-		toolsFinder.EXPECT().FindAgents(common.FindAgentsParams{MajorVersion: 2}).
+		toolsFinder.EXPECT().FindAgents(common.FindAgentsParams{MajorVersion: 2}, s.cc).
 			Return(simpleStreams, nil),
 		model.EXPECT().Type().Return(state.ModelTypeCAAS),
 		model.EXPECT().Config().Return(s.getModelConfig(c, "2.9.9"), nil),
@@ -543,7 +553,7 @@ func (s *findToolsSuite) TestFindToolsCAASNonReleased(c *gc.C) {
 		authorizer.EXPECT().HasPermission(permission.WriteAccess, coretesting.ModelTag).Return(nil),
 
 		backend.EXPECT().Model().Return(model, nil),
-		toolsFinder.EXPECT().FindAgents(common.FindAgentsParams{MajorVersion: 2, AgentStream: envtools.DevelStream}).
+		toolsFinder.EXPECT().FindAgents(common.FindAgentsParams{MajorVersion: 2, AgentStream: envtools.DevelStream}, s.cc).
 			Return(simpleStreams, nil),
 		model.EXPECT().Type().Return(state.ModelTypeCAAS),
 		model.EXPECT().Config().Return(s.getModelConfig(c, "2.9.9.1"), nil),

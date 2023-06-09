@@ -6,6 +6,8 @@ package testing
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/golang/mock/gomock"
+	"github.com/juju/juju/apiserver/common/mocks"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -120,6 +122,8 @@ type ApiServerSuite struct {
 	WithUpgrading      bool
 	WithAuditLogConfig *auditlog.Config
 	WithIntrospection  func(func(string, http.Handler))
+
+	cc *mocks.MockControllerConfigGetter
 }
 
 type noopRegisterer struct {
@@ -163,6 +167,11 @@ func multiWatcher(c *gc.C, statePool *state.StatePool, clock clock.Clock) *wmult
 func (s *ApiServerSuite) SetUpSuite(c *gc.C) {
 	s.MgoSuite.SetUpSuite(c)
 	s.ControllerSuite.SetUpSuite(c)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 }
 
 func mongoInfo() mongo.MongoInfo {
@@ -255,7 +264,7 @@ func (s *ApiServerSuite) setupControllerModel(c *gc.C, controllerCfg controller.
 	}}
 	st, err := ctrl.SystemState()
 	c.Assert(err, jc.ErrorIsNil)
-	err = st.SetAPIHostPorts(sHsPs)
+	err = st.SetAPIHostPorts(sHsPs, controllerCfg)
 	c.Assert(err, jc.ErrorIsNil)
 
 	s.controllerModelUUID = st.ControllerModelUUID()
@@ -295,7 +304,7 @@ func (s *ApiServerSuite) setupApiServer(c *gc.C, controllerCfg controller.Config
 	}
 
 	// Set up auth handler.
-	authenticator, err := stateauthenticator.NewAuthenticator(cfg.StatePool, cfg.Clock)
+	authenticator, err := stateauthenticator.NewAuthenticator(cfg.StatePool, cfg.Clock, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	cfg.LocalMacaroonAuthenticator = authenticator
 	err = authenticator.AddHandlers(s.mux)

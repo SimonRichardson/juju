@@ -4,6 +4,8 @@
 package common_test
 
 import (
+	"github.com/golang/mock/gomock"
+	"github.com/juju/juju/apiserver/common/mocks"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
@@ -17,6 +19,7 @@ import (
 type apiAddresserSuite struct {
 	addresser *common.APIAddresser
 	fake      *fakeAddresses
+	cc        *mocks.MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&apiAddresserSuite{})
@@ -31,7 +34,12 @@ func (s *apiAddresserSuite) SetUpTest(c *gc.C) {
 			network.NewSpaceHostPorts(2, "apiaddresses"),
 		},
 	}
-	s.addresser = common.NewAPIAddresser(s.fake, common.NewResources())
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
+
+	s.addresser = common.NewAPIAddresser(s.fake, common.NewResources(), s.cc)
 }
 
 func (s *apiAddresserSuite) TestAPIAddresses(c *gc.C) {
@@ -82,7 +90,7 @@ func (fakeAddresses) ControllerConfig() (controller.Config, error) {
 	return coretesting.FakeControllerConfig(), nil
 }
 
-func (f fakeAddresses) APIHostPortsForAgents() ([]network.SpaceHostPorts, error) {
+func (f fakeAddresses) APIHostPortsForAgents(config controller.Config) ([]network.SpaceHostPorts, error) {
 	return f.hostPorts, nil
 }
 

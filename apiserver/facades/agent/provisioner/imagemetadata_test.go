@@ -4,11 +4,13 @@
 package provisioner_test
 
 import (
+	"github.com/golang/mock/gomock"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/apiserver/facade/facadetest"
 	"github.com/juju/juju/apiserver/facades/agent/provisioner"
+	"github.com/juju/juju/apiserver/facades/agent/provisioner/mocks"
 	"github.com/juju/juju/environs/imagemetadata"
 	imagetesting "github.com/juju/juju/environs/imagemetadata/testing"
 	sstesting "github.com/juju/juju/environs/simplestreams/testing"
@@ -28,12 +30,18 @@ func useTestImageData(c *gc.C, files map[string]string) {
 
 type ImageMetadataSuite struct {
 	provisionerSuite
+
+	cc *mocks.MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&ImageMetadataSuite{})
 
 func (s *ImageMetadataSuite) SetUpSuite(c *gc.C) {
 	s.provisionerSuite.SetUpSuite(c)
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 
 	// Make sure that there is nothing in data sources.
 	// Each individual tests will decide if it needs metadata there.
@@ -58,7 +66,7 @@ func (s *ImageMetadataSuite) TestMetadataNone(c *gc.C) {
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 
 	result, err := api.ProvisioningInfo(s.getTestMachinesTags(c))
@@ -77,7 +85,7 @@ func (s *ImageMetadataSuite) TestMetadataFromState(c *gc.C) {
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 
 	expected := s.expectedDataSoureImageMetadata()

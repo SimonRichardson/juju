@@ -4,6 +4,7 @@
 package provisioner
 
 import (
+	ctx "context"
 	"sync"
 
 	"github.com/juju/collections/set"
@@ -18,6 +19,7 @@ import (
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/caas"
 	"github.com/juju/juju/container"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/constraints"
 	corecontainer "github.com/juju/juju/core/container"
 	"github.com/juju/juju/core/instance"
@@ -35,6 +37,10 @@ import (
 	"github.com/juju/juju/storage"
 	"github.com/juju/juju/storage/poolmanager"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(ctx.Context) (controller.Config, error)
+}
 
 // ProvisionerAPI provides access to the Provisioner API facade.
 type ProvisionerAPI struct {
@@ -64,13 +70,14 @@ type ProvisionerAPI struct {
 	providerCallContext     context.ProviderCallContext
 	toolsFinder             common.ToolsFinder
 	logger                  loggo.Logger
+	cc                      ControllerConfigGetter
 
 	// Used for MaybeWriteLXDProfile()
 	mu sync.Mutex
 }
 
 // NewProvisionerAPI creates a new server-side ProvisionerAPI facade.
-func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
+func NewProvisionerAPI(ctx facade.Context, cc ControllerConfigGetter) (*ProvisionerAPI, error) {
 	authorizer := ctx.Auth()
 	if !authorizer.AuthMachineAgent() && !authorizer.AuthController() {
 		return nil, apiservererrors.ErrPerm
@@ -147,10 +154,10 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 		DeadEnsurer:             common.NewDeadEnsurer(st, nil, getAuthFunc),
 		PasswordChanger:         common.NewPasswordChanger(st, getAuthFunc),
 		LifeGetter:              common.NewLifeGetter(st, getAuthFunc),
-		APIAddresser:            common.NewAPIAddresser(systemState, resources),
+		APIAddresser:            common.NewAPIAddresser(systemState, resources, cc),
 		ModelWatcher:            common.NewModelWatcher(model, resources, authorizer),
 		ModelMachinesWatcher:    common.NewModelMachinesWatcher(st, resources, authorizer),
-		ControllerConfigAPI:     common.NewStateControllerConfig(st),
+		ControllerConfigAPI:     common.NewStateControllerConfig(st, cc),
 		NetworkConfigAPI:        netConfigAPI,
 		st:                      st,
 		m:                       model,
@@ -163,6 +170,7 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 		getCanModify:            getCanModify,
 		providerCallContext:     callCtx,
 		logger:                  ctx.Logger().Child("provisioner"),
+		cc:                      cc,
 	}
 	if isCaasModel {
 		return api, nil
@@ -173,7 +181,7 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 	}
 	api.InstanceIdGetter = common.NewInstanceIdGetter(st, getAuthFunc)
 	api.toolsFinder = common.NewToolsFinder(configGetter, st, urlGetter, newEnviron)
-	api.ToolsGetter = common.NewToolsGetter(st, configGetter, st, urlGetter, api.toolsFinder, getAuthOwner)
+	api.ToolsGetter = common.NewToolsGetter(st, configGetter, st, urlGetter, api.toolsFinder, getAuthOwner, api.cc)
 	return api, nil
 }
 
@@ -654,7 +662,8 @@ func (api *ProvisionerAPI) FindTools(args params.FindToolsParams) (params.FindTo
 		Arch:        args.Arch,
 		OSType:      args.OSType,
 		AgentStream: args.AgentStream,
-	})
+	},
+		api.cc)
 	return params.FindToolsResult{
 		List:  list,
 		Error: apiservererrors.ServerError(err),
@@ -1296,7 +1305,7 @@ func (api *ProvisionerAPI) SetHostMachineNetworkConfig(args params.SetMachineNet
 
 // CACert returns the certificate used to validate the state connection.
 func (api *ProvisionerAPI) CACert() (params.BytesResult, error) {
-	cfg, err := api.st.ControllerConfig()
+	cfg, err := api.cc.ControllerConfig(ctx.TODO())
 	if err != nil {
 		return params.BytesResult{}, errors.Trace(err)
 	}

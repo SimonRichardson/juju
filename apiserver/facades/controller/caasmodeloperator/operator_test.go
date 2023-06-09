@@ -4,6 +4,7 @@
 package caasmodeloperator_test
 
 import (
+	"github.com/golang/mock/gomock"
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
 	jc "github.com/juju/testing/checkers"
@@ -23,11 +24,17 @@ type ModelOperatorSuite struct {
 	api        *caasmodeloperator.API
 	resources  *common.Resources
 	state      *mockState
+	cc         *MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&ModelOperatorSuite{})
 
 func (m *ModelOperatorSuite) SetUpTest(c *gc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	m.cc = NewMockControllerConfigGetter(ctrl)
+
 	m.BaseSuite.SetUpTest(c)
 
 	m.resources = common.NewResources()
@@ -47,7 +54,7 @@ func (m *ModelOperatorSuite) SetUpTest(c *gc.C) {
 
 	c.Logf("m.state.1operatorRepo %q", m.state.operatorRepo)
 
-	api, err := caasmodeloperator.NewAPI(m.authorizer, m.resources, m.state, m.state, loggo.GetLogger("juju.apiserver.caasmodeloperator"))
+	api, err := caasmodeloperator.NewAPI(m.authorizer, m.resources, m.state, m.state, loggo.GetLogger("juju.apiserver.caasmodeloperator"), m.cc)
 	c.Assert(err, jc.ErrorIsNil)
 
 	m.api = api

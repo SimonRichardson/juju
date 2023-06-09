@@ -33,6 +33,7 @@ type RemoteFirewallerSuite struct {
 	authorizer *apiservertesting.FakeAuthorizer
 	st         *mocks.MockState
 	cc         *mocks.MockControllerConfigAPI
+	ccService  *mocks.MockControllerConfigGetter
 	api        *firewaller.FirewallerAPI
 }
 
@@ -51,9 +52,11 @@ func (s *RemoteFirewallerSuite) SetUpTest(c *gc.C) {
 func (s *RemoteFirewallerSuite) setup(c *gc.C) *gomock.Controller {
 	ctrl := gomock.NewController(c)
 
+	s.ccService = mocks.NewMockControllerConfigGetter(ctrl)
+
 	s.st = mocks.NewMockState(ctrl)
 	s.cc = mocks.NewMockControllerConfigAPI(ctrl)
-	api, err := firewaller.NewStateFirewallerAPI(s.st, s.resources, s.authorizer, &mockCloudSpecAPI{}, s.cc, loggo.GetLogger("juju.apiserver.firewaller"))
+	api, err := firewaller.NewStateFirewallerAPI(s.st, s.resources, s.authorizer, &mockCloudSpecAPI{}, s.cc, loggo.GetLogger("juju.apiserver.firewaller"), s.ccService)
 	c.Assert(err, jc.ErrorIsNil)
 	s.api = api
 	return ctrl
@@ -131,13 +134,19 @@ type FirewallerSuite struct {
 	resources  *common.Resources
 	authorizer *apiservertesting.FakeAuthorizer
 
-	st  *mocks.MockState
-	cc  *mocks.MockControllerConfigAPI
-	api *firewaller.FirewallerAPI
+	st        *mocks.MockState
+	cc        *mocks.MockControllerConfigAPI
+	ccService *mocks.MockControllerConfigGetter
+	api       *firewaller.FirewallerAPI
 }
 
 func (s *FirewallerSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.ccService = mocks.NewMockControllerConfigGetter(ctrl)
 
 	s.resources = common.NewResources()
 	s.AddCleanup(func(_ *gc.C) { s.resources.StopAll() })
@@ -153,7 +162,7 @@ func (s *FirewallerSuite) setup(c *gc.C) *gomock.Controller {
 
 	s.st = mocks.NewMockState(ctrl)
 	s.cc = mocks.NewMockControllerConfigAPI(ctrl)
-	api, err := firewaller.NewStateFirewallerAPI(s.st, s.resources, s.authorizer, &mockCloudSpecAPI{}, s.cc, loggo.GetLogger("juju.apiserver.firewaller"))
+	api, err := firewaller.NewStateFirewallerAPI(s.st, s.resources, s.authorizer, &mockCloudSpecAPI{}, s.cc, loggo.GetLogger("juju.apiserver.firewaller"), s.ccService)
 	c.Assert(err, jc.ErrorIsNil)
 	s.api = api
 	return ctrl

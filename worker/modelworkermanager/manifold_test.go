@@ -4,6 +4,7 @@
 package modelworkermanager_test
 
 import (
+	"github.com/golang/mock/gomock"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
@@ -24,16 +25,18 @@ import (
 	statetesting "github.com/juju/juju/state/testing"
 	jworker "github.com/juju/juju/worker"
 	"github.com/juju/juju/worker/modelworkermanager"
+	"github.com/juju/juju/worker/modelworkermanager/mocks"
 )
 
 type ManifoldSuite struct {
 	statetesting.StateSuite
 
-	authority    pki.Authority
-	manifold     dependency.Manifold
-	context      dependency.Context
-	stateTracker stubStateTracker
-	sysLogger    stubLogger
+	authority         pki.Authority
+	manifold          dependency.Manifold
+	context           dependency.Context
+	stateTracker      stubStateTracker
+	sysLogger         stubLogger
+	watchableDBGetter *mocks.MockWatchableDBGetter
 
 	stub testing.Stub
 }
@@ -47,6 +50,10 @@ func (s *ManifoldSuite) SetUpTest(c *gc.C) {
 
 	s.StateSuite.SetUpTest(c)
 
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+	s.watchableDBGetter = mocks.NewMockWatchableDBGetter(ctrl)
+
 	s.stateTracker = stubStateTracker{pool: s.StatePool}
 	s.stub.ResetCalls()
 
@@ -54,15 +61,16 @@ func (s *ManifoldSuite) SetUpTest(c *gc.C) {
 
 	s.context = s.newContext(nil)
 	s.manifold = modelworkermanager.Manifold(modelworkermanager.ManifoldConfig{
-		AgentName:      "agent",
-		AuthorityName:  "authority",
-		StateName:      "state",
-		MuxName:        "mux",
-		SyslogName:     "syslog",
-		NewWorker:      s.newWorker,
-		NewModelWorker: s.newModelWorker,
-		ModelMetrics:   dummyModelMetrics{},
-		Logger:         loggo.GetLogger("test"),
+		AgentName:        "agent",
+		AuthorityName:    "authority",
+		StateName:        "state",
+		MuxName:          "mux",
+		ChangeStreamName: "change-stream",
+		SyslogName:       "syslog",
+		NewWorker:        s.newWorker,
+		NewModelWorker:   s.newModelWorker,
+		ModelMetrics:     dummyModelMetrics{},
+		Logger:           loggo.GetLogger("test"),
 	})
 }
 
@@ -70,11 +78,12 @@ var mux = apiserverhttp.NewMux()
 
 func (s *ManifoldSuite) newContext(overlay map[string]interface{}) dependency.Context {
 	resources := map[string]interface{}{
-		"agent":     &fakeAgent{},
-		"authority": s.authority,
-		"mux":       mux,
-		"state":     &s.stateTracker,
-		"syslog":    s.sysLogger,
+		"agent":         &fakeAgent{},
+		"authority":     s.authority,
+		"mux":           mux,
+		"state":         &s.stateTracker,
+		"change-stream": s.watchableDBGetter,
+		"syslog":        s.sysLogger,
 	}
 	for k, v := range overlay {
 		resources[k] = v
@@ -98,7 +107,7 @@ func (s *ManifoldSuite) newModelWorker(config modelworkermanager.NewModelConfig)
 	return worker.NewRunner(worker.RunnerParams{}), nil
 }
 
-var expectedInputs = []string{"agent", "authority", "mux", "state", "syslog"}
+var expectedInputs = []string{"agent", "authority", "mux", "state", "syslog", "change-stream"}
 
 func (s *ManifoldSuite) TestInputs(c *gc.C) {
 	c.Assert(s.manifold.Inputs, jc.SameContents, expectedInputs)

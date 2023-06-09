@@ -9,6 +9,8 @@ import (
 	gc "gopkg.in/check.v1"
 )
 
+//go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/changestream_mock.go github.com/juju/juju/core/changestream WatchableDBGetter
+
 func TestPackage(t *testing.T) {
 	gc.TestingT(t)
 }

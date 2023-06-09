@@ -9,7 +9,8 @@ import (
 	gc "gopkg.in/check.v1"
 )
 
-//go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/cloud_mock.go github.com/juju/juju/apiserver/facades/client/cloud Backend,User,Model,ModelPoolBackend
+//go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/cloud_mock.go github.com/juju/juju/apiserver/facades/client/cloud Backend,User,Model,ModelPoolBackend,ControllerConfigGetter
+
 func TestAll(t *testing.T) {
 	gc.TestingT(t)
 }

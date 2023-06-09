@@ -6,6 +6,7 @@ package uniter_test
 import (
 	"bytes"
 	"fmt"
+	"github.com/juju/juju/controller"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -87,7 +88,7 @@ func assertAssignUnit(c *gc.C, st *state.State, u *state.Unit) {
 	c.Assert(err, jc.ErrorIsNil)
 	err = machine.SetProvisioned("i-exist", "", "fake_nonce", nil)
 	c.Assert(err, jc.ErrorIsNil)
-	err = machine.SetProviderAddresses(dummyPrivateAddress, dummyPublicAddress)
+	err = machine.SetProviderAddresses(controller.Config{}, dummyPrivateAddress, dummyPublicAddress)
 	c.Assert(err, jc.ErrorIsNil)
 }
 
@@ -109,7 +110,7 @@ func assertAssignUnitLXDContainer(c *gc.C, st *state.State, u *state.Unit) {
 	c.Assert(err, jc.ErrorIsNil)
 	err = machine.SetProvisioned("i-exist", "", "fake_nonce", nil)
 	c.Assert(err, jc.ErrorIsNil)
-	err = machine.SetProviderAddresses(dummyPrivateAddress, dummyPublicAddress)
+	err = machine.SetProviderAddresses(controller.Config{}, dummyPrivateAddress, dummyPublicAddress)
 	c.Assert(err, jc.ErrorIsNil)
 }
 
@@ -301,10 +302,10 @@ func addControllerMachine(c *gc.C, st *state.State) {
 	// The AddControllerMachine call will update the API host ports
 	// to made-up addresses. We need valid addresses so that the uniter
 	// can download charms from the API server.
-	apiHostPorts, err := st.APIHostPortsForClients()
+	apiHostPorts, err := st.APIHostPortsForClients(controller.Config{})
 	c.Assert(err, gc.IsNil)
-	testing.AddControllerMachine(c, st)
-	err = st.SetAPIHostPorts(apiHostPorts)
+	testing.AddControllerMachine(c, st, controller.Config{})
+	err = st.SetAPIHostPorts(apiHostPorts, controller.Config{})
 	c.Assert(err, gc.IsNil)
 }
 

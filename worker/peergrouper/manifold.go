@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/juju/juju/agent"
+	"github.com/juju/juju/core/changestream"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/worker/common"
 	workerstate "github.com/juju/juju/worker/state"
@@ -24,6 +25,7 @@ type ManifoldConfig struct {
 	ControllerPortName string
 	StateName          string
 	Hub                Hub
+	ChangeStreamName   string
 
 	PrometheusRegisterer prometheus.Registerer
 	NewWorker            func(Config) (worker.Worker, error)
@@ -52,6 +54,9 @@ func (config ManifoldConfig) Validate() error {
 	if config.NewWorker == nil {
 		return errors.NotValidf("nil NewWorker")
 	}
+	if config.ChangeStreamName == "" {
+		return errors.NotValidf("empty ChangeStreamName")
+	}
 	return nil
 }
 
@@ -63,6 +68,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			config.ClockName,
 			config.ControllerPortName,
 			config.StateName,
+			config.ChangeStreamName,
 		},
 		Start: config.start,
 	}
@@ -116,6 +122,11 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 	}
 	supportsHA := model.Type() != state.ModelTypeCAAS
 
+	var dbGetter changestream.WatchableDBGetter
+	if err := context.Get(config.ChangeStreamName, &dbGetter); err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	w, err := config.NewWorker(Config{
 		State:                StateShim{st},
 		MongoSession:         MongoSessionShim{mongoSession},
@@ -129,7 +140,8 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		PrometheusRegisterer: config.PrometheusRegisterer,
 		// On machine models, the controller id is the same as the machine/agent id.
 		// TODO(wallyworld) - revisit when we add HA to k8s.
-		ControllerId: agentConfig.Tag().Id,
+		ControllerId:      agentConfig.Tag().Id,
+		WatchableDBGetter: dbGetter,
 	})
 	if err != nil {
 		_ = stTracker.Done()

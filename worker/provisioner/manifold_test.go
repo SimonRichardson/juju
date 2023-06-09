@@ -29,7 +29,7 @@ var _ = gc.Suite(&ManifoldSuite{})
 
 func (s *ManifoldSuite) makeManifold() dependency.Manifold {
 	fakeNewProvFunc := func(provisioner.ControllerAPI, provisioner.MachinesAPI, provisioner.ToolsFinder,
-		provisioner.DistributionGroupFinder, agent.Config, provisioner.Logger, provisioner.Environ, common.CredentialAPI,
+		provisioner.DistributionGroupFinder, agent.Config, provisioner.Logger, provisioner.Environ, common.CredentialAPI, provisioner.ControllerConfigGetter,
 	) (provisioner.Provisioner, error) {
 		s.stub.AddCall("NewProvisionerFunc")
 		return struct{ provisioner.Provisioner }{}, nil
@@ -39,6 +39,7 @@ func (s *ManifoldSuite) makeManifold() dependency.Manifold {
 		APICallerName:                "api-caller",
 		Logger:                       loggo.GetLogger("test"),
 		EnvironName:                  "environ",
+		ChangeStreamName:             "change-stream",
 		NewProvisionerFunc:           fakeNewProvFunc,
 		NewCredentialValidatorFacade: func(base.APICaller) (common.CredentialAPI, error) { return nil, nil },
 	})

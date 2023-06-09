@@ -4,6 +4,7 @@
 package caasmodeloperator
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/juju/errors"
@@ -14,8 +15,13 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/cloudconfig/podcfg"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/rpc/params"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 // TODO (manadart 2020-10-21): Remove the ModelUUID method
 // from the next version of this facade.
@@ -29,6 +35,7 @@ type API struct {
 	ctrlState CAASControllerState
 	state     CAASModelOperatorState
 	logger    loggo.Logger
+	cc        ControllerConfigGetter
 }
 
 // NewAPI is alternative means of constructing a controller model facade.
@@ -38,6 +45,7 @@ func NewAPI(
 	ctrlSt CAASControllerState,
 	st CAASModelOperatorState,
 	logger loggo.Logger,
+	cc ControllerConfigGetter,
 ) (*API, error) {
 
 	if !authorizer.AuthController() {
@@ -46,11 +54,12 @@ func NewAPI(
 
 	return &API{
 		auth:            authorizer,
-		APIAddresser:    common.NewAPIAddresser(ctrlSt, resources),
+		APIAddresser:    common.NewAPIAddresser(ctrlSt, resources, cc),
 		PasswordChanger: common.NewPasswordChanger(st, common.AuthFuncForTagKind(names.ModelTagKind)),
 		ctrlState:       ctrlSt,
 		state:           st,
 		logger:          logger,
+		cc:              cc,
 	}, nil
 }
 
@@ -58,7 +67,7 @@ func NewAPI(
 // a new model operator into a caas cluster.
 func (a *API) ModelOperatorProvisioningInfo() (params.ModelOperatorInfo, error) {
 	var result params.ModelOperatorInfo
-	controllerConf, err := a.ctrlState.ControllerConfig()
+	controllerConf, err := a.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return result, err
 	}

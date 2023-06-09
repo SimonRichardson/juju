@@ -4,6 +4,8 @@
 package client
 
 import (
+	ctx "context"
+
 	"github.com/juju/collections/set"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -15,6 +17,7 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/cloudconfig/podcfg"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/leadership"
 	"github.com/juju/juju/core/multiwatcher"
 	coreos "github.com/juju/juju/core/os"
@@ -32,12 +35,17 @@ import (
 
 var logger = loggo.GetLogger("juju.apiserver.client")
 
+type ControllerConfigGetter interface {
+	ControllerConfig(ctx.Context) (controller.Config, error)
+}
+
 type API struct {
 	stateAccessor Backend
 	pool          Pool
 	auth          facade.Authorizer
 	resources     facade.Resources
 	presence      facade.Presence
+	cc            ControllerConfigGetter
 
 	multiwatcherFactory multiwatcher.Factory
 
@@ -247,7 +255,8 @@ func (c *Client) FindTools(args params.FindToolsParams) (params.FindToolsResult,
 		Arch:         args.Arch,
 		OSType:       args.OSType,
 		AgentStream:  args.AgentStream,
-	})
+	},
+		c.api.cc)
 	result := params.FindToolsResult{
 		List:  list,
 		Error: apiservererrors.ServerError(err),
@@ -278,7 +287,7 @@ func (c *Client) FindTools(args params.FindToolsParams) (params.FindToolsResult,
 
 func (c *Client) toolVersionsForCAAS(args params.FindToolsParams, streamsVersions set.Strings, current version.Number) (params.FindToolsResult, error) {
 	result := params.FindToolsResult{}
-	controllerCfg, err := c.api.stateAccessor.ControllerConfig()
+	controllerCfg, err := c.api.cc.ControllerConfig(ctx.TODO())
 	if err != nil {
 		return result, errors.Trace(err)
 	}

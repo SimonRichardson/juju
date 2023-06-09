@@ -4,6 +4,8 @@
 package meterstatus
 
 import (
+	"context"
+
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
 
@@ -16,6 +18,10 @@ import (
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/watcher"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 // MeterStatus defines the methods exported by the meter status API facade.
 type MeterStatus interface {
@@ -55,6 +61,7 @@ func NewMeterStatusAPI(
 	resources facade.Resources,
 	authorizer facade.Authorizer,
 	logger loggo.Logger,
+	cc ControllerConfigGetter,
 ) (*MeterStatusAPI, error) {
 	if !authorizer.AuthUnitAgent() && !authorizer.AuthApplicationAgent() {
 		return nil, apiservererrors.ErrPerm
@@ -66,7 +73,7 @@ func NewMeterStatusAPI(
 		accessUnit: accessUnit,
 		resources:  resources,
 		UnitStateAPI: common.NewUnitStateAPI(
-			unitStateShim{st},
+			unitStateShim{st, cc},
 			resources,
 			authorizer,
 			accessUnit,
@@ -149,6 +156,7 @@ func (m *MeterStatusAPI) GetMeterStatus(args params.Entities) (params.MeterStatu
 // with common.UnitStateAPI.
 type unitStateShim struct {
 	st MeterStatusState
+	cc ControllerConfigGetter
 }
 
 func (s unitStateShim) ApplyOperation(op state.ModelOperation) error {
@@ -156,7 +164,7 @@ func (s unitStateShim) ApplyOperation(op state.ModelOperation) error {
 }
 
 func (s unitStateShim) ControllerConfig() (controller.Config, error) {
-	return s.st.ControllerConfig()
+	return s.cc.ControllerConfig(context.TODO())
 }
 
 func (s unitStateShim) Unit(name string) (common.UnitStateUnit, error) {

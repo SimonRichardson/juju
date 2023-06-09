@@ -93,11 +93,12 @@ type ModelPoolBackend interface {
 
 type statePoolShim struct {
 	*state.StatePool
+	cc ControllerConfigGetter
 }
 
 // NewModelPoolBackend creates a model pool backend based on state.StatePool.
-func NewModelPoolBackend(st *state.StatePool) ModelPoolBackend {
-	return statePoolShim{st}
+func NewModelPoolBackend(st *state.StatePool, cc ControllerConfigGetter) ModelPoolBackend {
+	return statePoolShim{st, cc}
 }
 
 // GetModelCallContext implements ModelPoolBackend.GetModelCallContext.
@@ -107,7 +108,7 @@ func (s statePoolShim) GetModelCallContext(modelUUID string) (credentialcommon.P
 		return nil, nil, err
 	}
 	defer modelState.Release()
-	return credentialcommon.NewPersistentBackend(modelState.State), context.CallContext(modelState.State), err
+	return credentialcommon.NewPersistentBackend(modelState.State, s.cc), context.CallContext(modelState.State), err
 }
 
 type User interface {

@@ -6,6 +6,7 @@ package apiserver
 import (
 	"context"
 	"fmt"
+	"github.com/juju/juju/domain"
 	"io"
 	"net/http"
 	"net/url"
@@ -50,6 +51,8 @@ import (
 	"github.com/juju/juju/core/multiwatcher"
 	"github.com/juju/juju/core/presence"
 	"github.com/juju/juju/core/resources"
+	ccservice "github.com/juju/juju/domain/controllerconfig/service"
+	ccstate "github.com/juju/juju/domain/controllerconfig/state"
 	"github.com/juju/juju/pubsub/apiserver"
 	controllermsg "github.com/juju/juju/pubsub/controller"
 	"github.com/juju/juju/resource"
@@ -297,7 +300,21 @@ func newServer(cfg ServerConfig) (_ *Server, err error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	controllerConfig, err := systemState.ControllerConfig()
+
+	ccService := ccservice.NewService(
+		ccstate.NewState(domain.NewTxnRunnerFactoryForNamespace(
+			cfg.DBGetter.GetWatchableDB,
+			database.ControllerNS,
+		)),
+		domain.NewWatcherFactory(
+			func() (changestream.WatchableDB, error) {
+				return cfg.DBGetter.GetWatchableDB(database.ControllerNS)
+			},
+			loggo.GetLogger("juju.apiserver"),
+		),
+	)
+
+	controllerConfig, err := ccService.ControllerConfig(context.TODO())
 	if err != nil {
 		return nil, errors.Annotate(err, "unable to get controller config")
 	}

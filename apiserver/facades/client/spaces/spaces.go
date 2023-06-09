@@ -4,8 +4,8 @@
 package spaces
 
 import (
+	ctx "context"
 	"fmt"
-
 	"github.com/juju/collections/set"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -16,10 +16,15 @@ import (
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/core/permission"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/context"
 	"github.com/juju/juju/rpc/params"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(ctx.Context) (controller.Config, error)
+}
 
 // API provides the spaces API facade for version 6.
 type API struct {
@@ -33,6 +38,8 @@ type API struct {
 	check     BlockChecker
 	opFactory OpFactory
 	logger    loggo.Logger
+
+	cc ControllerConfigGetter
 }
 
 type apiConfig struct {
@@ -44,6 +51,7 @@ type apiConfig struct {
 	Authorizer      facade.Authorizer
 	Factory         OpFactory
 	logger          loggo.Logger
+	cc              ControllerConfigGetter
 }
 
 // newAPIWithBacking creates a new server-side Spaces API facade with
@@ -63,6 +71,7 @@ func newAPIWithBacking(cfg apiConfig) (*API, error) {
 		check:           cfg.Check,
 		opFactory:       cfg.Factory,
 		logger:          cfg.logger,
+		cc:              cfg.cc,
 	}, nil
 }
 

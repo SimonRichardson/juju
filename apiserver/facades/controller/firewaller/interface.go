@@ -4,6 +4,8 @@
 package firewaller
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
 	"gopkg.in/macaroon.v2"
@@ -48,10 +50,11 @@ func StateShim(st *state.State, m *state.Model) stateShim {
 type stateShim struct {
 	firewall.State
 	st *state.State
+	cc ControllerConfigGetter
 }
 
 func (st stateShim) ControllerConfig() (controller.Config, error) {
-	return st.st.ControllerConfig()
+	return st.cc.ControllerConfig(context.TODO())
 }
 
 func (st stateShim) IsController() bool {

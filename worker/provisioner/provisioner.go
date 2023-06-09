@@ -4,6 +4,7 @@
 package provisioner
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -14,12 +15,17 @@ import (
 
 	"github.com/juju/juju/agent"
 	apiprovisioner "github.com/juju/juju/api/agent/provisioner"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/instance"
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/worker/common"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 // Ensure our structs implement the required Provisioner interface.
 var _ Provisioner = (*environProvisioner)(nil)

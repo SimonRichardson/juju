@@ -4,6 +4,8 @@
 package upgradesteps
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
@@ -13,12 +15,17 @@ import (
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/core/instance"
 	"github.com/juju/juju/core/status"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 )
 
 //go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/upgradesteps_mock.go github.com/juju/juju/apiserver/facades/agent/upgradesteps UpgradeStepsState,Machine,Unit
 //go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/state_mock.go github.com/juju/juju/state EntityFinder,Entity
+
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
 
 // UpgradeStepsV2 defines the methods on the version 2 facade for the
 // upgrade steps API endpoint.
@@ -42,6 +49,7 @@ type UpgradeStepsAPI struct {
 	getMachineAuthFunc common.GetAuthFunc
 	getUnitAuthFunc    common.GetAuthFunc
 	logger             loggo.Logger
+	cc                 ControllerConfigGetter
 }
 
 // UpgradeStepsAPIV1 implements version 1 of the Upgrade Steps API.
@@ -55,6 +63,7 @@ func NewUpgradeStepsAPI(st UpgradeStepsState,
 	resources facade.Resources,
 	authorizer facade.Authorizer,
 	logger loggo.Logger,
+	cc ControllerConfigGetter,
 ) (*UpgradeStepsAPI, error) {
 	if !authorizer.AuthMachineAgent() && !authorizer.AuthController() && !authorizer.AuthUnitAgent() {
 		return nil, apiservererrors.ErrPerm
@@ -69,6 +78,7 @@ func NewUpgradeStepsAPI(st UpgradeStepsState,
 		getMachineAuthFunc: getMachineAuthFunc,
 		getUnitAuthFunc:    getUnitAuthFunc,
 		logger:             logger,
+		cc:                 cc,
 	}, nil
 }
 
@@ -113,7 +123,7 @@ func (api *UpgradeStepsAPI) ResetKVMMachineModificationStatusIdle(arg params.Ent
 // WriteAgentState writes the agent state for the set of units provided. This
 // call presently deals with the state for the unit agent.
 func (api *UpgradeStepsAPI) WriteAgentState(args params.SetUnitStateArgs) (params.ErrorResults, error) {
-	ctrlCfg, err := api.st.ControllerConfig()
+	ctrlCfg, err := api.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return params.ErrorResults{}, errors.Trace(err)
 	}

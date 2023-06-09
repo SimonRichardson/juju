@@ -8,6 +8,9 @@ import (
 
 	"github.com/juju/errors"
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/domain"
+	ccservice "github.com/juju/juju/domain/controllerconfig/service"
+	ccstate "github.com/juju/juju/domain/controllerconfig/state"
 )
 
 // Register is called to expose a package of facades onto a given registry.
@@ -19,7 +22,14 @@ func Register(registry facade.FacadeRegistry) {
 
 // newProvisionerAPIV11 creates a new server-side Provisioner API facade.
 func newProvisionerAPIV11(ctx facade.Context) (*ProvisionerAPIV11, error) {
-	provisionerAPI, err := NewProvisionerAPI(ctx)
+	ccService := ccservice.NewService(
+		ccstate.NewState(domain.NewTxnRunnerFactory(ctx.ControllerDB)),
+		domain.NewWatcherFactory(
+			ctx.ControllerDB,
+			ctx.Logger().Child("controllerconfig"),
+		),
+	)
+	provisionerAPI, err := NewProvisionerAPI(ctx, ccService)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

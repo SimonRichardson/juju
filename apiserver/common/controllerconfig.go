@@ -4,6 +4,8 @@
 package common
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
 
@@ -16,19 +18,21 @@ import (
 // facades - eg Provisioner and ControllerConfig.
 type ControllerConfigAPI struct {
 	st ControllerConfigState
+	cc ControllerConfigGetter
 }
 
 // NewStateControllerConfig returns a new NewControllerConfigAPI.
-func NewStateControllerConfig(st ControllerConfigState) *ControllerConfigAPI {
+func NewStateControllerConfig(st ControllerConfigState, cc ControllerConfigGetter) *ControllerConfigAPI {
 	return &ControllerConfigAPI{
 		st: st,
+		cc: cc,
 	}
 }
 
 // ControllerConfig returns the controller's configuration.
 func (s *ControllerConfigAPI) ControllerConfig() (params.ControllerConfigResult, error) {
 	result := params.ControllerConfigResult{}
-	config, err := s.st.ControllerConfig()
+	config, err := s.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return result, err
 	}
@@ -63,7 +67,7 @@ func (s *ControllerConfigAPI) getModelControllerInfo(model params.Entity) (param
 		return params.ControllerAPIInfoResult{}, errors.Trace(err)
 	}
 	if modelExists {
-		addrs, caCert, err := StateControllerInfo(s.st)
+		addrs, caCert, err := StateControllerInfo(s.st, s.cc)
 		if err != nil {
 			return params.ControllerAPIInfoResult{}, errors.Trace(err)
 		}
@@ -117,12 +121,12 @@ func (s *ControllerConfigAPI) getModelControllerInfo(model params.Entity) (param
 }
 
 // StateControllerInfo returns the local controller details for the given State.
-func StateControllerInfo(st controllerInfoState) (addrs []string, caCert string, _ error) {
-	addr, err := apiAddresses(st)
+func StateControllerInfo(st controllerInfoState, cc ControllerConfigGetter) (addrs []string, caCert string, _ error) {
+	addr, err := apiAddresses(st, cc)
 	if err != nil {
 		return nil, "", errors.Trace(err)
 	}
-	controllerConfig, err := st.ControllerConfig()
+	controllerConfig, err := cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return nil, "", errors.Trace(err)
 	}

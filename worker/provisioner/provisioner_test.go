@@ -44,6 +44,7 @@ type CommonProvisionerSuite struct {
 	controllerAPI *mocks.MockControllerAPI
 	machinesAPI   *mocks.MockMachinesAPI
 	broker        *environmocks.MockEnviron
+	cc            *mocks.MockControllerConfigGetter
 
 	modelConfigCh chan struct{}
 	machinesCh    chan []string
@@ -56,6 +57,7 @@ func (s *CommonProvisionerSuite) setUpMocks(c *gc.C) *gomock.Controller {
 	s.controllerAPI = mocks.NewMockControllerAPI(ctrl)
 	s.machinesAPI = mocks.NewMockMachinesAPI(ctrl)
 	s.broker = environmocks.NewMockEnviron(ctrl)
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 	s.expectAuth()
 	s.expectStartup(c)
 	return ctrl
@@ -248,7 +250,8 @@ func (s *CommonProvisionerSuite) newEnvironProvisioner(c *gc.C) provisioner.Prov
 		&mockDistributionGroupFinder{},
 		agentConfig,
 		loggo.GetLogger("test"),
-		s.broker, &credentialAPIForTest{})
+		s.broker, &credentialAPIForTest{},
+		s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 
 	s.waitForProvisioner(c)

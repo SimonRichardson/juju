@@ -39,6 +39,7 @@ type cloudSuite struct {
 	pool        *mocks.MockModelPoolBackend
 	api         *cloud.CloudAPI
 	authorizer  *apiservertesting.FakeAuthorizer
+	cc          *mocks.MockControllerConfigGetter
 }
 
 func (s *cloudSuite) setup(c *gc.C, userTag names.UserTag) *gomock.Controller {
@@ -55,7 +56,8 @@ func (s *cloudSuite) setup(c *gc.C, userTag names.UserTag) *gomock.Controller {
 	s.ctrlBackend = mocks.NewMockBackend(ctrl)
 	s.ctrlBackend.EXPECT().ControllerTag().Return(coretesting.ControllerTag).AnyTimes()
 
-	api, err := cloud.NewCloudAPI(s.backend, s.ctrlBackend, s.pool, s.authorizer, loggo.GetLogger("juju.apiserver.cloud"))
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
+	api, err := cloud.NewCloudAPI(s.backend, s.ctrlBackend, s.pool, s.authorizer, loggo.GetLogger("juju.apiserver.cloud"), s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	s.api = api
 	return ctrl

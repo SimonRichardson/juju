@@ -4,6 +4,7 @@
 package machine_test
 
 import (
+	"github.com/golang/mock/gomock"
 	"time"
 
 	"github.com/juju/loggo"
@@ -28,12 +29,18 @@ type machinerSuite struct {
 
 	resources *common.Resources
 	machiner  *machine.MachinerAPI
+	cc        *MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&machinerSuite{})
 
 func (s *machinerSuite) SetUpTest(c *gc.C) {
 	s.commonSuite.SetUpTest(c)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = NewMockControllerConfigGetter(ctrl)
 
 	// Create the resource registry separately to track invocations to
 	// Register.
@@ -47,6 +54,7 @@ func (s *machinerSuite) SetUpTest(c *gc.C) {
 		s.State,
 		s.resources,
 		s.authorizer,
+		s.cc,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 	s.machiner = machiner
@@ -59,7 +67,7 @@ func (s *machinerSuite) TestMachinerFailsWithNonMachineAgentUser(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	aMachiner, err := machine.NewMachinerAPIForState(
 		systemState,
-		s.State, s.resources, anAuthorizer)
+		s.State, s.resources, anAuthorizer, s.cc)
 	c.Assert(err, gc.NotNil)
 	c.Assert(aMachiner, gc.IsNil)
 	c.Assert(err, gc.ErrorMatches, "permission denied")

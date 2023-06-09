@@ -5,6 +5,7 @@ package modelmanager_test
 
 import (
 	stdcontext "context"
+	"github.com/golang/mock/gomock"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	commonsecrets "github.com/juju/juju/apiserver/common/secrets"
 	"github.com/juju/juju/apiserver/facades/client/modelmanager"
+	"github.com/juju/juju/apiserver/facades/client/modelmanager/mocks"
 	apiservertesting "github.com/juju/juju/apiserver/testing"
 	"github.com/juju/juju/caas"
 	"github.com/juju/juju/cloud"
@@ -49,6 +51,7 @@ type modelInfoSuite struct {
 	authorizer   apiservertesting.FakeAuthorizer
 	st           *mockState
 	ctlrSt       *mockState
+	cc           *mocks.MockControllerConfigGetter
 	modelmanager *modelmanager.ModelManagerAPI
 
 	callContext context.ProviderCallContext
@@ -62,6 +65,12 @@ var _ = gc.Suite(&modelInfoSuite{})
 
 func (s *modelInfoSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
+
 	s.authorizer = apiservertesting.FakeAuthorizer{
 		Tag: names.NewUserTag("admin@local"),
 	}
@@ -181,7 +190,7 @@ func (s *modelInfoSuite) SetUpTest(c *gc.C) {
 	var err error
 	s.modelmanager, err = modelmanager.NewModelManagerAPI(
 		s.st, s.ctlrSt, &mockModelManagerService{}, nil, nil, common.NewBlockChecker(s.st),
-		&s.authorizer, s.st.model, s.callContext,
+		&s.authorizer, s.st.model, s.callContext, s.cc,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -199,7 +208,7 @@ func (s *modelInfoSuite) setAPIUser(c *gc.C, user names.UserTag) {
 	var err error
 	s.modelmanager, err = modelmanager.NewModelManagerAPI(
 		s.st, s.ctlrSt, &mockModelManagerService{}, nil, nil,
-		common.NewBlockChecker(s.st), s.authorizer, s.st.model, s.callContext,
+		common.NewBlockChecker(s.st), s.authorizer, s.st.model, s.callContext, s.cc,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 }

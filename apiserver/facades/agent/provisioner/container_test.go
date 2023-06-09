@@ -4,6 +4,8 @@
 package provisioner_test
 
 import (
+	"github.com/golang/mock/gomock"
+	"github.com/juju/juju/apiserver/common/mocks"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
@@ -17,6 +19,8 @@ import (
 
 type containerProvisionerSuite struct {
 	provisionerSuite
+
+	cc *mocks.MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&containerProvisionerSuite{})
@@ -24,6 +28,11 @@ var _ = gc.Suite(&containerProvisionerSuite{})
 func (s *containerProvisionerSuite) SetUpTest(c *gc.C) {
 	// We have a Controller machine, and 5 other machines to provision in
 	s.setUpTest(c, true)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 }
 
 func addContainerToMachine(c *gc.C, st *state.State, machine *state.Machine) *state.Machine {
@@ -51,7 +60,7 @@ func (s *containerProvisionerSuite) TestPrepareContainerInterfaceInfoPermission(
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(aProvisioner, gc.NotNil)
 
@@ -104,7 +113,7 @@ func (s *containerProvisionerSuite) TestHostChangesForContainersPermission(c *gc
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(aProvisioner, gc.NotNil)
 

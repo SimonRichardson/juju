@@ -68,6 +68,7 @@ type CharmhubClient interface {
 // MachineManagerAPI provides access to the MachineManager API facade.
 type MachineManagerAPI struct {
 	st               Backend
+	cc               ControllerConfigGetter
 	storageAccess    StorageInterface
 	pool             Pool
 	authorizer       Authorizer
@@ -327,7 +328,7 @@ func (mm *MachineManagerAPI) ProvisioningScript(args params.ProvisioningScriptPa
 	if err != nil {
 		return result, errors.Trace(err)
 	}
-	icfg, err := InstanceConfig(st, mm.st, args.MachineId, args.Nonce, args.DataDir)
+	icfg, err := InstanceConfig(st, mm.st, args.MachineId, args.Nonce, args.DataDir, mm.cc)
 	if err != nil {
 		return result, apiservererrors.ServerError(errors.Annotate(
 			err, "getting instance config",

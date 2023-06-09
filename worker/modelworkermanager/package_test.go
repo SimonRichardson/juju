@@ -9,6 +9,8 @@ import (
 	"github.com/juju/juju/testing"
 )
 
+//go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/changestream_mock.go github.com/juju/juju/core/changestream WatchableDBGetter
+
 func TestPackage(t *stdtesting.T) {
 	testing.MgoTestPackage(t)
 }

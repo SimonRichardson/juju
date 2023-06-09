@@ -4,8 +4,8 @@
 package modelupgrader
 
 import (
+	ctx "context"
 	"fmt"
-
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
@@ -16,6 +16,7 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/core/permission"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/docker"
 	"github.com/juju/juju/docker/registry"
 	"github.com/juju/juju/environs"
@@ -26,6 +27,10 @@ import (
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/upgrades/upgradevalidation"
 )
+
+type ControllerConfigGetter interface {
+	ControllerConfig(ctx.Context) (controller.Config, error)
+}
 
 // ModelUpgraderAPI implements the model upgrader interface and is
 // the concrete implementation of the api end point.
@@ -38,6 +43,7 @@ type ModelUpgraderAPI struct {
 	apiUser       names.UserTag
 	callContext   context.ProviderCallContext
 	newEnviron    common.NewEnvironFunc
+	cc            ControllerConfigGetter
 
 	registryAPIFunc         func(repoDetails docker.ImageRepoDetails) (registry.Registry, error)
 	environscloudspecGetter func(names.ModelTag) (environscloudspec.CloudSpec, error)
@@ -57,6 +63,7 @@ func NewModelUpgraderAPI(
 	registryAPIFunc func(docker.ImageRepoDetails) (registry.Registry, error),
 	environscloudspecGetter func(names.ModelTag) (environscloudspec.CloudSpec, error),
 	logger loggo.Logger,
+	cc ControllerConfigGetter,
 ) (*ModelUpgraderAPI, error) {
 	if !authorizer.AuthClient() {
 		return nil, apiservererrors.ErrPerm
@@ -77,6 +84,7 @@ func NewModelUpgraderAPI(
 		registryAPIFunc:         registryAPIFunc,
 		environscloudspecGetter: environscloudspecGetter,
 		logger:                  logger,
+		cc:                      cc,
 	}, nil
 }
 
@@ -152,7 +160,7 @@ func (m *ModelUpgraderAPI) UpgradeModel(arg params.UpgradeModelParams) (result p
 	}
 	defer st.Release()
 
-	controllerCfg, err := st.ControllerConfig()
+	controllerCfg, err := m.cc.ControllerConfig(ctx.TODO())
 	if err != nil {
 		return result, errors.Trace(err)
 	}

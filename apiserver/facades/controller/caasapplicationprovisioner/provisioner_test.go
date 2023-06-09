@@ -4,6 +4,7 @@
 package caasapplicationprovisioner_test
 
 import (
+	"github.com/golang/mock/gomock"
 	"time"
 
 	"github.com/juju/charm/v11"
@@ -44,10 +45,16 @@ type CAASApplicationProvisionerSuite struct {
 	storage            *mockStorage
 	storagePoolManager *mockStoragePoolManager
 	registry           *mockStorageRegistry
+	cc                 *MockControllerConfigGetter
 }
 
 func (s *CAASApplicationProvisionerSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = NewMockControllerConfigGetter(ctrl)
 
 	s.resources = common.NewResources()
 	s.AddCleanup(func(_ *gc.C) { s.resources.StopAll() })

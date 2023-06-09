@@ -904,7 +904,7 @@ func (s *MachineSuite) TestMachineAgentRunsAPIAddressUpdaterWorker(c *gc.C) {
 	updatedServers := []network.SpaceHostPorts{
 		network.NewSpaceHostPorts(1234, "localhost"),
 	}
-	err := s.BackingState.SetAPIHostPorts(updatedServers)
+	err := s.BackingState.SetAPIHostPorts(updatedServers, controller.Config{})
 	c.Assert(err, jc.ErrorIsNil)
 
 	// Wait for config to be updated.

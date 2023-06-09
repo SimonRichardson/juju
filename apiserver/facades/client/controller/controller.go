@@ -4,6 +4,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -41,6 +42,11 @@ import (
 	jujuversion "github.com/juju/juju/version"
 )
 
+type ControllerConfiger interface {
+	ControllerConfig(context.Context) (corecontroller.Config, error)
+	UpdateControllerConfig(context.Context, corecontroller.Config, []string) error
+}
+
 // ControllerAPI provides the Controller API.
 type ControllerAPI struct {
 	*common.ControllerConfigAPI
@@ -54,6 +60,7 @@ type ControllerAPI struct {
 	resources  facade.Resources
 	presence   facade.Presence
 	hub        facade.Hub
+	cc         ControllerConfiger
 
 	multiwatcherFactory multiwatcher.Factory
 	logger              loggo.Logger
@@ -79,6 +86,7 @@ func NewControllerAPI(
 	hub facade.Hub,
 	factory multiwatcher.Factory,
 	logger loggo.Logger,
+	cc ControllerConfiger,
 ) (*ControllerAPI, error) {
 	if !authorizer.AuthClient() {
 		return nil, errors.Trace(apiservererrors.ErrPerm)
@@ -93,7 +101,7 @@ func NewControllerAPI(
 		return nil, errors.Trace(err)
 	}
 	return &ControllerAPI{
-		ControllerConfigAPI: common.NewStateControllerConfig(st),
+		ControllerConfigAPI: common.NewStateControllerConfig(st, cc),
 		ModelStatusAPI: common.NewModelStatusAPI(
 			common.NewModelManagerBackend(model, pool),
 			authorizer,
@@ -240,7 +248,7 @@ func (c *ControllerAPI) dashboardConnectionInfoForIAAS(
 		return nil, errors.Trace(err)
 	}
 	modelName := model.Name()
-	ctrCfg, err := c.state.ControllerConfig()
+	ctrCfg, err := c.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -665,6 +673,7 @@ func (c *ControllerAPI) initiateOneMigration(spec params.MigrationSpec) (string,
 	if err := runMigrationPrechecks(
 		hostedState.State, systemState,
 		&targetInfo, c.presence,
+		c.cc,
 	); err != nil {
 		return "", errors.Trace(err)
 	}
@@ -726,13 +735,18 @@ func (c *ControllerAPI) ConfigSet(args params.ControllerConfigSet) error {
 	if err := c.checkIsSuperUser(); err != nil {
 		return errors.Trace(err)
 	}
+	// Write Controller Config to Mongo.
 	if err := c.state.UpdateControllerConfig(args.Config, nil); err != nil {
+		return errors.Trace(err)
+	}
+	// Write Controller Config to DQLite.
+	if err := c.cc.UpdateControllerConfig(context.TODO(), args.Config, nil); err != nil {
 		return errors.Trace(err)
 	}
 	// TODO(thumper): add a version to controller config to allow for
 	// simultaneous updates and races in publishing, potentially across
 	// HA servers.
-	cfg, err := c.state.ControllerConfig()
+	cfg, err := c.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -748,7 +762,7 @@ func (c *ControllerAPI) ConfigSet(args params.ControllerConfigSet) error {
 // information in targetInfo as needed based on information
 // retrieved from the target controller.
 var runMigrationPrechecks = func(
-	st, ctlrSt *state.State, targetInfo *coremigration.TargetInfo, presence facade.Presence,
+	st, ctlrSt *state.State, targetInfo *coremigration.TargetInfo, presence facade.Presence, cc ControllerConfiger,
 ) error {
 	// Check model and source controller.
 	backend, err := migration.PrecheckShim(st, ctlrSt)
@@ -779,7 +793,7 @@ var runMigrationPrechecks = func(
 	}
 
 	// Check target controller.
-	modelInfo, srcUserList, err := makeModelInfo(st, ctlrSt)
+	modelInfo, srcUserList, err := makeModelInfo(st, ctlrSt, cc)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -873,7 +887,7 @@ users to the destination controller or remove them from the current model:
 	return nil
 }
 
-func makeModelInfo(st, ctlrSt *state.State) (coremigration.ModelInfo, userList, error) {
+func makeModelInfo(st, ctlrSt *state.State, cc ControllerConfiger) (coremigration.ModelInfo, userList, error) {
 	var empty coremigration.ModelInfo
 	var ul userList
 
@@ -909,7 +923,7 @@ func makeModelInfo(st, ctlrSt *state.State) (coremigration.ModelInfo, userList, 
 	}
 	controllerVersion, _ := controllerConfig.AgentVersion()
 
-	coreConf, err := ctlrSt.ControllerConfig()
+	coreConf, err := cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return empty, userList{}, errors.Trace(err)
 	}

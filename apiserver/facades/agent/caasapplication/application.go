@@ -4,6 +4,7 @@
 package caasapplication
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -33,6 +34,7 @@ type Facade struct {
 	clock     clock.Clock
 	broker    Broker
 	logger    loggo.Logger
+	cc        ControllerConfigGetter
 }
 
 // NewFacade returns a new CAASOperator facade.
@@ -44,6 +46,7 @@ func NewFacade(
 	broker Broker,
 	clock clock.Clock,
 	logger loggo.Logger,
+	cc ControllerConfigGetter,
 ) (*Facade, error) {
 	if !authorizer.AuthApplicationAgent() && !authorizer.AuthUnitAgent() {
 		return nil, apiservererrors.ErrPerm
@@ -61,6 +64,7 @@ func NewFacade(
 		clock:     clock,
 		broker:    broker,
 		logger:    logger,
+		cc:        cc,
 	}, nil
 }
 
@@ -158,11 +162,11 @@ func (f *Facade) UnitIntroduction(args params.CAASUnitIntroductionArgs) (params.
 		return errResp(err)
 	}
 
-	controllerConfig, err := f.ctrlSt.ControllerConfig()
+	controllerConfig, err := f.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return errResp(err)
 	}
-	apiHostPorts, err := f.ctrlSt.APIHostPortsForAgents()
+	apiHostPorts, err := f.ctrlSt.APIHostPortsForAgents(controllerConfig)
 	if err != nil {
 		return errResp(err)
 	}

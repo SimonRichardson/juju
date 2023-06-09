@@ -23,6 +23,7 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/httpcontext"
+	jujucontroller "github.com/juju/juju/controller"
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
@@ -37,6 +38,10 @@ var AgentTags = []string{
 	names.ModelTagKind,
 }
 
+type ControllerConfigGetter interface {
+	ControllerConfig(context.Context) (jujucontroller.Config, error)
+}
+
 // Authenticator is an implementation of httpcontext.Authenticator,
 // using *state.State for authentication.
 //
@@ -45,6 +50,7 @@ var AgentTags = []string{
 type Authenticator struct {
 	statePool   *state.StatePool
 	authContext *authContext
+	cc          ControllerConfigGetter
 }
 
 type PermissionDelegator struct {
@@ -52,18 +58,19 @@ type PermissionDelegator struct {
 }
 
 // NewAuthenticator returns a new Authenticator using the given StatePool.
-func NewAuthenticator(statePool *state.StatePool, clock clock.Clock) (*Authenticator, error) {
+func NewAuthenticator(statePool *state.StatePool, clock clock.Clock, cc ControllerConfigGetter) (*Authenticator, error) {
 	systemState, err := statePool.SystemState()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	authContext, err := newAuthContext(systemState, clock)
+	authContext, err := newAuthContext(systemState, cc, clock)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	return &Authenticator{
 		statePool:   statePool,
 		authContext: authContext,
+		cc:          cc,
 	}, nil
 }
 

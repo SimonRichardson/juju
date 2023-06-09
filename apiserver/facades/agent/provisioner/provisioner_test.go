@@ -44,6 +44,8 @@ import (
 	"github.com/juju/juju/testing/factory"
 )
 
+//go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/domain_mock.go github.com/juju/juju/apiserver/facades/agent/provisioner ControllerConfigGetter
+
 func TestPackage(t *stdtesting.T) {
 	coretesting.MgoTestPackage(t)
 }
@@ -77,7 +79,7 @@ func (s *provisionerSuite) setUpTest(c *gc.C, withController bool) {
 	// Note that the specific machine ids allocated are assumed
 	// to be numerically consecutive from zero.
 	if withController {
-		s.machines = append(s.machines, testing.AddControllerMachine(c, s.State))
+		s.machines = append(s.machines, testing.AddControllerMachine(c, s.State, s.ControllerConfigAttrs))
 	}
 	for i := 0; i < 5; i++ {
 		machine, err := s.State.AddMachine(state.UbuntuBase("12.10"), state.JobHostUnits)
@@ -110,6 +112,8 @@ func (s *provisionerSuite) setUpTest(c *gc.C, withController bool) {
 type withoutControllerSuite struct {
 	provisionerSuite
 	*commontesting.ModelWatcherTest
+
+	cc *mocks.MockControllerConfigGetter
 }
 
 var _ = gc.Suite(&withoutControllerSuite{})
@@ -117,6 +121,10 @@ var _ = gc.Suite(&withoutControllerSuite{})
 func (s *withoutControllerSuite) SetUpTest(c *gc.C) {
 	s.setUpTest(c, false)
 	s.ModelWatcherTest = commontesting.NewModelWatcherTest(s.provisioner, s.State, s.resources)
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 }
 
 func (s *withoutControllerSuite) TestProvisionerFailsWithNonMachineAgentNonManagerUser(c *gc.C) {
@@ -128,7 +136,7 @@ func (s *withoutControllerSuite) TestProvisionerFailsWithNonMachineAgentNonManag
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(aProvisioner, gc.NotNil)
 
@@ -139,7 +147,7 @@ func (s *withoutControllerSuite) TestProvisionerFailsWithNonMachineAgentNonManag
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, gc.NotNil)
 	c.Assert(aProvisioner, gc.IsNil)
 	c.Assert(err, gc.ErrorMatches, "permission denied")
@@ -215,7 +223,7 @@ func (s *withoutControllerSuite) TestLifeAsMachineAgent(c *gc.C) {
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(aProvisioner, gc.NotNil)
 
@@ -574,8 +582,7 @@ func (s *withoutControllerSuite) TestMachinesWithTransientErrorsPermission(c *gc
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	},
-	)
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	now := time.Now()
 	sInfo := status.StatusInfo{
@@ -776,7 +783,7 @@ func (s *withoutControllerSuite) TestModelConfigNonManager(c *gc.C) {
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	s.AssertModelConfig(c, aProvisioner)
 }
@@ -1061,7 +1068,7 @@ func (s *withoutControllerSuite) TestDistributionGroupMachineAgentAuth(c *gc.C) 
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Check(err, jc.ErrorIsNil)
 	args := params.Entities{Entities: []params.Entity{
 		{Tag: "machine-0"},
@@ -1180,7 +1187,7 @@ func (s *withoutControllerSuite) TestDistributionGroupByMachineIdMachineAgentAut
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Check(err, jc.ErrorIsNil)
 	args := params.Entities{Entities: []params.Entity{
 		{Tag: "machine-0"},
@@ -1417,7 +1424,7 @@ func (s *withoutControllerSuite) TestWatchModelMachines(c *gc.C) {
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 
 	result, err := aProvisioner.WatchModelMachines()
@@ -1470,7 +1477,7 @@ func (s *withoutControllerSuite) TestWatchMachineErrorRetry(c *gc.C) {
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 
 	result, err := aProvisioner.WatchMachineErrorRetry()
@@ -1639,7 +1646,7 @@ func (s *withoutControllerSuite) TestSetSupportedContainersPermissions(c *gc.C) 
 		State_:     s.State,
 		StatePool_: s.StatePool,
 		Resources_: s.resources,
-	})
+	}, s.cc)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(aProvisioner, gc.NotNil)
 
@@ -1752,17 +1759,24 @@ var _ = gc.Suite(&withControllerSuite{})
 
 type withControllerSuite struct {
 	provisionerSuite
+
+	cc *mocks.MockControllerConfigGetter
 }
 
 func (s *withControllerSuite) SetUpTest(c *gc.C) {
 	s.provisionerSuite.setUpTest(c, true)
+
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 }
 
 func (s *withControllerSuite) TestAPIAddresses(c *gc.C) {
 	hostPorts := []network.SpaceHostPorts{
 		network.NewSpaceHostPorts(1234, "0.1.2.3"),
 	}
-	err := s.State.SetAPIHostPorts(hostPorts)
+	err := s.State.SetAPIHostPorts(hostPorts, s.ControllerConfigAttrs)
 	c.Assert(err, jc.ErrorIsNil)
 
 	result, err := s.provisioner.APIAddresses()
