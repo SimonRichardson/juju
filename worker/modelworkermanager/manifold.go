@@ -33,17 +33,18 @@ type Logger interface {
 // ManifoldConfig holds the information necessary to run a model worker manager
 // in a dependency.Engine.
 type ManifoldConfig struct {
-	AgentName        string
-	AuthorityName    string
-	StateName        string
-	MuxName          string
-	ChangeStreamName string
-	SyslogName       string
-	Clock            clock.Clock
-	NewWorker        func(Config) (worker.Worker, error)
-	NewModelWorker   NewModelWorkerFunc
-	ModelMetrics     ModelMetrics
-	Logger           Logger
+	AgentName                  string
+	AuthorityName              string
+	StateName                  string
+	MuxName                    string
+	ChangeStreamName           string
+	SyslogName                 string
+	Clock                      clock.Clock
+	NewWorker                  func(Config) (worker.Worker, error)
+	NewModelWorker             NewModelWorkerFunc
+	ModelMetrics               ModelMetrics
+	NewControllerConfigService func(getter changestream.WatchableDBGetter) ControllerConfigGetter
+	Logger                     Logger
 }
 
 // Validate validates the manifold configuration.
@@ -74,6 +75,9 @@ func (config ManifoldConfig) Validate() error {
 	}
 	if config.ModelMetrics == nil {
 		return errors.NotValidf("nil ModelMetrics")
+	}
+	if config.NewControllerConfigService == nil {
+		return errors.NotValidf("nil NewControllerConfigService")
 	}
 	if config.Logger == nil {
 		return errors.NotValidf("nil Logger")
@@ -139,20 +143,6 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 	if err := context.Get(config.ChangeStreamName, &dbGetter); err != nil {
 		return nil, errors.Trace(err)
 	}
-
-	ccService := ccservice.NewService(
-		ccstate.NewState(domain.NewTxnRunnerFactoryForNamespace(
-			dbGetter.GetWatchableDB,
-			coredatabase.ControllerNS,
-		)),
-		domain.NewWatcherFactory(
-			func() (changestream.WatchableDB, error) {
-				return dbGetter.GetWatchableDB(coredatabase.ControllerNS)
-			},
-			loggo.GetLogger("juju.worker.modelworkermanager"),
-		),
-	)
-
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -167,7 +157,7 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		Controller: StatePoolController{
 			StatePool: statePool,
 			SysLogger: sysLogger,
-			ccService: ccService,
+			CCService: config.NewControllerConfigService(dbGetter),
 		},
 		NewModelWorker: config.NewModelWorker,
 		ErrorDelay:     jworker.RestartDelay,
@@ -177,4 +167,19 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		return nil, errors.Trace(err)
 	}
 	return common.NewCleanupWorker(w, func() { _ = stTracker.Done() }), nil
+}
+
+func NewControllerConfigService(dbGetter changestream.WatchableDBGetter) ControllerConfigGetter {
+	return ccservice.NewService(
+		ccstate.NewState(domain.NewTxnRunnerFactoryForNamespace(
+			dbGetter.GetWatchableDB,
+			coredatabase.ControllerNS,
+		)),
+		domain.NewWatcherFactory(
+			func() (changestream.WatchableDB, error) {
+				return dbGetter.GetWatchableDB(coredatabase.ControllerNS)
+			},
+			loggo.GetLogger("juju.worker.modelworkermanager"),
+		),
+	)
 }

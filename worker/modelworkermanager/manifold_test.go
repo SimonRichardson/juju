@@ -18,6 +18,7 @@ import (
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/apiserver/apiserverhttp"
+	"github.com/juju/juju/core/changestream"
 	corelogger "github.com/juju/juju/core/logger"
 	"github.com/juju/juju/pki"
 	pkitest "github.com/juju/juju/pki/test"
@@ -37,6 +38,7 @@ type ManifoldSuite struct {
 	stateTracker      stubStateTracker
 	sysLogger         stubLogger
 	watchableDBGetter *mocks.MockWatchableDBGetter
+	cc                *mocks.MockControllerConfigGetter
 
 	stub testing.Stub
 }
@@ -51,8 +53,8 @@ func (s *ManifoldSuite) SetUpTest(c *gc.C) {
 	s.StateSuite.SetUpTest(c)
 
 	ctrl := gomock.NewController(c)
-	defer ctrl.Finish()
 	s.watchableDBGetter = mocks.NewMockWatchableDBGetter(ctrl)
+	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 
 	s.stateTracker = stubStateTracker{pool: s.StatePool}
 	s.stub.ResetCalls()
@@ -61,16 +63,17 @@ func (s *ManifoldSuite) SetUpTest(c *gc.C) {
 
 	s.context = s.newContext(nil)
 	s.manifold = modelworkermanager.Manifold(modelworkermanager.ManifoldConfig{
-		AgentName:        "agent",
-		AuthorityName:    "authority",
-		StateName:        "state",
-		MuxName:          "mux",
-		ChangeStreamName: "change-stream",
-		SyslogName:       "syslog",
-		NewWorker:        s.newWorker,
-		NewModelWorker:   s.newModelWorker,
-		ModelMetrics:     dummyModelMetrics{},
-		Logger:           loggo.GetLogger("test"),
+		AgentName:                  "agent",
+		AuthorityName:              "authority",
+		StateName:                  "state",
+		MuxName:                    "mux",
+		ChangeStreamName:           "change-stream",
+		SyslogName:                 "syslog",
+		NewWorker:                  s.newWorker,
+		NewModelWorker:             s.newModelWorker,
+		ModelMetrics:               dummyModelMetrics{},
+		NewControllerConfigService: s.newControllerConfigService,
+		Logger:                     loggo.GetLogger("test"),
 	})
 }
 
@@ -105,6 +108,10 @@ func (s *ManifoldSuite) newModelWorker(config modelworkermanager.NewModelConfig)
 		return nil, err
 	}
 	return worker.NewRunner(worker.RunnerParams{}), nil
+}
+
+func (s *ManifoldSuite) newControllerConfigService(getter changestream.WatchableDBGetter) modelworkermanager.ControllerConfigGetter {
+	return s.cc
 }
 
 var expectedInputs = []string{"agent", "authority", "mux", "state", "syslog", "change-stream"}
@@ -156,6 +163,7 @@ func (s *ManifoldSuite) TestStart(c *gc.C) {
 		Controller: modelworkermanager.StatePoolController{
 			StatePool: s.StatePool,
 			SysLogger: s.sysLogger,
+			CCService: s.cc,
 		},
 		ErrorDelay: jworker.RestartDelay,
 		Logger:     loggo.GetLogger("test"),

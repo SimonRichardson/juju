@@ -10,6 +10,7 @@ import (
 )
 
 //go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/changestream_mock.go github.com/juju/juju/core/changestream WatchableDBGetter
+//go:generate go run github.com/golang/mock/mockgen -package mocks -destination mocks/domain_mock.go github.com/juju/juju/worker/modelworkermanager ControllerConfigGetter
 
 func TestPackage(t *stdtesting.T) {
 	testing.MgoTestPackage(t)

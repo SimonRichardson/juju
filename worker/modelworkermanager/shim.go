@@ -21,7 +21,7 @@ type ControllerConfigGetter interface {
 type StatePoolController struct {
 	*state.StatePool
 	SysLogger corelogger.Logger
-	ccService ControllerConfigGetter
+	CCService ControllerConfigGetter
 }
 
 // Model is part of the Controller interface.
@@ -55,7 +55,7 @@ func (g StatePoolController) RecordLogger(modelUUID string) (RecordLogger, error
 
 // Config is part of the Controller interface.
 func (g StatePoolController) Config() (controller.Config, error) {
-	return g.ccService.ControllerConfig(context.TODO())
+	return g.CCService.ControllerConfig(context.TODO())
 }
 
 func (g StatePoolController) getLoggers(loggingOutputs []string, st state.ModelSessioner) corelogger.LoggerCloser {

@@ -46,7 +46,6 @@ var _ = gc.Suite(&ManifoldSuite{})
 
 func (s *ManifoldSuite) SetUpTest(c *gc.C) {
 	ctrl := gomock.NewController(c)
-	defer ctrl.Finish()
 	s.watchableDBGetter = mocks.NewMockWatchableDBGetter(ctrl)
 	s.cc = mocks.NewMockControllerConfigGetter(ctrl)
 
@@ -139,7 +138,7 @@ func (s *ManifoldSuite) TestStart(c *gc.C) {
 		AddressWatcher:     &s.addressWatcher,
 		Authority:          s.authority,
 		APIHostPortsGetter: s.State,
-		Cc:                 s.newControllerConfigService(s.watchableDBGetter),
+		Cc:                 s.cc,
 	})
 }
 

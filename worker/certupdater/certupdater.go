@@ -82,7 +82,6 @@ func NewCertificateUpdater(config Config) (worker.Worker, error) {
 // SetUp is defined on the NotifyWatchHandler interface.
 func (c *CertificateUpdater) SetUp() (watcher.NotifyWatcher, error) {
 	// Populate certificate SAN with any addresses we know about now.
-
 	controllerConfig, err := c.cc.ControllerConfig(context.TODO())
 	if err != nil {
 		return nil, errors.Annotate(err, "unable to get controller config")

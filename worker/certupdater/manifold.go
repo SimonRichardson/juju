@@ -55,6 +55,9 @@ func (config ManifoldConfig) Validate() error {
 	if config.NewMachineAddressWatcher == nil {
 		return errors.NotValidf("nil NewMachineAddressWatcher")
 	}
+	if config.NewControllerConfigService == nil {
+		return errors.NotValidf("nil NewControllerConfigService")
+	}
 	return nil
 }
 
@@ -117,7 +120,7 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		AddressWatcher:     addressWatcher,
 		Authority:          authority,
 		APIHostPortsGetter: st,
-		Cc:                 NewControllerConfigService(dbGetter),
+		Cc:                 config.NewControllerConfigService(dbGetter),
 	})
 	if err != nil {
 		_ = stTracker.Done()

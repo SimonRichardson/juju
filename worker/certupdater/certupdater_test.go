@@ -4,9 +4,9 @@
 package certupdater_test
 
 import (
-	"github.com/golang/mock/gomock"
 	"net"
-	stdtesting "testing"
+
+	"github.com/golang/mock/gomock"
 
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/worker/v3/workertest"
@@ -21,10 +21,6 @@ import (
 	"github.com/juju/juju/worker/certupdater"
 	"github.com/juju/juju/worker/certupdater/mocks"
 )
-
-func TestPackage(t *stdtesting.T) {
-	coretesting.MgoTestPackage(t)
-}
 
 type CertUpdaterSuite struct {
 	coretesting.BaseSuite
@@ -102,6 +98,8 @@ func (g *mockAPIHostGetter) APIHostPortsForClients(config jujucontroller.Config)
 }
 
 func (s *CertUpdaterSuite) TestStartStop(c *gc.C) {
+	s.cc.EXPECT().ControllerConfig(gomock.Any()).Return(jujucontroller.Config{}, nil)
+
 	authority, err := pkitest.NewTestAuthority()
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -122,6 +120,8 @@ func (s *CertUpdaterSuite) TestStartStop(c *gc.C) {
 }
 
 func (s *CertUpdaterSuite) TestAddressChange(c *gc.C) {
+	s.cc.EXPECT().ControllerConfig(gomock.Any()).Return(jujucontroller.Config{}, nil)
+
 	authority, err := pkitest.NewTestAuthority()
 	c.Assert(err, jc.ErrorIsNil)
 
