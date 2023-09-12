@@ -23,33 +23,34 @@ import (
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/testing"
-	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/testing/factory"
 )
 
 type controllerConfigSuite struct {
 	testing.BaseSuite
 
-	st             *mocks.MockControllerConfigState
-	extCtrlService *mocks.MockExternalControllerService
-	ctrlConfigAPI  *common.ControllerConfigAPI
+	st                        *mocks.MockControllerConfigState
+	controllerConfigService   *mocks.MockControllerConfigService
+	externalControllerService *mocks.MockExternalControllerService
+	ctrlConfigAPI             *common.ControllerConfigAPI
 }
 
 var _ = gc.Suite(&controllerConfigSuite{})
 
-func (s *controllerConfigSuite) setup(c *gc.C) *gomock.Controller {
+func (s *controllerConfigSuite) setupMocks(c *gc.C) *gomock.Controller {
 	ctrl := gomock.NewController(c)
 
 	s.st = mocks.NewMockControllerConfigState(ctrl)
-	s.extCtrlService = mocks.NewMockExternalControllerService(ctrl)
-	s.ctrlConfigAPI = common.NewControllerConfigAPI(s.st, s.extCtrlService)
+	s.controllerConfigService = mocks.NewMockControllerConfigService(ctrl)
+	s.externalControllerService = mocks.NewMockExternalControllerService(ctrl)
+	s.ctrlConfigAPI = common.NewControllerConfigAPI(s.st, s.controllerConfigService, s.externalControllerService)
 	return ctrl
 }
 
 func (s *controllerConfigSuite) TestControllerConfigSuccess(c *gc.C) {
-	defer s.setup(c).Finish()
+	defer s.setupMocks(c).Finish()
 
-	s.st.EXPECT().ControllerConfig().Return(
+	s.controllerConfigService.EXPECT().ControllerConfig(gomock.Any()).Return(
 		map[string]interface{}{
 			controller.ControllerUUIDKey: testing.ControllerTag.Id(),
 			controller.CACertKey:         testing.CACert,
@@ -70,9 +71,9 @@ func (s *controllerConfigSuite) TestControllerConfigSuccess(c *gc.C) {
 }
 
 func (s *controllerConfigSuite) TestControllerConfigFetchError(c *gc.C) {
-	defer s.setup(c).Finish()
+	defer s.setupMocks(c).Finish()
 
-	s.st.EXPECT().ControllerConfig().Return(nil, fmt.Errorf("pow"))
+	s.controllerConfigService.EXPECT().ControllerConfig(gomock.Any()).Return(nil, fmt.Errorf("pow"))
 	_, err := s.ctrlConfigAPI.ControllerConfig(context.Background())
 	c.Assert(err, gc.ErrorMatches, "pow")
 }
@@ -81,13 +82,13 @@ func (s *controllerConfigSuite) expectStateControllerInfo(c *gc.C) {
 	s.st.EXPECT().APIHostPortsForAgents(gomock.Any()).Return([]network.SpaceHostPorts{
 		network.NewSpaceHostPorts(17070, "192.168.1.1"),
 	}, nil)
-	s.st.EXPECT().ControllerConfig().Return(map[string]interface{}{
+	s.controllerConfigService.EXPECT().ControllerConfig(gomock.Any()).Return(map[string]interface{}{
 		controller.CACertKey: testing.CACert,
 	}, nil)
 }
 
 func (s *controllerConfigSuite) TestControllerInfo(c *gc.C) {
-	defer s.setup(c).Finish()
+	defer s.setupMocks(c).Finish()
 
 	s.st.EXPECT().ModelExists(testing.ModelTag.Id()).Return(true, nil)
 	s.expectStateControllerInfo(c)
@@ -103,17 +104,17 @@ func (s *controllerConfigSuite) TestControllerInfo(c *gc.C) {
 type controllerInfoSuite struct {
 	jujutesting.ApiServerSuite
 
-	extCtrlService *mocks.MockExternalControllerService
-	localState     *state.State
-	localModel     *state.Model
+	externalControllerService *mocks.MockExternalControllerService
+	localState                *state.State
+	localModel                *state.Model
 }
 
 var _ = gc.Suite(&controllerInfoSuite{})
 
-func (s *controllerInfoSuite) setUpMocks(c *gc.C) *gomock.Controller {
+func (s *controllerInfoSuite) setupMocks(c *gc.C) *gomock.Controller {
 	ctrl := gomock.NewController(c)
 
-	s.extCtrlService = mocks.NewMockExternalControllerService(ctrl)
+	s.externalControllerService = mocks.NewMockExternalControllerService(ctrl)
 	return ctrl
 }
 
@@ -131,13 +132,14 @@ func (s *controllerInfoSuite) SetUpTest(c *gc.C) {
 }
 
 func (s *controllerInfoSuite) TestControllerInfoLocalModel(c *gc.C) {
-	cc := common.NewControllerConfigAPI(s.localState, s.extCtrlService)
+	controllerConfigService := s.ServiceFactoryGetter.FactoryForController().ControllerConfig()
+	cc := common.NewControllerConfigAPI(s.localState, controllerConfigService, s.externalControllerService)
 	results, err := cc.ControllerAPIInfoForModels(context.Background(), params.Entities{
 		Entities: []params.Entity{{Tag: s.localModel.ModelTag().String()}}})
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(results.Results, gc.HasLen, 1)
 	systemState := s.ControllerModel(c).State()
-	apiAddr, err := systemState.APIHostPortsForClients(coretesting.FakeControllerConfig())
+	apiAddr, err := systemState.APIHostPortsForClients(testing.FakeControllerConfig())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(results.Results[0].Addresses, gc.HasLen, 1)
 	c.Assert(results.Results[0].Addresses[0], gc.Equals, apiAddr[0][0].String())
@@ -145,7 +147,9 @@ func (s *controllerInfoSuite) TestControllerInfoLocalModel(c *gc.C) {
 }
 
 func (s *controllerInfoSuite) TestControllerInfoExternalModel(c *gc.C) {
-	defer s.setUpMocks(c).Finish()
+	defer s.setupMocks(c).Finish()
+
+	controllerConfigService := s.ServiceFactoryGetter.FactoryForController().ControllerConfig()
 
 	modelUUID := utils.MustNewUUID().String()
 	info := crossmodel.ControllerInfo{
@@ -154,10 +158,10 @@ func (s *controllerInfoSuite) TestControllerInfoExternalModel(c *gc.C) {
 		CACert:        testing.CACert,
 	}
 
-	s.extCtrlService.EXPECT().ControllerForModel(gomock.Any(), modelUUID).
+	s.externalControllerService.EXPECT().ControllerForModel(gomock.Any(), modelUUID).
 		Return(&info, nil)
 
-	cc := common.NewControllerConfigAPI(s.localState, s.extCtrlService)
+	cc := common.NewControllerConfigAPI(s.localState, controllerConfigService, s.externalControllerService)
 	results, err := cc.ControllerAPIInfoForModels(context.Background(), params.Entities{
 		Entities: []params.Entity{{Tag: names.NewModelTag(modelUUID).String()}}})
 	c.Assert(err, jc.ErrorIsNil)
@@ -167,7 +171,9 @@ func (s *controllerInfoSuite) TestControllerInfoExternalModel(c *gc.C) {
 }
 
 func (s *controllerInfoSuite) TestControllerInfoMigratedController(c *gc.C) {
-	cc := common.NewControllerConfigAPI(s.localState, s.extCtrlService)
+	controllerConfigService := s.ServiceFactoryGetter.FactoryForController().ControllerConfig()
+
+	cc := common.NewControllerConfigAPI(s.localState, controllerConfigService, s.externalControllerService)
 	f, release := s.NewFactory(c, s.ControllerModelUUID())
 	defer release()
 	modelState := f.MakeModel(c, &factory.ModelParams{})

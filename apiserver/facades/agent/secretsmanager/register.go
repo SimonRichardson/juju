@@ -61,8 +61,9 @@ func NewSecretManagerAPI(ctx facade.Context) (*SecretsManagerAPI, error) {
 		return nil, errors.Trace(err)
 	}
 	stdCtx := context.Background()
-	cloudService := ctx.ServiceFactory().Cloud()
-	credentialSerivce := ctx.ServiceFactory().Credential()
+	serviceFactory := ctx.ServiceFactory()
+	cloudService := serviceFactory.Cloud()
+	credentialSerivce := serviceFactory.Credential()
 	secretBackendConfigGetter := func(backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error) {
 		return secrets.BackendConfigInfo(stdCtx, secrets.SecretsModel(model), cloudService, credentialSerivce, backendIDs, wantAll, ctx.Auth().GetAuthTag(), leadershipChecker)
 	}
@@ -74,7 +75,8 @@ func NewSecretManagerAPI(ctx facade.Context) (*SecretsManagerAPI, error) {
 	}
 	controllerAPI := common.NewControllerConfigAPI(
 		ctx.State(),
-		ctx.ServiceFactory().ExternalController(),
+		serviceFactory.ControllerConfig(),
+		serviceFactory.ExternalController(),
 	)
 	remoteClientGetter := func(uri *coresecrets.URI) (CrossModelSecretsClient, error) {
 		info, err := controllerAPI.ControllerAPIInfoForModels(stdContext.TODO(), params.Entities{Entities: []params.Entity{{

@@ -68,6 +68,7 @@ func NewAgentAPI(
 		ModelWatcher:      common.NewModelWatcher(model, resources, auth),
 		ControllerConfigAPI: common.NewControllerConfigAPI(
 			st,
+			controllerConfigService,
 			externalController,
 		),
 		CloudSpecer: cloudspec.NewCloudSpecV2(

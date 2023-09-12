@@ -20,6 +20,7 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/apiserver/stateauthenticator"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/state"
@@ -223,7 +224,7 @@ func PatchGetMigrationBackend(p Patcher, ctrlSt controllerBackend, st migrationB
 // PatchGetControllerCACert overrides the getControllerCACert function
 // to support testing.
 func PatchGetControllerCACert(p Patcher, caCert string) {
-	p.PatchValue(&getControllerCACert, func(backend controllerBackend) (string, error) {
+	p.PatchValue(&getControllerCACert, func(controller.Config) (string, error) {
 		return caCert, nil
 	})
 }

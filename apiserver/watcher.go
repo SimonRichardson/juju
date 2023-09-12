@@ -4,6 +4,8 @@
 package apiserver
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/worker/v3"
 	"github.com/kr/pretty"
@@ -1039,24 +1041,26 @@ func newMigrationStatusWatcher(context facade.Context) (facade.Facade, error) {
 		return nil, errors.Trace(err)
 	}
 	return &srvMigrationStatusWatcher{
-		watcherCommon: newWatcherCommon(context),
-		watcher:       watcher,
-		st:            getMigrationBackend(st),
-		ctrlSt:        controllerBackend,
+		watcherCommon:           newWatcherCommon(context),
+		watcher:                 watcher,
+		controllerConfigService: context.ServiceFactory().ControllerConfig(),
+		st:                      getMigrationBackend(st),
+		ctrlSt:                  controllerBackend,
 	}, nil
 }
 
 type srvMigrationStatusWatcher struct {
 	watcherCommon
-	watcher corewatcher.NotifyWatcher
-	st      migrationBackend
-	ctrlSt  controllerBackend
+	watcher                 corewatcher.NotifyWatcher
+	controllerConfigService ControllerConfigService
+	st                      migrationBackend
+	ctrlSt                  controllerBackend
 }
 
 // Next returns when the status for a model migration for the
 // associated model changes. The current details for the active
 // migration are returned.
-func (w *srvMigrationStatusWatcher) Next() (params.MigrationStatus, error) {
+func (w *srvMigrationStatusWatcher) Next(ctx context.Context) (params.MigrationStatus, error) {
 	_, err := internal.FirstResult[struct{}](w.watcher)
 	if err != nil {
 		return params.MigrationStatus{}, errors.Trace(err)
@@ -1076,16 +1080,16 @@ func (w *srvMigrationStatusWatcher) Next() (params.MigrationStatus, error) {
 		return params.MigrationStatus{}, errors.Annotate(err, "retrieving migration phase")
 	}
 
-	cfg, err := w.ctrlSt.ControllerConfig()
+	controllerConfig, err := w.controllerConfigService.ControllerConfig(ctx)
 	if err != nil {
 		return params.MigrationStatus{}, errors.Annotate(err, "retrieving controller config")
 	}
-	sourceAddrs, err := w.getLocalHostPorts(cfg)
+	sourceAddrs, err := w.getLocalHostPorts(controllerConfig)
 	if err != nil {
 		return params.MigrationStatus{}, errors.Annotate(err, "retrieving source addresses")
 	}
 
-	sourceCACert, err := getControllerCACert(w.ctrlSt)
+	sourceCACert, err := getControllerCACert(controllerConfig)
 	if err != nil {
 		return params.MigrationStatus{}, errors.Annotate(err, "retrieving source CA cert")
 	}
@@ -1106,8 +1110,8 @@ func (w *srvMigrationStatusWatcher) Next() (params.MigrationStatus, error) {
 	}, nil
 }
 
-func (w *srvMigrationStatusWatcher) getLocalHostPorts(cfg controller.Config) ([]string, error) {
-	hostports, err := w.ctrlSt.APIHostPortsForClients(cfg)
+func (w *srvMigrationStatusWatcher) getLocalHostPorts(controllerConfig controller.Config) ([]string, error) {
+	hostports, err := w.ctrlSt.APIHostPortsForClients(controllerConfig)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -1122,13 +1126,8 @@ func (w *srvMigrationStatusWatcher) getLocalHostPorts(cfg controller.Config) ([]
 
 // This is a shim to avoid the need to use a working State into the
 // unit tests. It is tested as part of the client side API tests.
-var getControllerCACert = func(st controllerBackend) (string, error) {
-	cfg, err := st.ControllerConfig()
-	if err != nil {
-		return "", errors.Trace(err)
-	}
-
-	cacert, ok := cfg.CACert()
+var getControllerCACert = func(controllerConfig controller.Config) (string, error) {
+	cacert, ok := controllerConfig.CACert()
 	if !ok {
 		return "", errors.New("missing CA cert for controller model")
 	}

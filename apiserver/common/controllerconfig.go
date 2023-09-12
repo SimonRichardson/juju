@@ -36,25 +36,28 @@ type ExternalControllerService interface {
 // ControllerConfigAPI implements two common methods for use by various
 // facades - eg Provisioner and ControllerConfig.
 type ControllerConfigAPI struct {
-	externalCtrlService ExternalControllerService
-	st                  ControllerConfigState
+	st                        ControllerConfigState
+	controllerConfigService   ControllerConfigService
+	externalControllerService ExternalControllerService
 }
 
 // NewControllerConfigAPI returns a new ControllerConfigAPI.
 func NewControllerConfigAPI(
 	st ControllerConfigState,
-	externalCtrlService ExternalControllerService,
+	controllerConfigService ControllerConfigService,
+	externalControllerService ExternalControllerService,
 ) *ControllerConfigAPI {
 	return &ControllerConfigAPI{
-		st:                  st,
-		externalCtrlService: externalCtrlService,
+		st:                        st,
+		controllerConfigService:   controllerConfigService,
+		externalControllerService: externalControllerService,
 	}
 }
 
 // ControllerConfig returns the controller's configuration.
 func (s *ControllerConfigAPI) ControllerConfig(ctx context.Context) (params.ControllerConfigResult, error) {
 	result := params.ControllerConfigResult{}
-	config, err := s.st.ControllerConfig()
+	config, err := s.controllerConfigService.ControllerConfig(ctx)
 	if err != nil {
 		return result, err
 	}
@@ -89,7 +92,7 @@ func (s *ControllerConfigAPI) getModelControllerInfo(ctx context.Context, model 
 		return params.ControllerAPIInfoResult{}, errors.Trace(err)
 	}
 	if modelExists {
-		addrs, caCert, err := StateControllerInfo(s.st)
+		addrs, caCert, err := StateControllerInfo(ctx, s.controllerConfigService, s.st)
 		if err != nil {
 			return params.ControllerAPIInfoResult{}, errors.Trace(err)
 		}
@@ -99,7 +102,7 @@ func (s *ControllerConfigAPI) getModelControllerInfo(ctx context.Context, model 
 		}, nil
 	}
 
-	ctrl, err := s.externalCtrlService.ControllerForModel(ctx, modelTag.Id())
+	ctrl, err := s.externalControllerService.ControllerForModel(ctx, modelTag.Id())
 	if err == nil {
 		return params.ControllerAPIInfoResult{
 			Addresses: ctrl.Addrs,
@@ -126,7 +129,7 @@ func (s *ControllerConfigAPI) getModelControllerInfo(ctx context.Context, model 
 	}
 
 	logger.Debugf("found migrated model on another controller, saving the information")
-	err = s.externalCtrlService.UpdateExternalController(ctx, crossmodel.ControllerInfo{
+	err = s.externalControllerService.UpdateExternalController(ctx, crossmodel.ControllerInfo{
 		ControllerTag: target.ControllerTag,
 		Alias:         target.ControllerAlias,
 		Addrs:         target.Addrs,
@@ -143,8 +146,8 @@ func (s *ControllerConfigAPI) getModelControllerInfo(ctx context.Context, model 
 }
 
 // StateControllerInfo returns the local controller details for the given State.
-func StateControllerInfo(st controllerInfoState) (addrs []string, caCert string, _ error) {
-	controllerConfig, err := st.ControllerConfig()
+func StateControllerInfo(ctx context.Context, service ControllerConfigService, st controllerInfoState) (addrs []string, caCert string, _ error) {
+	controllerConfig, err := service.ControllerConfig(ctx)
 	if err != nil {
 		return nil, "", errors.Trace(err)
 	}

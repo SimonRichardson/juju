@@ -115,13 +115,14 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	serviceFactory := ctx.ServiceFactory()
 	configGetter := stateenvirons.EnvironConfigGetter{
-		Model: model, CloudService: ctx.ServiceFactory().Cloud(), CredentialService: ctx.ServiceFactory().Credential()}
+		Model: model, CloudService: serviceFactory.Cloud(), CredentialService: serviceFactory.Credential()}
 	isCaasModel := model.Type() == state.ModelTypeCAAS
 
 	var env storage.ProviderRegistry
 	if isCaasModel {
-		env, err = stateenvirons.GetNewCAASBrokerFunc(caas.New)(model, ctx.ServiceFactory().Cloud(), ctx.ServiceFactory().Credential())
+		env, err = stateenvirons.GetNewCAASBrokerFunc(caas.New)(model, serviceFactory.Cloud(), serviceFactory.Credential())
 	} else {
 		env, err = environs.GetEnviron(stdcontext.Background(), configGetter, environs.New)
 	}
@@ -131,7 +132,7 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 	storageProviderRegistry := stateenvirons.NewStorageProviderRegistry(env)
 
 	netConfigAPI, err := networkingcommon.NewNetworkConfigAPI(
-		stdcontext.Background(), st, ctx.ServiceFactory().Cloud(), getCanModify)
+		stdcontext.Background(), st, serviceFactory.Cloud(), getCanModify)
 	if err != nil {
 		return nil, errors.Annotate(err, "instantiating network config API")
 	}
@@ -140,6 +141,9 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+
+	controllerConfigGetter := serviceFactory.ControllerConfig()
+
 	urlGetter := common.NewToolsURLGetter(model.UUID(), systemState)
 	callCtx := context.CallContext(st)
 	resources := ctx.Resources()
@@ -155,7 +159,8 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 		ModelMachinesWatcher: common.NewModelMachinesWatcher(st, resources, authorizer),
 		ControllerConfigAPI: common.NewControllerConfigAPI(
 			st,
-			ctx.ServiceFactory().ExternalController(),
+			controllerConfigGetter,
+			serviceFactory.ExternalController(),
 		),
 		NetworkConfigAPI:        netConfigAPI,
 		st:                      st,
@@ -177,8 +182,6 @@ func NewProvisionerAPI(ctx facade.Context) (*ProvisionerAPI, error) {
 	newEnviron := func(ctx stdcontext.Context) (environs.BootstrapEnviron, error) {
 		return environs.GetEnviron(ctx, configGetter, environs.New)
 	}
-
-	controllerConfigGetter := ctx.ServiceFactory().ControllerConfig()
 
 	api.InstanceIdGetter = common.NewInstanceIdGetter(st, getAuthFunc)
 	api.toolsFinder = common.NewToolsFinder(controllerConfigGetter, configGetter, st, urlGetter, newEnviron)

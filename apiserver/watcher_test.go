@@ -4,6 +4,8 @@
 package apiserver_test
 
 import (
+	"context"
+
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
@@ -21,16 +23,22 @@ import (
 	"github.com/juju/juju/core/migration"
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/core/watcher/registry"
+	domaintesting "github.com/juju/juju/domain/testing"
+	jujujujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/testing"
+	"github.com/juju/juju/worker/servicefactory"
 )
 
 type watcherSuite struct {
 	testing.BaseSuite
-	resources       *common.Resources
-	watcherRegistry facade.WatcherRegistry
-	authorizer      apiservertesting.FakeAuthorizer
+	domaintesting.ControllerConfigSuite
+
+	resources            *common.Resources
+	watcherRegistry      facade.WatcherRegistry
+	authorizer           apiservertesting.FakeAuthorizer
+	serviceFactoryGetter servicefactory.ServiceFactoryGetter
 }
 
 var _ = gc.Suite(&watcherSuite{})
@@ -38,6 +46,10 @@ var _ = gc.Suite(&watcherSuite{})
 func (s *watcherSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 
+	s.ControllerConfigSuite.ControllerConfig = testing.FakeControllerConfig()
+	s.ControllerConfigSuite.SetUpTest(c)
+
+	s.serviceFactoryGetter = jujujujutesting.TestingServiceFactory(c, s.TxnRunner(), s.DB())
 	var err error
 	s.watcherRegistry, err = registry.NewRegistry(clock.WallClock)
 	c.Assert(err, jc.ErrorIsNil)
@@ -70,6 +82,7 @@ func (s *watcherSuite) facadeContext(id string, dispose func()) facadetest.Conte
 		Auth_:            s.authorizer,
 		ID_:              id,
 		Dispose_:         dispose,
+		ServiceFactory_:  s.serviceFactoryGetter.FactoryForModel(jujujujutesting.DefaultModelUUID),
 	}
 }
 
@@ -124,7 +137,7 @@ func (s *watcherSuite) TestMigrationStatusWatcher(c *gc.C) {
 
 	facade := s.getFacade(c, "MigrationStatusWatcher", 1, id, nopDispose).(migrationStatusWatcher)
 	defer c.Check(facade.Stop(), jc.ErrorIsNil)
-	result, err := facade.Next()
+	result, err := facade.Next(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(result, jc.DeepEquals, params.MigrationStatus{
 		MigrationId:    "id",
@@ -146,7 +159,7 @@ func (s *watcherSuite) TestMigrationStatusWatcherNoMigration(c *gc.C) {
 
 	facade := s.getFacade(c, "MigrationStatusWatcher", 1, id, nopDispose).(migrationStatusWatcher)
 	defer c.Check(facade.Stop(), jc.ErrorIsNil)
-	result, err := facade.Next()
+	result, err := facade.Next(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(result, jc.DeepEquals, params.MigrationStatus{
 		Phase: "NONE",
@@ -243,7 +256,7 @@ func (m *fakeModelMigration) TargetInfo() (*migration.TargetInfo, error) {
 }
 
 type migrationStatusWatcher interface {
-	Next() (params.MigrationStatus, error)
+	Next(context.Context) (params.MigrationStatus, error)
 	Stop() error
 }
 

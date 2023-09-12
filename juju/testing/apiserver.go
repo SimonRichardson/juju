@@ -133,7 +133,7 @@ type ApiServerSuite struct {
 	Server               *apiserver.Server
 	LeaseManager         *lease.Manager
 	Clock                testclock.AdvanceableClock
-	ServiceFactoryGetter *stubServiceFactoryGetter
+	ServiceFactoryGetter servicefactory.ServiceFactoryGetter
 
 	// These attributes are set before SetUpTest to indicate we want to
 	// set up the api server with real components instead of stubs.
@@ -358,6 +358,7 @@ func (s *ApiServerSuite) SetUpTest(c *gc.C) {
 	s.MgoSuite.SetUpTest(c)
 	s.ControllerSuite.SetUpTest(c)
 
+	s.ServiceFactoryGetter = TestingServiceFactory(c, s.TxnRunner(), s.DB())
 	s.ServiceFactoryGetter = &stubServiceFactoryGetter{
 		ctrlDB:    stubWatchableDB{TxnRunner: s.TxnRunner()},
 		dbDeleter: stubDBDeleter{DB: s.DB()},
@@ -656,6 +657,14 @@ type stubServiceFactoryGetter struct {
 	ctrlDB    changestream.WatchableDB
 	dbDeleter coredatabase.DBDeleter
 	logger    domainservicefactory.Logger
+}
+
+func TestingServiceFactory(c *gc.C, runner coredatabase.TxnRunner, db *sql.DB) servicefactory.ServiceFactoryGetter {
+	return &stubServiceFactoryGetter{
+		ctrlDB:    stubWatchableDB{TxnRunner: runner},
+		dbDeleter: stubDBDeleter{DB: db},
+		logger:    servicefactorytesting.NewCheckLogger(c),
+	}
 }
 
 func (s *stubServiceFactoryGetter) FactoryForModel(modelUUID string) servicefactory.ServiceFactory {

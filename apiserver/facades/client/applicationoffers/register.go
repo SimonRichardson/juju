@@ -25,6 +25,8 @@ func Register(registry facade.FacadeRegistry) {
 
 // newOffersAPI returns a new application offers OffersAPI facade.
 func newOffersAPI(facadeContext facade.Context) (*OffersAPI, error) {
+	serviceFactory := facadeContext.ServiceFactory()
+
 	environFromModel := func(ctx context.Context, modelUUID string) (environs.Environ, error) {
 		st, err := facadeContext.StatePool().Get(modelUUID)
 		if err != nil {
@@ -36,7 +38,7 @@ func newOffersAPI(facadeContext facade.Context) (*OffersAPI, error) {
 			return nil, errors.Trace(err)
 		}
 		g := stateenvirons.EnvironConfigGetter{
-			Model: model, CloudService: facadeContext.ServiceFactory().Cloud(), CredentialService: facadeContext.ServiceFactory().Credential()}
+			Model: model, CloudService: serviceFactory.Cloud(), CredentialService: serviceFactory.Credential()}
 		env, err := environs.GetEnviron(ctx, g, environs.New)
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -45,8 +47,8 @@ func newOffersAPI(facadeContext facade.Context) (*OffersAPI, error) {
 	}
 
 	st := facadeContext.State()
-	getControllerInfo := func() ([]string, string, error) {
-		return common.StateControllerInfo(st)
+	getControllerInfo := func(ctx context.Context) ([]string, string, error) {
+		return common.StateControllerInfo(ctx, serviceFactory.ControllerConfig(), st)
 	}
 
 	authContext := facadeContext.Resources().Get("offerAccessAuthContext").(*common.ValueResource).Value
