@@ -346,7 +346,7 @@ func (s *ApiServerSuite) setupApiServer(c *gc.C, controllerCfg controller.Config
 	err = authenticator.AddHandlers(s.mux)
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.Server, err = apiserver.NewServer(cfg)
+	s.Server, err = apiserver.NewServer(context.Background(), cfg)
 	c.Assert(err, jc.ErrorIsNil)
 	s.apiInfo = api.Info{
 		Addrs:  []string{fmt.Sprintf("localhost:%d", s.httpServer.Listener.Addr().(*net.TCPAddr).Port)},
@@ -662,6 +662,14 @@ func (s *stubServiceFactoryGetter) FactoryForModel(modelUUID string) servicefact
 	return domainservicefactory.NewServiceFactory(
 		databasetesting.ConstFactory(s.ctrlDB),
 		nil, // TODO (stickupkid): Wire up modelDB when ready,
+		s.dbDeleter,
+		s.logger,
+	)
+}
+
+func (s *stubServiceFactoryGetter) FactoryForController() servicefactory.ControllerServiceFactory {
+	return domainservicefactory.NewControllerFactory(
+		databasetesting.ConstFactory(s.ctrlDB),
 		s.dbDeleter,
 		s.logger,
 	)

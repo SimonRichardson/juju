@@ -5,6 +5,7 @@ package apiserver_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -222,6 +223,11 @@ func (s *loginSuite) setupManagementSpace(c *gc.C) *state.Space {
 	mgmtSpace, err := s.ControllerModel(c).State().AddSpace("mgmt01", "", nil, false)
 	c.Assert(err, jc.ErrorIsNil)
 
+	serviceFactory := s.ServiceFactory(s.ControllerModelUUID())
+	controllerConfigService := serviceFactory.ControllerConfig()
+	err = controllerConfigService.UpdateControllerConfig(context.Background(), map[string]interface{}{corecontroller.JujuManagementSpace: "mgmt01"}, nil)
+	c.Assert(err, jc.ErrorIsNil)
+
 	err = s.ControllerModel(c).State().UpdateControllerConfig(map[string]interface{}{corecontroller.JujuManagementSpace: "mgmt01"}, nil)
 	c.Assert(err, jc.ErrorIsNil)
 	return mgmtSpace
@@ -270,11 +276,13 @@ func (s *loginSuite) loginHostPorts(
 }
 
 func (s *loginSuite) assertAgentLogin(c *gc.C, info *api.Info, mgmtSpace *state.Space) {
-	st := s.ControllerModel(c).State()
+	serviceFactory := s.ServiceFactory(s.ControllerModelUUID())
+	controllerConfigService := serviceFactory.ControllerConfig()
 
-	cfg, err := st.ControllerConfig()
+	cfg, err := controllerConfigService.ControllerConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
 
+	st := s.ControllerModel(c).State()
 	err = st.SetAPIHostPorts(cfg, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -339,14 +347,18 @@ func (s *loginSuite) TestLoginAddressesForClients(c *gc.C) {
 		network.NewSpaceAddress("::1", network.WithScope(network.ScopeMachineLocal)),
 	}
 
-	st := s.ControllerModel(c).State()
-	cfg, err := st.ControllerConfig()
+	serviceFactory := s.ServiceFactory(s.ControllerModelUUID())
+	controllerConfigService := serviceFactory.ControllerConfig()
+
+	cfg, err := controllerConfigService.ControllerConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
 
 	newAPIHostPorts := []network.SpaceHostPorts{
 		network.SpaceAddressesWithPort(server1Addresses, 123),
 		network.SpaceAddressesWithPort(server2Addresses, 456),
 	}
+
+	st := s.ControllerModel(c).State()
 	err = st.SetAPIHostPorts(cfg, newAPIHostPorts)
 	c.Assert(err, jc.ErrorIsNil)
 

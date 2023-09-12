@@ -115,6 +115,10 @@ func (s *StubServiceFactoryGetter) FactoryForModel(string) servicefactory.Servic
 	return nil
 }
 
+func (s *StubServiceFactoryGetter) FactoryForController() servicefactory.ControllerServiceFactory {
+	return nil
+}
+
 // TestingAPIHandlerWithEntity gives you the sane kind of APIHandler as
 // TestingAPIHandler but sets the passed entity as the apiHandler
 // entity.

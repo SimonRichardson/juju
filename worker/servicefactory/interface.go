@@ -49,4 +49,7 @@ type ServiceFactory interface {
 type ServiceFactoryGetter interface {
 	// FactoryForModel returns a ServiceFactory for the given model.
 	FactoryForModel(modelUUID string) ServiceFactory
+
+	// FactoryForController returns a ServiceFactory for the controller.
+	FactoryForController() ControllerServiceFactory
 }

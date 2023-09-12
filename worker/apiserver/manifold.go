@@ -4,6 +4,7 @@
 package apiserver
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -55,7 +56,7 @@ type ManifoldConfig struct {
 	Hub                               *pubsub.StructuredHub
 	Presence                          presence.Recorder
 
-	NewWorker           func(Config) (worker.Worker, error)
+	NewWorker           func(context.Context, Config) (worker.Worker, error)
 	NewMetricsCollector func() *apiserver.Collector
 }
 
@@ -146,73 +147,73 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 }
 
 // start is a method on ManifoldConfig because it's more readable than a closure.
-func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, error) {
+func (config ManifoldConfig) start(ctx dependency.Context) (worker.Worker, error) {
 	if err := config.Validate(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var agent agent.Agent
-	if err := context.Get(config.AgentName, &agent); err != nil {
+	if err := ctx.Get(config.AgentName, &agent); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var clock clock.Clock
-	if err := context.Get(config.ClockName, &clock); err != nil {
+	if err := ctx.Get(config.ClockName, &clock); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var mux *apiserverhttp.Mux
-	if err := context.Get(config.MuxName, &mux); err != nil {
+	if err := ctx.Get(config.MuxName, &mux); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var macaroonAuthenticator macaroon.LocalMacaroonAuthenticator
-	if err := context.Get(config.AuthenticatorName, &macaroonAuthenticator); err != nil {
+	if err := ctx.Get(config.AuthenticatorName, &macaroonAuthenticator); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var stTracker workerstate.StateTracker
-	if err := context.Get(config.StateName, &stTracker); err != nil {
+	if err := ctx.Get(config.StateName, &stTracker); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var factory multiwatcher.Factory
-	if err := context.Get(config.MultiwatcherName, &factory); err != nil {
+	if err := ctx.Get(config.MultiwatcherName, &factory); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var upgradeLock gate.Waiter
-	if err := context.Get(config.UpgradeGateName, &upgradeLock); err != nil {
+	if err := ctx.Get(config.UpgradeGateName, &upgradeLock); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var getAuditConfig func() auditlog.Config
-	if err := context.Get(config.AuditConfigUpdaterName, &getAuditConfig); err != nil {
+	if err := ctx.Get(config.AuditConfigUpdaterName, &getAuditConfig); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var leaseManager lease.Manager
-	if err := context.Get(config.LeaseManagerName, &leaseManager); err != nil {
+	if err := ctx.Get(config.LeaseManagerName, &leaseManager); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var sysLogger syslogger.SysLogger
-	if err := context.Get(config.SyslogName, &sysLogger); err != nil {
+	if err := ctx.Get(config.SyslogName, &sysLogger); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var charmhubHTTPClient HTTPClient
-	if err := context.Get(config.CharmhubHTTPClientName, &charmhubHTTPClient); err != nil {
+	if err := ctx.Get(config.CharmhubHTTPClientName, &charmhubHTTPClient); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var dbGetter changestream.WatchableDBGetter
-	if err := context.Get(config.ChangeStreamName, &dbGetter); err != nil {
+	if err := ctx.Get(config.ChangeStreamName, &dbGetter); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var serviceFactoryGetter servicefactory.ServiceFactoryGetter
-	if err := context.Get(config.ServiceFactoryName, &serviceFactoryGetter); err != nil {
+	if err := ctx.Get(config.ServiceFactoryName, &serviceFactoryGetter); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -234,7 +235,7 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		return nil, errors.Trace(err)
 	}
 
-	w, err := config.NewWorker(Config{
+	w, err := config.NewWorker(context.TODO(), Config{
 		AgentConfig:                       agent.CurrentConfig(),
 		Clock:                             clock,
 		Mux:                               mux,

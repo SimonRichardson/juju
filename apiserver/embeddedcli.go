@@ -4,6 +4,7 @@
 package apiserver
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/httpcontext"
 	"github.com/juju/juju/apiserver/websocket"
+	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/internal/feature"
 	"github.com/juju/juju/jujuclient"
@@ -69,6 +71,9 @@ func (h *embeddedCLIHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		ticker := time.NewTicker(websocket.PingPeriod)
 		defer ticker.Stop()
 
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+
 		modelUUID := httpcontext.RequestModelUUID(req)
 		commandCh := h.receiveCommands(socket)
 		for {
@@ -85,7 +90,7 @@ func (h *embeddedCLIHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 				}
 			case jujuCmd := <-commandCh:
 				h.logger.Debugf("running embedded commands: %#v", jujuCmd)
-				cmdErr := h.runEmbeddedCommands(socket, modelUUID, jujuCmd)
+				cmdErr := h.runEmbeddedCommands(ctx, socket, modelUUID, jujuCmd)
 				// Only developers need this for debugging.
 				if cmdErr != nil && featureflag.Enabled(feature.DeveloperMode) {
 					h.logger.Debugf("command exec error: %v", cmdErr)
@@ -135,6 +140,7 @@ func (h *embeddedCLIHandler) receiveCommands(socket *websocket.Conn) <-chan para
 }
 
 func (h *embeddedCLIHandler) runEmbeddedCommands(
+	ctx context.Context,
 	ws *websocket.Conn,
 	modelUUID string,
 	commands params.CLICommands,
@@ -155,9 +161,11 @@ func (h *embeddedCLIHandler) runEmbeddedCommands(
 	}
 	defer closer.Release()
 
+	serviceFactory := h.ctxt.srv.shared.serviceFactoryGetter.FactoryForController()
+
 	// Make a pipe to stream the stdout/stderr of the commands.
 	errCh := make(chan error, 1)
-	in, err := runCLICommands(m, errCh, commands, h.ctxt.srv.execEmbeddedCommand)
+	in, err := runCLICommands(ctx, serviceFactory.ControllerConfig(), m, errCh, commands, h.ctxt.srv.execEmbeddedCommand)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -228,9 +236,15 @@ func newLineReader(r io.Reader) *linereader.Reader {
 // with the whitelisted sub commands.
 type ExecEmbeddedCommandFunc func(ctx *cmd.Context, store jujuclient.ClientStore, whitelist []string, cmdPlusArgs string) int
 
+// ControllerConfigService defines the methods required to get the controller
+// configuration.
+type ControllerConfigService interface {
+	ControllerConfig(context.Context) (controller.Config, error)
+}
+
 // runCLICommands creates a CLI command instance with an in-memory copy of the controller,
 // model, and account details and runs the command against the host controller.
-func runCLICommands(m *state.Model, errCh chan<- error, commands params.CLICommands, execEmbeddedCommand ExecEmbeddedCommandFunc) (io.Reader, error) {
+func runCLICommands(ctx context.Context, controllerConfigService ControllerConfigService, m *state.Model, errCh chan<- error, commands params.CLICommands, execEmbeddedCommand ExecEmbeddedCommandFunc) (io.Reader, error) {
 	if commands.User == "" {
 		return nil, errors.NotSupportedf("CLI command for anonymous user")
 	}
@@ -239,7 +253,7 @@ func runCLICommands(m *state.Model, errCh chan<- error, commands params.CLIComma
 		return nil, errors.NotValidf("user name %q", commands.User)
 	}
 
-	cfg, err := m.State().ControllerConfig()
+	cfg, err := controllerConfigService.ControllerConfig(ctx)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

@@ -52,16 +52,13 @@ func (s *sharedServerContextSuite) SetUpTest(c *gc.C) {
 
 	s.hub = pubsub.NewStructuredHub(nil)
 
-	controllerConfig, err := s.State.ControllerConfig()
-	c.Assert(err, jc.ErrorIsNil)
-
 	s.config = sharedServerConfig{
 		statePool:            s.StatePool,
 		multiwatcherFactory:  multiWatcherWorker,
 		centralHub:           s.hub,
 		presence:             presence.New(clock.WallClock),
 		leaseManager:         &lease.Manager{},
-		controllerConfig:     controllerConfig,
+		controllerConfig:     testing.FakeControllerConfig(),
 		logger:               loggo.GetLogger("test"),
 		dbGetter:             StubDBGetter{},
 		serviceFactoryGetter: &StubServiceFactoryGetter{},

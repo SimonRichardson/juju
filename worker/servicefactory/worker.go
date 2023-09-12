@@ -143,6 +143,11 @@ func (s *serviceFactoryGetter) FactoryForModel(modelUUID string) ServiceFactory 
 	}
 }
 
+// FactoryForController returns a service factory for the controller.
+func (s *serviceFactoryGetter) FactoryForController() ControllerServiceFactory {
+	return s.ctrlFactory
+}
+
 type serviceFactory struct {
 	ControllerServiceFactory
 	ModelServiceFactory
