@@ -48,7 +48,7 @@ jobs:
 
       - name: Checkout
         if: env.RUN_TEST == 'RUN'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup LXD
         if: env.RUN_TEST == 'RUN' && matrix.model_type == 'localhost'
