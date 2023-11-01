@@ -175,7 +175,9 @@ func newFacadeBase(ctx facade.Context) (*APIBase, error) {
 		state:              state,
 		storagePoolManager: storagePoolManager,
 	}
-	repoDeploy := NewDeployFromRepositoryAPI(state, ctx.ObjectStore(), makeDeployFromRepositoryValidator(context.TODO(), validatorCfg))
+
+	store := ctx.ObjectStoreFactory().ModelObjectStore()
+	repoDeploy := NewDeployFromRepositoryAPI(state, store, makeDeployFromRepositoryValidator(context.TODO(), validatorCfg))
 
 	return NewAPIBase(
 		state,
@@ -195,7 +197,7 @@ func newFacadeBase(ctx facade.Context) (*APIBase, error) {
 		registry,
 		resources,
 		caasBroker,
-		ctx.ObjectStore(),
+		store,
 	)
 }
 

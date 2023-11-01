@@ -52,10 +52,10 @@ type Config struct {
 	CharmhubHTTPClient                HTTPClient
 
 	// DBGetter supplies WatchableDB implementations by namespace.
-	DBGetter             changestream.WatchableDBGetter
-	ServiceFactoryGetter servicefactory.ServiceFactoryGetter
-	TracerGetter         trace.TracerGetter
-	ObjectStoreGetter    objectstore.ObjectStoreGetter
+	DBGetter                 changestream.WatchableDBGetter
+	ServiceFactoryGetter     servicefactory.ServiceFactoryGetter
+	TracerGetter             trace.TracerGetter
+	ObjectStoreFactoryGetter objectstore.ObjectStoreFactoryGetter
 }
 
 type HTTPClient interface {
@@ -122,8 +122,8 @@ func (config Config) Validate() error {
 	if config.TracerGetter == nil {
 		return errors.NotValidf("nil TracerGetter")
 	}
-	if config.ObjectStoreGetter == nil {
-		return errors.NotValidf("nil ObjectStoreGetter")
+	if config.ObjectStoreFactoryGetter == nil {
+		return errors.NotValidf("nil ObjectStoreFactoryGetter")
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func NewWorker(ctx context.Context, config Config) (worker.Worker, error) {
 		DBGetter:                      config.DBGetter,
 		ServiceFactoryGetter:          config.ServiceFactoryGetter,
 		TracerGetter:                  config.TracerGetter,
-		ObjectStoreGetter:             config.ObjectStoreGetter,
+		ObjectStoreFactoryGetter:      config.ObjectStoreFactoryGetter,
 	}
 	return config.NewServer(ctx, serverConfig)
 }

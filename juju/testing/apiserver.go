@@ -312,7 +312,7 @@ func (s *ApiServerSuite) setupApiServer(c *gc.C, controllerCfg controller.Config
 	cfg.ServiceFactoryGetter = s.ServiceFactoryGetter(c)
 	cfg.StatePool = s.controller.StatePool()
 	cfg.PublicDNSName = controllerCfg.AutocertDNSName()
-	cfg.ObjectStoreGetter = &stubObjectStoreGetter{
+	cfg.ObjectStoreFactoryGetter = &stubObjectStoreFactoryGetter{
 		statePool: s.controller.StatePool(),
 	}
 
@@ -628,7 +628,7 @@ func DefaultServerConfig(c *gc.C, testclock clock.Clock) apiserver.ServerConfig 
 		DBGetter:                   stubDBGetter{},
 		ServiceFactoryGetter:       nil,
 		TracerGetter:               &stubTracerGetter{},
-		ObjectStoreGetter:          &stubObjectStoreGetter{},
+		ObjectStoreFactoryGetter:   &stubObjectStoreFactoryGetter{},
 		StatePool:                  &state.StatePool{},
 		Mux:                        &apiserverhttp.Mux{},
 		LocalMacaroonAuthenticator: &mockAuthenticator{},
@@ -653,14 +653,14 @@ func (s *stubTracerGetter) GetTracer(ctx context.Context, namespace trace.Tracer
 	return trace.NoopTracer{}, nil
 }
 
-type stubObjectStoreGetter struct {
+type stubObjectStoreFactoryGetter struct {
 	statePool *state.StatePool
 }
 
-func (s *stubObjectStoreGetter) GetObjectStore(ctx context.Context, namespace string) (objectstore.ObjectStore, error) {
+func (s *stubObjectStoreFactoryGetter) GetObjectStore(ctx context.Context, namespace string) (objectstore.ObjectStore, error) {
 	// If no statePool is provided, then fallback to a stub implementation.
 	if s.statePool == nil {
-		return &stubObjectStore{}, nil
+		return stubObjectStore{}, nil
 	}
 
 	// If a statePool is provided, use the actual object store logic to
@@ -673,21 +673,56 @@ func (s *stubObjectStoreGetter) GetObjectStore(ctx context.Context, namespace st
 	return internalobjectstore.NewStateObjectStore(ctx, namespace, state, loggo.GetLogger("juju.worker.objectstore"))
 }
 
+func (s *stubObjectStoreFactoryGetter) FactoryForModel(ctx context.Context, controller, model string) (objectstore.ObjectStoreFactory, error) {
+	ctrl, err := s.GetObjectStore(ctx, controller)
+	if err != nil {
+		return nil, err
+	}
+	if controller == model {
+		return stubObjectStoreFactory{
+			controller: ctrl,
+			model:      ctrl,
+		}, nil
+	}
+
+	mod, err := s.GetObjectStore(ctx, model)
+	if err != nil {
+		return nil, err
+	}
+
+	return stubObjectStoreFactory{
+		controller: ctrl,
+		model:      mod,
+	}, nil
+}
+
+type stubObjectStoreFactory struct {
+	controller, model objectstore.ObjectStore
+}
+
+func (s stubObjectStoreFactory) ControllerObjectStore() objectstore.ObjectStore {
+	return s.controller
+}
+
+func (s stubObjectStoreFactory) ModelObjectStore() objectstore.ObjectStore {
+	return s.model
+}
+
 type stubObjectStore struct{}
 
-func (s *stubObjectStore) Get(context.Context, string) (io.ReadCloser, int64, error) {
+func (s stubObjectStore) Get(context.Context, string) (io.ReadCloser, int64, error) {
 	return io.NopCloser(bytes.NewBufferString("")), 0, nil
 }
 
-func (s *stubObjectStore) Put(ctx context.Context, path string, r io.Reader, length int64) error {
+func (s stubObjectStore) Put(ctx context.Context, path string, r io.Reader, length int64) error {
 	return nil
 }
 
-func (s *stubObjectStore) PutAndCheckHash(ctx context.Context, path string, r io.Reader, size int64, hash string) error {
+func (s stubObjectStore) PutAndCheckHash(ctx context.Context, path string, r io.Reader, size int64, hash string) error {
 	return nil
 }
 
-func (s *stubObjectStore) Remove(ctx context.Context, path string) error {
+func (s stubObjectStore) Remove(ctx context.Context, path string) error {
 	return nil
 }
 

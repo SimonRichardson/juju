@@ -109,6 +109,26 @@ func NewObjectStore(c *gc.C, modelUUID string, st *state.State) coreobjectstore.
 	return store
 }
 
+func NewObjectStoreFactory(c *gc.C, modelUUID string, st *state.State) coreobjectstore.ObjectStoreFactory {
+	return objectStoreFactory{
+		controller: NewObjectStore(c, modelUUID, st),
+		model:      NewObjectStore(c, modelUUID, st),
+	}
+}
+
+type objectStoreFactory struct {
+	controller coreobjectstore.ObjectStore
+	model      coreobjectstore.ObjectStore
+}
+
+func (f objectStoreFactory) ControllerObjectStore() coreobjectstore.ObjectStore {
+	return f.controller
+}
+
+func (f objectStoreFactory) ModelObjectStore() coreobjectstore.ObjectStore {
+	return f.model
+}
+
 // lxdCharmProfiler massages a charm.Charm into a LXDProfiler inside of the
 // core package.
 type lxdCharmProfiler struct {

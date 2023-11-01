@@ -285,18 +285,18 @@ func (mr *MockContextMockRecorder) MultiwatcherFactory() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiwatcherFactory", reflect.TypeOf((*MockContext)(nil).MultiwatcherFactory))
 }
 
-// ObjectStore mocks base method.
-func (m *MockContext) ObjectStore() objectstore.ObjectStore {
+// ObjectStoreFactory mocks base method.
+func (m *MockContext) ObjectStoreFactory() objectstore.ObjectStoreFactory {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ObjectStore")
-	ret0, _ := ret[0].(objectstore.ObjectStore)
+	ret := m.ctrl.Call(m, "ObjectStoreFactory")
+	ret0, _ := ret[0].(objectstore.ObjectStoreFactory)
 	return ret0
 }
 
-// ObjectStore indicates an expected call of ObjectStore.
-func (mr *MockContextMockRecorder) ObjectStore() *gomock.Call {
+// ObjectStoreFactory indicates an expected call of ObjectStoreFactory.
+func (mr *MockContextMockRecorder) ObjectStoreFactory() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ObjectStore", reflect.TypeOf((*MockContext)(nil).ObjectStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ObjectStoreFactory", reflect.TypeOf((*MockContext)(nil).ObjectStoreFactory))
 }
 
 // Presence mocks base method.

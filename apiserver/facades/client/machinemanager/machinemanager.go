@@ -154,7 +154,7 @@ func NewFacadeV10(ctx facade.Context) (*MachineManagerAPI, error) {
 		backend,
 		serviceFactory.Cloud(),
 		serviceFactory.Credential(),
-		ctx.ObjectStore(),
+		ctx.ObjectStoreFactory().ModelObjectStore(),
 		storageAccess,
 		pool,
 		ModelAuthorizer{

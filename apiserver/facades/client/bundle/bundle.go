@@ -62,7 +62,7 @@ func newFacade(ctx facade.Context) (*BundleAPI, error) {
 
 	return NewBundleAPI(
 		NewStateShim(st),
-		ctx.ObjectStore(),
+		ctx.ObjectStoreFactory().ModelObjectStore(),
 		authorizer,
 		names.NewModelTag(st.ModelUUID()),
 	)

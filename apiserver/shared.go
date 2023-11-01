@@ -17,11 +17,11 @@ import (
 	"github.com/juju/juju/core/changestream"
 	"github.com/juju/juju/core/lease"
 	"github.com/juju/juju/core/multiwatcher"
+	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/core/presence"
 	"github.com/juju/juju/internal/pubsub/controller"
 	"github.com/juju/juju/internal/servicefactory"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/worker/objectstore"
 	"github.com/juju/juju/worker/trace"
 )
 
@@ -41,18 +41,18 @@ type SharedHub interface {
 // All attributes in the context should be goroutine aware themselves, like the state pool, hub, and
 // presence, or protected and only accessed through methods on this context object.
 type sharedServerContext struct {
-	statePool            *state.StatePool
-	multiwatcherFactory  multiwatcher.Factory
-	centralHub           SharedHub
-	presence             presence.Recorder
-	leaseManager         lease.Manager
-	logger               loggo.Logger
-	cancel               <-chan struct{}
-	charmhubHTTPClient   facade.HTTPClient
-	dbGetter             changestream.WatchableDBGetter
-	serviceFactoryGetter servicefactory.ServiceFactoryGetter
-	tracerGetter         trace.TracerGetter
-	objectStoreGetter    objectstore.ObjectStoreGetter
+	statePool                *state.StatePool
+	multiwatcherFactory      multiwatcher.Factory
+	centralHub               SharedHub
+	presence                 presence.Recorder
+	leaseManager             lease.Manager
+	logger                   loggo.Logger
+	cancel                   <-chan struct{}
+	charmhubHTTPClient       facade.HTTPClient
+	dbGetter                 changestream.WatchableDBGetter
+	serviceFactoryGetter     servicefactory.ServiceFactoryGetter
+	tracerGetter             trace.TracerGetter
+	objectStoreFactoryGetter objectstore.ObjectStoreFactoryGetter
 
 	configMutex      sync.RWMutex
 	controllerConfig jujucontroller.Config
@@ -66,21 +66,21 @@ type sharedServerContext struct {
 }
 
 type sharedServerConfig struct {
-	statePool            *state.StatePool
-	multiwatcherFactory  multiwatcher.Factory
-	centralHub           SharedHub
-	presence             presence.Recorder
-	leaseManager         lease.Manager
-	controllerConfig     jujucontroller.Config
-	logger               loggo.Logger
-	charmhubHTTPClient   facade.HTTPClient
-	dbGetter             changestream.WatchableDBGetter
-	serviceFactoryGetter servicefactory.ServiceFactoryGetter
-	tracerGetter         trace.TracerGetter
-	objectStoreGetter    objectstore.ObjectStoreGetter
-	machineTag           names.Tag
-	dataDir              string
-	logDir               string
+	statePool                *state.StatePool
+	multiwatcherFactory      multiwatcher.Factory
+	centralHub               SharedHub
+	presence                 presence.Recorder
+	leaseManager             lease.Manager
+	controllerConfig         jujucontroller.Config
+	logger                   loggo.Logger
+	charmhubHTTPClient       facade.HTTPClient
+	dbGetter                 changestream.WatchableDBGetter
+	serviceFactoryGetter     servicefactory.ServiceFactoryGetter
+	tracerGetter             trace.TracerGetter
+	objectStoreFactoryGetter objectstore.ObjectStoreFactoryGetter
+	machineTag               names.Tag
+	dataDir                  string
+	logDir                   string
 }
 
 func (c *sharedServerConfig) validate() error {
@@ -111,8 +111,8 @@ func (c *sharedServerConfig) validate() error {
 	if c.tracerGetter == nil {
 		return errors.NotValidf("nil tracerGetter")
 	}
-	if c.objectStoreGetter == nil {
-		return errors.NotValidf("nil objectStoreGetter")
+	if c.objectStoreFactoryGetter == nil {
+		return errors.NotValidf("nil objectStoreFactoryGetter")
 	}
 	if c.machineTag == nil {
 		return errors.NotValidf("empty machineTag")
@@ -125,21 +125,21 @@ func newSharedServerContext(config sharedServerConfig) (*sharedServerContext, er
 		return nil, errors.Trace(err)
 	}
 	ctx := &sharedServerContext{
-		statePool:            config.statePool,
-		multiwatcherFactory:  config.multiwatcherFactory,
-		centralHub:           config.centralHub,
-		presence:             config.presence,
-		leaseManager:         config.leaseManager,
-		logger:               config.logger,
-		controllerConfig:     config.controllerConfig,
-		charmhubHTTPClient:   config.charmhubHTTPClient,
-		dbGetter:             config.dbGetter,
-		serviceFactoryGetter: config.serviceFactoryGetter,
-		tracerGetter:         config.tracerGetter,
-		objectStoreGetter:    config.objectStoreGetter,
-		machineTag:           config.machineTag,
-		dataDir:              config.dataDir,
-		logDir:               config.logDir,
+		statePool:                config.statePool,
+		multiwatcherFactory:      config.multiwatcherFactory,
+		centralHub:               config.centralHub,
+		presence:                 config.presence,
+		leaseManager:             config.leaseManager,
+		logger:                   config.logger,
+		controllerConfig:         config.controllerConfig,
+		charmhubHTTPClient:       config.charmhubHTTPClient,
+		dbGetter:                 config.dbGetter,
+		serviceFactoryGetter:     config.serviceFactoryGetter,
+		tracerGetter:             config.tracerGetter,
+		objectStoreFactoryGetter: config.objectStoreFactoryGetter,
+		machineTag:               config.machineTag,
+		dataDir:                  config.dataDir,
+		logDir:                   config.logDir,
 	}
 	ctx.features = config.controllerConfig.Features()
 	// We are able to get the current controller config before subscribing to changes

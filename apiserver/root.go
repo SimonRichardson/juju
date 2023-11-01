@@ -46,14 +46,14 @@ type objectKey struct {
 // after it has logged in. It contains an rpc.Root which it
 // uses to dispatch API calls appropriately.
 type apiHandler struct {
-	state           *state.State
-	model           *state.Model
-	rpcConn         *rpc.Conn
-	serviceFactory  servicefactory.ServiceFactory
-	tracer          trace.Tracer
-	objectStore     objectstore.ObjectStore
-	watcherRegistry facade.WatcherRegistry
-	shared          *sharedServerContext
+	state              *state.State
+	model              *state.Model
+	rpcConn            *rpc.Conn
+	serviceFactory     servicefactory.ServiceFactory
+	tracer             trace.Tracer
+	objectStoreFactory objectstore.ObjectStoreFactory
+	watcherRegistry    facade.WatcherRegistry
+	shared             *sharedServerContext
 
 	// authInfo represents the authentication info established with this client
 	// connection.
@@ -94,7 +94,7 @@ func newAPIHandler(
 	rpcConn *rpc.Conn,
 	serviceFactory servicefactory.ServiceFactory,
 	tracer trace.Tracer,
-	objectStore objectstore.ObjectStore,
+	objectStoreFactory objectstore.ObjectStoreFactory,
 	modelUUID string,
 	connectionID uint64,
 	serverHost string,
@@ -120,18 +120,18 @@ func newAPIHandler(
 	}
 
 	r := &apiHandler{
-		state:           st,
-		serviceFactory:  serviceFactory,
-		tracer:          tracer,
-		objectStore:     objectStore,
-		model:           m,
-		resources:       common.NewResources(),
-		watcherRegistry: registry,
-		shared:          srv.shared,
-		rpcConn:         rpcConn,
-		modelUUID:       modelUUID,
-		connectionID:    connectionID,
-		serverHost:      serverHost,
+		state:              st,
+		serviceFactory:     serviceFactory,
+		tracer:             tracer,
+		objectStoreFactory: objectStoreFactory,
+		model:              m,
+		resources:          common.NewResources(),
+		watcherRegistry:    registry,
+		shared:             srv.shared,
+		rpcConn:            rpcConn,
+		modelUUID:          modelUUID,
+		connectionID:       connectionID,
+		serverHost:         serverHost,
 	}
 
 	// Facades involved with managing application offers need the auth context
@@ -179,8 +179,8 @@ func (r *apiHandler) Tracer() trace.Tracer {
 }
 
 // ObjectStore returns the object store.
-func (r *apiHandler) ObjectStore() objectstore.ObjectStore {
-	return r.objectStore
+func (r *apiHandler) ObjectStoreFactory() objectstore.ObjectStoreFactory {
+	return r.objectStoreFactory
 }
 
 // SharedContext returns the server shared context.
@@ -352,7 +352,7 @@ type apiRootHandler interface {
 	// Tracer returns the tracer for opentelemetry.
 	Tracer() trace.Tracer
 	// ObjectStore returns the object store.
-	ObjectStore() objectstore.ObjectStore
+	ObjectStoreFactory() objectstore.ObjectStoreFactory
 	// SharedContext returns the server shared context.
 	SharedContext() *sharedServerContext
 	// Resources returns the common resources.
@@ -368,18 +368,18 @@ type apiRootHandler interface {
 // apiRoot implements basic method dispatching to the facade registry.
 type apiRoot struct {
 	rpc.Killer
-	clock           clock.Clock
-	state           *state.State
-	serviceFactory  servicefactory.ServiceFactory
-	tracer          trace.Tracer
-	objectStore     objectstore.ObjectStore
-	shared          *sharedServerContext
-	facades         *facade.Registry
-	watcherRegistry facade.WatcherRegistry
-	authorizer      facade.Authorizer
-	objectMutex     sync.RWMutex
-	objectCache     map[objectKey]reflect.Value
-	requestRecorder facade.RequestRecorder
+	clock              clock.Clock
+	state              *state.State
+	serviceFactory     servicefactory.ServiceFactory
+	tracer             trace.Tracer
+	objectStoreFactory objectstore.ObjectStoreFactory
+	shared             *sharedServerContext
+	facades            *facade.Registry
+	watcherRegistry    facade.WatcherRegistry
+	authorizer         facade.Authorizer
+	objectMutex        sync.RWMutex
+	objectCache        map[objectKey]reflect.Value
+	requestRecorder    facade.RequestRecorder
 
 	// Deprecated: Resources are deprecated. Use WatcherRegistry instead.
 	resources *common.Resources
@@ -393,19 +393,19 @@ func newAPIRoot(
 	clock clock.Clock,
 ) (*apiRoot, error) {
 	return &apiRoot{
-		Killer:          root,
-		clock:           clock,
-		state:           root.State(),
-		serviceFactory:  root.ServiceFactory(),
-		tracer:          root.Tracer(),
-		objectStore:     root.ObjectStore(),
-		shared:          root.SharedContext(),
-		facades:         facades,
-		resources:       root.Resources(),
-		watcherRegistry: root.WatcherRegistry(),
-		authorizer:      root.Authorizer(),
-		objectCache:     make(map[objectKey]reflect.Value),
-		requestRecorder: requestRecorder,
+		Killer:             root,
+		clock:              clock,
+		state:              root.State(),
+		serviceFactory:     root.ServiceFactory(),
+		tracer:             root.Tracer(),
+		objectStoreFactory: root.ObjectStoreFactory(),
+		shared:             root.SharedContext(),
+		facades:            facades,
+		resources:          root.Resources(),
+		watcherRegistry:    root.WatcherRegistry(),
+		authorizer:         root.Authorizer(),
+		objectCache:        make(map[objectKey]reflect.Value),
+		requestRecorder:    requestRecorder,
 	}, nil
 }
 
@@ -806,8 +806,8 @@ func (ctx *facadeContext) Tracer() trace.Tracer {
 }
 
 // ObjectStore returns the object store for the current model.
-func (ctx *facadeContext) ObjectStore() objectstore.ObjectStore {
-	return ctx.r.objectStore
+func (ctx *facadeContext) ObjectStoreFactory() objectstore.ObjectStoreFactory {
+	return ctx.r.objectStoreFactory
 }
 
 // MachineTag returns the current machine tag.

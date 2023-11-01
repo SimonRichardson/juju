@@ -13,6 +13,7 @@ import (
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/apiserver/common"
+	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 )
@@ -41,10 +42,10 @@ func (h *RestHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // modelRestHandler handles ReST requests through HTTPS in the API server.
 type modelRestHandler struct {
-	ctxt              httpContext
-	dataDir           string
-	stateAuthFunc     func(*http.Request) (*state.PooledState, error)
-	objectStoreGetter ObjectStoreGetter
+	ctxt                     httpContext
+	dataDir                  string
+	stateAuthFunc            func(*http.Request) (*state.PooledState, error)
+	objectStoreFactoryGetter objectstore.ObjectStoreFactoryGetter
 }
 
 // ServeGet handles http GET requests.
@@ -117,7 +118,7 @@ func (h *modelRestHandler) processRemoteApplication(r *http.Request, w http.Resp
 
 	// Get the underlying object store for the model UUID, which we can then
 	// retrieve the blob from.
-	store, err := h.objectStoreGetter.GetObjectStore(r.Context(), sourceSt.ModelUUID())
+	store, err := h.objectStoreFactoryGetter.GetObjectStore(r.Context(), sourceSt.ModelUUID())
 	if err != nil {
 		return errors.Annotate(err, "cannot get object store")
 	}

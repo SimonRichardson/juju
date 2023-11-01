@@ -86,7 +86,7 @@ func newFacadeV10(ctx facade.Context) (*ModelManagerAPI, error) {
 		serviceFactory.Credential(),
 		serviceFactory.ModelManager(),
 		serviceFactory.Model(),
-		ctx.ObjectStore(),
+		ctx.ObjectStoreFactory().ModelObjectStore(),
 		toolsFinder,
 		caas.New,
 		common.NewBlockChecker(backend),

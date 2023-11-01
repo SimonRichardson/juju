@@ -134,13 +134,13 @@ func (s *uniterSuiteBase) setupState(c *gc.C) {
 
 func (s *uniterSuiteBase) facadeContext(c *gc.C) facadetest.Context {
 	return facadetest.Context{
-		State_:             s.ControllerModel(c).State(),
-		StatePool_:         s.StatePool(),
-		Resources_:         s.resources,
-		Auth_:              s.authorizer,
-		LeadershipChecker_: s.leadershipChecker,
-		ServiceFactory_:    s.DefaultModelServiceFactory(c),
-		ObjectStore_:       testing.NewObjectStore(c, s.ControllerModelUUID(), s.ControllerModel(c).State()),
+		State_:              s.ControllerModel(c).State(),
+		StatePool_:          s.StatePool(),
+		Resources_:          s.resources,
+		Auth_:               s.authorizer,
+		LeadershipChecker_:  s.leadershipChecker,
+		ServiceFactory_:     s.DefaultModelServiceFactory(c),
+		ObjectStoreFactory_: testing.NewObjectStoreFactory(c, s.ControllerModelUUID(), s.ControllerModel(c).State()),
 	}
 }
 

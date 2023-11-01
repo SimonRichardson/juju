@@ -38,6 +38,15 @@ type ObjectStoreGetter interface {
 	GetObjectStore(context.Context, string) (coreobjectstore.ObjectStore, error)
 }
 
+// ObjectStoreFactoryGetter is the interface that is used to get a object store
+// factory.
+type ObjectStoreFactoryGetter interface {
+	ObjectStoreGetter
+	// FactoryForModel returns a object store factory for the given model, that
+	// also has access to the controller's object store.
+	FactoryForModel(context.Context, string, string) (coreobjectstore.ObjectStoreFactory, error)
+}
+
 // StatePool is the interface to retrieve the mongo session from.
 // Deprecated: is only here for backwards compatibility.
 type StatePool interface {
@@ -160,6 +169,9 @@ func output(in worker.Worker, out any) error {
 	switch out := out.(type) {
 	case *ObjectStoreGetter:
 		var target ObjectStoreGetter = w
+		*out = target
+	case *ObjectStoreFactoryGetter:
+		var target ObjectStoreFactoryGetter = w
 		*out = target
 	default:
 		return errors.Errorf("expected output of Tracer, got %T", out)

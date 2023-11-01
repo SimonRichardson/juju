@@ -6,6 +6,7 @@ package state
 import (
 	"github.com/juju/blobstore/v3"
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 	jujutxn "github.com/juju/txn/v3"
 
 	"github.com/juju/juju/internal/mongo"
@@ -32,7 +33,7 @@ func (st *State) ToolsStorage() (binarystorage.StorageCloser, error) {
 		controllerStorage.Close()
 		return nil, errors.Trace(err)
 	}
-	return &storageCloser{storage, func() {
+	return &storageCloser{Storage: storage, closer: func() {
 		modelStorage.Close()
 		controllerStorage.Close()
 	}}, nil
@@ -48,11 +49,13 @@ func newBinaryStorageCloser(db Database, collectionName, uuid string) binarystor
 		closer1()
 	}
 	storage := newBinaryStorage(uuid, metadataCollection, txnRunner)
-	return &storageCloser{storage, closer}
+	return &storageCloser{Storage: storage, closer: closer}
 }
 
 func newBinaryStorage(uuid string, metadataCollection mongo.Collection, txnRunner jujutxn.Runner) binarystorage.Storage {
 	db := metadataCollection.Writeable().Underlying().Database
+	loggo.GetLogger("***").Criticalf("db: %v", db)
+
 	rs := blobstore.NewGridFS(blobstoreDB, blobstoreDB, db.Session)
 	managedStorage := blobstore.NewManagedStorage(db, rs)
 	return binarystorageNew(uuid, managedStorage, metadataCollection, txnRunner)

@@ -213,6 +213,30 @@ func (w *objectStoreWorker) GetObjectStore(ctx context.Context, namespace string
 	return tracked.(coreobjectstore.ObjectStore), nil
 }
 
+// FactoryForModel returns a ObjectStoreFactory for the given model, that
+// includes the controller's object store.
+func (w *objectStoreWorker) FactoryForModel(ctx context.Context, controller, model string) (coreobjectstore.ObjectStoreFactory, error) {
+	ctrl, err := w.GetObjectStore(ctx, controller)
+	if err != nil {
+		return nil, errors.Annotatef(err, "controller object store %q", controller)
+	}
+	if controller == model {
+		return factoryForModel{
+			controller: ctrl,
+			model:      ctrl,
+		}, nil
+	}
+
+	mod, err := w.GetObjectStore(ctx, model)
+	if err != nil {
+		return nil, errors.Annotatef(err, "model object store %q", model)
+	}
+	return factoryForModel{
+		controller: ctrl,
+		model:      mod,
+	}, nil
+}
+
 func (w *objectStoreWorker) workerFromCache(namespace string) (coreobjectstore.ObjectStore, error) {
 	// If the worker already exists, return the existing worker early.
 	if objectStore, err := w.runner.Worker(namespace, w.catacomb.Dying()); err == nil {
@@ -323,4 +347,17 @@ func (t *tracedWorker) Put(ctx context.Context, path string, r io.Reader, length
 	}()
 
 	return t.TrackedObjectStore.Put(ctx, path, r, length)
+}
+
+type factoryForModel struct {
+	controller coreobjectstore.ObjectStore
+	model      coreobjectstore.ObjectStore
+}
+
+func (f factoryForModel) ControllerObjectStore() coreobjectstore.ObjectStore {
+	return f.controller
+}
+
+func (f factoryForModel) ModelObjectStore() coreobjectstore.ObjectStore {
+	return f.model
 }

@@ -47,25 +47,25 @@ type ManifoldSuite struct {
 
 	manifold dependency.Manifold
 
-	agent                *mockAgent
-	auditConfig          stubAuditConfig
-	authenticator        *mockAuthenticator
-	clock                *testclock.Clock
-	context              dependency.Context
-	hub                  pubsub.StructuredHub
-	leaseManager         *lease.Manager
-	metricsCollector     *coreapiserver.Collector
-	multiwatcherFactory  multiwatcher.Factory
-	mux                  *apiserverhttp.Mux
-	prometheusRegisterer stubPrometheusRegisterer
-	state                stubStateTracker
-	upgradeGate          stubGateWaiter
-	sysLogger            syslogger.SysLogger
-	charmhubHTTPClient   *http.Client
-	dbGetter             stubWatchableDBGetter
-	serviceFactoryGetter stubServiceFactoryGetter
-	tracerGetter         stubTracerGetter
-	objectStoreGetter    stubObjectStoreGetter
+	agent                    *mockAgent
+	auditConfig              stubAuditConfig
+	authenticator            *mockAuthenticator
+	clock                    *testclock.Clock
+	context                  dependency.Context
+	hub                      pubsub.StructuredHub
+	leaseManager             *lease.Manager
+	metricsCollector         *coreapiserver.Collector
+	multiwatcherFactory      multiwatcher.Factory
+	mux                      *apiserverhttp.Mux
+	prometheusRegisterer     stubPrometheusRegisterer
+	state                    stubStateTracker
+	upgradeGate              stubGateWaiter
+	sysLogger                syslogger.SysLogger
+	charmhubHTTPClient       *http.Client
+	dbGetter                 stubWatchableDBGetter
+	serviceFactoryGetter     stubServiceFactoryGetter
+	tracerGetter             stubTracerGetter
+	objectStoreFactoryGetter stubObjectStoreFactoryGetter
 
 	stub testing.Stub
 }
@@ -131,7 +131,7 @@ func (s *ManifoldSuite) newContext(overlay map[string]interface{}) dependency.Co
 		"change-stream":        s.dbGetter,
 		"service-factory":      s.serviceFactoryGetter,
 		"trace":                s.tracerGetter,
-		"object-store":         s.objectStoreGetter,
+		"object-store":         s.objectStoreFactoryGetter,
 	}
 	for k, v := range overlay {
 		resources[k] = v
@@ -234,7 +234,7 @@ func (s *ManifoldSuite) TestStart(c *gc.C) {
 		DBGetter:                   s.dbGetter,
 		ServiceFactoryGetter:       s.serviceFactoryGetter,
 		TracerGetter:               s.tracerGetter,
-		ObjectStoreGetter:          s.objectStoreGetter,
+		ObjectStoreFactoryGetter:   s.objectStoreFactoryGetter,
 	})
 }
 
@@ -402,6 +402,6 @@ type stubTracerGetter struct {
 	trace.TracerGetter
 }
 
-type stubObjectStoreGetter struct {
-	objectstore.ObjectStoreGetter
+type stubObjectStoreFactoryGetter struct {
+	objectstore.ObjectStoreFactoryGetter
 }

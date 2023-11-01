@@ -40,7 +40,7 @@ type Context struct {
 	CharmhubHTTPClient_ facade.HTTPClient
 	ServiceFactory_     servicefactory.ServiceFactory
 	ControllerDB_       changestream.WatchableDB
-	ObjectStore_        objectstore.ObjectStore
+	ObjectStoreFactory_ objectstore.ObjectStoreFactory
 	Logger_             loggo.Logger
 
 	MachineTag_ names.Tag
@@ -90,10 +90,10 @@ func (context Context) WatcherRegistry() facade.WatcherRegistry {
 	return context.WatcherRegistry_
 }
 
-// ObjectStore is part of the facade.Context interface.
-// It returns the object store for this context.
-func (context Context) ObjectStore() objectstore.ObjectStore {
-	return context.ObjectStore_
+// ObjectStoreFactory is part of the facade.Context interface.
+// It returns the object store factory for this context.
+func (context Context) ObjectStoreFactory() objectstore.ObjectStoreFactory {
+	return context.ObjectStoreFactory_
 }
 
 // State is part of the facade.Context interface.

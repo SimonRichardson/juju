@@ -124,6 +124,6 @@ func (s *WorkerStateSuite) TestStart(c *gc.C) {
 		DBGetter:                   s.dbGetter,
 		ServiceFactoryGetter:       s.serviceFactoryGetter,
 		TracerGetter:               s.tracerGetter,
-		ObjectStoreGetter:          s.objectStoreGetter,
+		ObjectStoreFactoryGetter:   s.objectStoreFactoryGetter,
 	})
 }

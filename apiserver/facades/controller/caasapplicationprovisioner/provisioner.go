@@ -105,8 +105,10 @@ func NewStateCAASApplicationProvisionerAPI(ctx facade.Context) (*APIGroup, error
 		return nil, errors.Trace(err)
 	}
 
+	store := ctx.ObjectStoreFactory().ModelObjectStore()
+
 	newResourceOpener := func(appName string) (resources.Opener, error) {
-		return resource.NewResourceOpenerForApplication(st, ctx.ObjectStore(), appName)
+		return resource.NewResourceOpenerForApplication(st, store, appName)
 	}
 
 	systemState, err := ctx.StatePool().SystemState()
@@ -122,7 +124,7 @@ func NewStateCAASApplicationProvisionerAPI(ctx facade.Context) (*APIGroup, error
 		sb,
 		pm,
 		registry,
-		ctx.ObjectStore(),
+		store,
 		clock.WallClock,
 		ctx.Logger().Child("caasapplicationprovisioner"),
 	)
@@ -143,7 +145,7 @@ func NewStateCAASApplicationProvisionerAPI(ctx facade.Context) (*APIGroup, error
 		PasswordChanger:    common.NewPasswordChanger(st, common.AuthFuncForTagKind(names.ApplicationTagKind)),
 		LifeGetter:         common.NewLifeGetter(st, lifeCanRead),
 		AgentEntityWatcher: common.NewAgentEntityWatcher(st, ctx.Resources(), common.AuthFuncForTagKind(names.ApplicationTagKind)),
-		Remover:            common.NewRemover(st, ctx.ObjectStore(), common.RevokeLeadershipFunc(leadershipRevoker), true, common.AuthFuncForTagKind(names.UnitTagKind)),
+		Remover:            common.NewRemover(st, store, common.RevokeLeadershipFunc(leadershipRevoker), true, common.AuthFuncForTagKind(names.UnitTagKind)),
 		charmInfoAPI:       commonCharmsAPI,
 		appCharmInfoAPI:    appCharmInfoAPI,
 		API:                api,

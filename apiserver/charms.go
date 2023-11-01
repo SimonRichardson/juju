@@ -86,19 +86,13 @@ type Logger interface {
 	IsTraceEnabled() bool
 }
 
-// ObjectStoreGetter is an interface for getting an object store.
-type ObjectStoreGetter interface {
-	// GetObjectStore returns the object store for the given namespace.
-	GetObjectStore(context.Context, string) (objectstore.ObjectStore, error)
-}
-
 // charmsHandler handles charm upload through HTTPS in the API server.
 type charmsHandler struct {
-	ctxt              httpContext
-	dataDir           string
-	stateAuthFunc     func(*http.Request) (*state.PooledState, error)
-	objectStoreGetter ObjectStoreGetter
-	logger            Logger
+	ctxt                     httpContext
+	dataDir                  string
+	stateAuthFunc            func(*http.Request) (*state.PooledState, error)
+	objectStoreFactoryGetter objectstore.ObjectStoreFactoryGetter
+	logger                   Logger
 }
 
 // bundleContentSenderFunc functions are responsible for sending a
@@ -265,7 +259,7 @@ func (h *charmsHandler) processPost(r *http.Request, st *state.State) (*charm.UR
 
 	// Attempt to get the object store early, so we're not unnecessarily
 	// creating a parsing/reading if we can't get the object store.
-	objectStore, err := h.objectStoreGetter.GetObjectStore(r.Context(), st.ModelUUID())
+	objectStore, err := h.objectStoreFactoryGetter.GetObjectStore(r.Context(), st.ModelUUID())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -544,7 +538,7 @@ func (h *charmsHandler) processGet(r *http.Request, st *state.State) (
 
 	// Get the underlying object store for the model UUID, which we can then
 	// retrieve the blob from.
-	store, err := h.objectStoreGetter.GetObjectStore(r.Context(), st.ModelUUID())
+	store, err := h.objectStoreFactoryGetter.GetObjectStore(r.Context(), st.ModelUUID())
 	if err != nil {
 		return errRet(errors.Annotate(err, "cannot get object store"))
 	}

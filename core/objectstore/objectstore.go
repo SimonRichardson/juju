@@ -25,6 +25,29 @@ type Session interface {
 	GetObject(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error)
 }
 
+// ObjectStoreGetter is the interface that is used to get a object store.
+type ObjectStoreGetter interface {
+	// GetObjectStore returns a object store for the given namespace.
+	GetObjectStore(context.Context, string) (ObjectStore, error)
+}
+
+// ObjectStoreFactoryGetter is the interface that is used to get a object store
+// factory.
+type ObjectStoreFactoryGetter interface {
+	ObjectStoreGetter
+	// FactoryForModel returns a object store factory for the given model, that
+	// also has access to the controller's object store.
+	FactoryForModel(context.Context, string, string) (ObjectStoreFactory, error)
+}
+
+// ObjectStoreFactory provides access to the object stores for a model.
+// This includes the controller's object store, which is used for tools for
+// hosted models.
+type ObjectStoreFactory interface {
+	ControllerObjectStore() ObjectStore
+	ModelObjectStore() ObjectStore
+}
+
 // ObjectStore represents a full object store for both read and write access.
 type ObjectStore interface {
 	ReadObjectStore

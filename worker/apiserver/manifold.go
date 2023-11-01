@@ -234,8 +234,8 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		return nil, errors.Trace(err)
 	}
 
-	var objectStoreGetter objectstore.ObjectStoreGetter
-	if err := context.Get(config.ObjectStoreName, &objectStoreGetter); err != nil {
+	var objectStoreFactoryGetter objectstore.ObjectStoreFactoryGetter
+	if err := context.Get(config.ObjectStoreName, &objectStoreFactoryGetter); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -278,7 +278,7 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		DBGetter:                          dbGetter,
 		ServiceFactoryGetter:              serviceFactoryGetter,
 		TracerGetter:                      tracerGetter,
-		ObjectStoreGetter:                 objectStoreGetter,
+		ObjectStoreFactoryGetter:          objectStoreFactoryGetter,
 	})
 	if err != nil {
 		// Ensure we clean up the resources we've registered with. This includes

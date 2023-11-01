@@ -173,7 +173,7 @@ type ServiceFactory interface {
 // ObjectStoreFactory defines an interface for accessing the object store.
 type ObjectStoreFactory interface {
 	// ObjectStore returns the object store for the current model.
-	ObjectStore() objectstore.ObjectStore
+	ObjectStoreFactory() objectstore.ObjectStoreFactory
 }
 
 // Logger defines an interface for getting the apiserver logger instance.

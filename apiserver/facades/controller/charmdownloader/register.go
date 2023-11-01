@@ -38,7 +38,7 @@ func newFacadeV1(ctx facade.Context) (*CharmDownloaderAPI, error) {
 		modelBackend,
 		clock.WallClock,
 		ctx.HTTPClient(facade.CharmhubHTTPClient),
-		ctx.ObjectStore(),
+		ctx.ObjectStoreFactory().ModelObjectStore(),
 		func(cfg services.CharmDownloaderConfig) (Downloader, error) {
 			return services.NewCharmDownloader(cfg)
 		},

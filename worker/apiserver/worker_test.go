@@ -29,23 +29,23 @@ import (
 
 type workerFixture struct {
 	testing.IsolationSuite
-	agentConfig          mockAgentConfig
-	authenticator        *mockAuthenticator
-	clock                *testclock.Clock
-	hub                  pubsub.StructuredHub
-	mux                  *apiserverhttp.Mux
-	prometheusRegisterer stubPrometheusRegisterer
-	leaseManager         lease.Manager
-	config               apiserver.Config
-	stub                 testing.Stub
-	metricsCollector     *coreapiserver.Collector
-	multiwatcherFactory  multiwatcher.Factory
-	sysLogger            syslogger.SysLogger
-	charmhubHTTPClient   *http.Client
-	dbGetter             stubWatchableDBGetter
-	serviceFactoryGetter stubServiceFactoryGetter
-	tracerGetter         stubTracerGetter
-	objectStoreGetter    stubObjectStoreGetter
+	agentConfig              mockAgentConfig
+	authenticator            *mockAuthenticator
+	clock                    *testclock.Clock
+	hub                      pubsub.StructuredHub
+	mux                      *apiserverhttp.Mux
+	prometheusRegisterer     stubPrometheusRegisterer
+	leaseManager             lease.Manager
+	config                   apiserver.Config
+	stub                     testing.Stub
+	metricsCollector         *coreapiserver.Collector
+	multiwatcherFactory      multiwatcher.Factory
+	sysLogger                syslogger.SysLogger
+	charmhubHTTPClient       *http.Client
+	dbGetter                 stubWatchableDBGetter
+	serviceFactoryGetter     stubServiceFactoryGetter
+	tracerGetter             stubTracerGetter
+	objectStoreFactoryGetter stubObjectStoreFactoryGetter
 }
 
 func (s *workerFixture) SetUpTest(c *gc.C) {
@@ -88,7 +88,7 @@ func (s *workerFixture) SetUpTest(c *gc.C) {
 		DBGetter:                          s.dbGetter,
 		ServiceFactoryGetter:              s.serviceFactoryGetter,
 		TracerGetter:                      s.tracerGetter,
-		ObjectStoreGetter:                 s.objectStoreGetter,
+		ObjectStoreFactoryGetter:          s.objectStoreFactoryGetter,
 	}
 }
 
@@ -162,8 +162,8 @@ func (s *WorkerValidationSuite) TestValidateErrors(c *gc.C) {
 		func(cfg *apiserver.Config) { cfg.TracerGetter = nil },
 		"nil TracerGetter not valid",
 	}, {
-		func(cfg *apiserver.Config) { cfg.ObjectStoreGetter = nil },
-		"nil ObjectStoreGetter not valid",
+		func(cfg *apiserver.Config) { cfg.ObjectStoreFactoryGetter = nil },
+		"nil ObjectStoreFactoryGetter not valid",
 	}}
 	for i, test := range tests {
 		c.Logf("test #%d (%s)", i, test.expect)

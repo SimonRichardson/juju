@@ -45,7 +45,7 @@ func (ctxt *httpContext) stateForRequestUnauthenticated(r *http.Request) (*state
 // without checking any authentication information.
 func (ctxt *httpContext) objectStoreForRequest(r *http.Request) (objectstore.ObjectStore, error) {
 	modelUUID := httpcontext.RequestModelUUID(r)
-	return ctxt.srv.shared.objectStoreGetter.GetObjectStore(r.Context(), modelUUID)
+	return ctxt.srv.shared.objectStoreFactoryGetter.GetObjectStore(r.Context(), modelUUID)
 }
 
 // statePool returns the StatePool for this controller.

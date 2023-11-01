@@ -31,7 +31,7 @@ func newCharmRevisionUpdaterAPI(ctx facade.Context) (*CharmRevisionUpdaterAPI, e
 	}
 	return NewCharmRevisionUpdaterAPIState(
 		StateShim{State: ctx.State()},
-		ctx.ObjectStore(),
+		ctx.ObjectStoreFactory().ModelObjectStore(),
 		clock.WallClock,
 		newCharmhubClient,
 		ctx.Logger().Child("charmrevisionupdater"),

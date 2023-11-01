@@ -26,6 +26,6 @@ func newCleanerAPI(ctx facade.Context) (*CleanerAPI, error) {
 	return &CleanerAPI{
 		st:          getState(ctx.State()),
 		resources:   ctx.Resources(),
-		objectStore: ctx.ObjectStore(),
+		objectStore: ctx.ObjectStoreFactory().ModelObjectStore(),
 	}, nil
 }

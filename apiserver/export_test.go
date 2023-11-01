@@ -61,7 +61,7 @@ func (testingAPIRootHandler) Tracer() coretrace.Tracer {
 	return nil
 }
 
-func (testingAPIRootHandler) ObjectStore() coreobjectstore.ObjectStore {
+func (testingAPIRootHandler) ObjectStoreFactory() coreobjectstore.ObjectStoreFactory {
 	return nil
 }
 
@@ -130,8 +130,8 @@ type StubTracerGetter struct {
 	trace.TracerGetter
 }
 
-type StubObjectStoreGetter struct {
-	objectstore.ObjectStoreGetter
+type StubObjectStoreFactoryGetter struct {
+	objectstore.ObjectStoreFactoryGetter
 }
 
 // TestingAPIHandlerWithEntity gives you the sane kind of APIHandler as
