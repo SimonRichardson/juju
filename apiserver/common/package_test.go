@@ -9,6 +9,7 @@ import (
 	"github.com/juju/juju/testing"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/leadership.go github.com/juju/juju/apiserver/common LeadershipPinningBackend,LeadershipMachine
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/authorizer_mock.go github.com/juju/juju/apiserver/common Authorizer
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/domain_mock.go github.com/juju/juju/apiserver/common ControllerConfigGetter
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/credential_mock.go github.com/juju/juju/apiserver/common CredentialService,CloudService
@@ -16,6 +17,10 @@ import (
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/tools_mock.go github.com/juju/juju/apiserver/common ToolsFinder,ToolsFindEntity,ToolsURLGetter,APIHostPortsForAgentsGetter,ToolsStorageGetter,AgentTooler
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/storage.go github.com/juju/juju/state/binarystorage StorageCloser
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/environs.go github.com/juju/juju/environs EnvironConfigGetter,BootstrapEnviron
+//go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/objectstore.go github.com/juju/juju/core/objectstore ObjectStore,ObjectStoreFactory
+//go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/unitstate.go github.com/juju/juju/apiserver/common UnitStateBackend,UnitStateUnit
+//go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/modeloperation.go github.com/juju/juju/state ModelOperation
+//go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/upgradeseries.go github.com/juju/juju/apiserver/common UpgradeSeriesBackend,UpgradeSeriesMachine,UpgradeSeriesUnit
 
 func TestAll(t *stdtesting.T) {
 	testing.MgoTestPackage(t)

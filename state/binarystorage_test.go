@@ -67,6 +67,7 @@ type binaryStorageSuite struct {
 	controllerModelUUID string
 	modelUUID           string
 	st                  *state.State
+	store               objectstore.ObjectStoreFactory
 }
 
 var _ = gc.Suite(&binaryStorageSuite{})
@@ -95,9 +96,11 @@ func (s *binaryStorageSuite) SetUpTest(c *gc.C) {
 	s.AddCleanup(func(*gc.C) {
 		s.st.Close()
 	})
+
+	s.store = state.NewObjectStoreFactory(c, s.st)
 }
 
-type storageOpener func() (binarystorage.StorageCloser, error)
+type storageOpener func(objectstore.ObjectStoreFactory) (binarystorage.StorageCloser, error)
 
 func (s *binaryStorageSuite) TestToolsStorage(c *gc.C) {
 	s.testStorage(c, "toolsmetadata", s.State.ToolsStorage)
@@ -121,7 +124,7 @@ func (s *binaryStorageSuite) testStorage(c *gc.C, collName string, openStorage s
 	nameSet := set.NewStrings(collectionNames...)
 	c.Assert(nameSet.Contains(collName), jc.IsFalse)
 
-	storage, err := openStorage()
+	storage, err := openStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer func() {
 		err := storage.Close()
@@ -152,18 +155,18 @@ func (s *binaryStorageSuite) testStorageParams(c *gc.C, collName string, uuids [
 		return nil
 	})
 
-	storage, err := openStorage()
+	storage, err := openStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	storage.Close()
 	c.Assert(uuidArgs, jc.DeepEquals, uuids)
 }
 
 func (s *binaryStorageSuite) TestToolsStorageLayered(c *gc.C) {
-	modelTools, err := s.st.ToolsStorage()
+	modelTools, err := s.st.ToolsStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer modelTools.Close()
 
-	controllerTools, err := s.State.ToolsStorage()
+	controllerTools, err := s.State.ToolsStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer controllerTools.Close()
 

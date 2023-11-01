@@ -15,6 +15,7 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/network"
+	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/simplestreams"
 	envtools "github.com/juju/juju/environs/tools"
@@ -49,7 +50,7 @@ type APIHostPortsForAgentsGetter interface {
 // ToolsStorageGetter is an interface providing the ToolsStorage method.
 type ToolsStorageGetter interface {
 	// ToolsStorage returns a binarystorage.StorageCloser.
-	ToolsStorage() (binarystorage.StorageCloser, error)
+	ToolsStorage(objectstore.ObjectStoreFactory) (binarystorage.StorageCloser, error)
 }
 
 // AgentTooler is implemented by entities
@@ -258,6 +259,7 @@ type toolsFinder struct {
 	toolsStorageGetter     ToolsStorageGetter
 	urlGetter              ToolsURLGetter
 	newEnviron             NewEnvironFunc
+	storeFactory           objectstore.ObjectStoreFactory
 }
 
 // NewToolsFinder returns a new ToolsFinder, returning tools
@@ -268,6 +270,7 @@ func NewToolsFinder(
 	toolsStorageGetter ToolsStorageGetter,
 	urlGetter ToolsURLGetter,
 	newEnviron NewEnvironFunc,
+	storeFactory objectstore.ObjectStoreFactory,
 ) *toolsFinder {
 	return &toolsFinder{
 		controllerConfigGetter: controllerConfigGetter,
@@ -275,6 +278,7 @@ func NewToolsFinder(
 		toolsStorageGetter:     toolsStorageGetter,
 		urlGetter:              urlGetter,
 		newEnviron:             newEnviron,
+		storeFactory:           storeFactory,
 	}
 }
 
@@ -369,7 +373,7 @@ func (f *toolsFinder) findMatchingAgents(ctx context.Context, args FindAgentsPar
 // matchingStorageAgent returns a coretools.List, with an entry for each
 // metadata entry in the agent storage that matches the given parameters.
 func (f *toolsFinder) matchingStorageAgent(args FindAgentsParams) (coretools.List, error) {
-	storage, err := f.toolsStorageGetter.ToolsStorage()
+	storage, err := f.toolsStorageGetter.ToolsStorage(f.storeFactory)
 	if err != nil {
 		return nil, err
 	}

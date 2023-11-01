@@ -40,29 +40,41 @@ func newUpgraderFacade(ctx facade.Context) (Upgrader, error) {
 	if err != nil {
 		return nil, apiservererrors.ErrPerm
 	}
+
 	model, err := st.Model()
 	if err != nil {
 		return nil, errors.Trace(err)
+	}
+
+	var unitUpgrader bool
+	switch tag.(type) {
+	case names.MachineTag, names.ControllerAgentTag, names.ApplicationTag, names.ModelTag:
+		unitUpgrader = false
+	case names.UnitTag:
+		// For sidecar applications we want to use the UpgraderAPI
+		unitUpgrader = model.Type() == state.ModelTypeIAAS
+	default:
+		// Not a machine or a unit.
+		return nil, apiservererrors.ErrPerm
+	}
+
+	if unitUpgrader {
+		return NewUnitUpgraderAPI(ctx)
 	}
 
 	ctrlSt, err := ctx.StatePool().SystemState()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+
 	resources := ctx.Resources()
-	controllerConfigGetter := ctx.ServiceFactory().ControllerConfig()
-	cloudService := ctx.ServiceFactory().Cloud()
-	credentialService := ctx.ServiceFactory().Credential()
-	switch tag.(type) {
-	case names.MachineTag, names.ControllerAgentTag, names.ApplicationTag, names.ModelTag:
-		return NewUpgraderAPI(controllerConfigGetter, ctrlSt, st, resources, auth, ctx.Logger().Child("upgrader"), cloudService, credentialService)
-	case names.UnitTag:
-		if model.Type() == state.ModelTypeCAAS {
-			// For sidecar applications.
-			return NewUpgraderAPI(controllerConfigGetter, ctrlSt, st, resources, auth, ctx.Logger().Child("upgrader"), cloudService, credentialService)
-		}
-		return NewUnitUpgraderAPI(ctx)
-	}
-	// Not a machine or unit.
-	return nil, apiservererrors.ErrPerm
+
+	serviceFactory := ctx.ServiceFactory()
+	controllerConfigGetter := serviceFactory.ControllerConfig()
+	cloudService := serviceFactory.Cloud()
+	credentialService := serviceFactory.Credential()
+
+	store := ctx.ObjectStoreFactory()
+
+	return NewUpgraderAPI(controllerConfigGetter, ctrlSt, st, resources, auth, ctx.Logger().Child("upgrader"), cloudService, credentialService, store)
 }

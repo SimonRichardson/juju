@@ -20,9 +20,9 @@ import (
 
 // resourcesMigrationUploadHandler handles resources uploads for model migrations.
 type resourcesMigrationUploadHandler struct {
-	ctxt          httpContext
-	stateAuthFunc func(*http.Request) (*state.PooledState, error)
-	objectStore   func(*http.Request) (objectstore.ObjectStore, error)
+	ctxt               httpContext
+	stateAuthFunc      func(*http.Request) (*state.PooledState, error)
+	objectStoreFactory func(*http.Request) (objectstore.ObjectStoreFactory, error)
 }
 
 func (h *resourcesMigrationUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +37,7 @@ func (h *resourcesMigrationUploadHandler) ServeHTTP(w http.ResponseWriter, r *ht
 	}
 	defer st.Release()
 
-	store, err := h.objectStore(r)
+	store, err := h.objectStoreFactory(r)
 	if err != nil {
 		if err := sendError(w, err); err != nil {
 			logger.Errorf("%v", err)
@@ -47,7 +47,7 @@ func (h *resourcesMigrationUploadHandler) ServeHTTP(w http.ResponseWriter, r *ht
 
 	switch r.Method {
 	case "POST":
-		res, err := h.processPost(r, st.State, store)
+		res, err := h.processPost(r, st.State, store.ModelObjectStore())
 		if err != nil {
 			if err := sendError(w, err); err != nil {
 				logger.Errorf("%v", err)

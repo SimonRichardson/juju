@@ -23,6 +23,7 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/apiserver/httpcontext"
 	corebase "github.com/juju/juju/core/base"
+	"github.com/juju/juju/core/objectstore"
 	coreos "github.com/juju/juju/core/os"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/simplestreams"
@@ -78,6 +79,8 @@ func newToolsDownloadHandler(httpCtxt httpContext) *toolsDownloadHandler {
 }
 
 func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// TODO (stickupkid): This should be done after the method check. Otherwise
+	// we're going to be doing a lot of work for nothing.
 	st, err := h.ctxt.stateForRequestUnauthenticated(r)
 	if err != nil {
 		if err := sendError(w, err); err != nil {
@@ -89,7 +92,15 @@ func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	switch r.Method {
 	case "GET":
-		reader, size, err := h.getToolsForRequest(r, st.State)
+		objectStoreFactory, err := h.ctxt.objectStoreFactoryForRequest(r)
+		if err != nil {
+			if err := sendError(w, err); err != nil {
+				logger.Errorf("%v", err)
+			}
+			return
+		}
+
+		reader, size, err := h.getToolsForRequest(r, st.State, objectStoreFactory)
 		if err != nil {
 			logger.Errorf("GET(%s) failed: %v", r.URL, err)
 			if err := sendError(w, errors.NewBadRequest(err, "")); err != nil {
@@ -122,8 +133,15 @@ func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "POST":
-		// Add tools to storage.
-		agentTools, err := h.processPost(r, st.State)
+		objectStoreFactory, err := h.ctxt.objectStoreFactoryForRequest(r)
+		if err != nil {
+			if err := sendError(w, err); err != nil {
+				logger.Errorf("%v", err)
+			}
+			return
+		}
+
+		agentTools, err := h.processPost(r, st.State, objectStoreFactory)
 		if err != nil {
 			if err := sendError(w, err); err != nil {
 				logger.Errorf("%v", err)
@@ -145,14 +163,14 @@ func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // getToolsForRequest retrieves the compressed agent binaries tarball from state
 // based on the input HTTP request.
 // It is returned with the size of the file as recorded in the stored metadata.
-func (h *toolsDownloadHandler) getToolsForRequest(r *http.Request, st *state.State) (_ io.ReadCloser, _ int64, err error) {
+func (h *toolsDownloadHandler) getToolsForRequest(r *http.Request, st *state.State, objectStoreFactory objectstore.ObjectStoreFactory) (_ io.ReadCloser, _ int64, err error) {
 	vers, err := version.ParseBinary(r.URL.Query().Get(":version"))
 	if err != nil {
 		return nil, 0, errors.Annotate(err, "error parsing version")
 	}
 	logger.Debugf("request for agent binaries: %s", vers)
 
-	storage, err := st.ToolsStorage()
+	storage, err := st.ToolsStorage(objectStoreFactory)
 	if err != nil {
 		return nil, 0, errors.Annotate(err, "error getting storage for agent binaries")
 	}
@@ -228,7 +246,7 @@ func (h *toolsDownloadHandler) getToolsForRequest(r *http.Request, st *state.Sta
 		if osTypeName != "" {
 			storageVers.Release = osTypeName
 		}
-		err = h.fetchAndCacheTools(vers, storageVers, st, storage)
+		err = h.fetchAndCacheTools(r.Context(), vers, storageVers, st, storage, objectStoreFactory)
 		if err != nil {
 			err = errors.Annotate(err, "error fetching agent binaries")
 		} else {
@@ -246,10 +264,12 @@ func (h *toolsDownloadHandler) getToolsForRequest(r *http.Request, st *state.Sta
 // in simplestreams and GETting it, caching the result in tools storage before returning
 // to the caller.
 func (h *toolsDownloadHandler) fetchAndCacheTools(
+	ctx context.Context,
 	v version.Binary,
 	storageVers version.Binary,
 	st *state.State,
 	modelStorage binarystorage.Storage,
+	objectStoreFactory objectstore.ObjectStoreFactory,
 ) error {
 	systemState, err := h.ctxt.statePool().SystemState()
 	if err != nil {
@@ -275,7 +295,7 @@ func (h *toolsDownloadHandler) fetchAndCacheTools(
 	case state.ModelTypeIAAS:
 		// Cache the tools against the controller when the controller is IAAS.
 		model = controllerModel
-		controllerStorage, err := systemState.ToolsStorage()
+		controllerStorage, err := systemState.ToolsStorage(objectStoreFactory)
 		if err != nil {
 			return err
 		}
@@ -301,7 +321,7 @@ func (h *toolsDownloadHandler) fetchAndCacheTools(
 	// No need to verify the server's identity because we verify the SHA-256 hash.
 	logger.Infof("fetching %v agent binaries from %v", v, exactTools.URL)
 	client := jujuhttp.NewClient(jujuhttp.WithSkipHostnameVerification(true))
-	resp, err := client.Get(context.TODO(), exactTools.URL)
+	resp, err := client.Get(ctx, exactTools.URL)
 	if err != nil {
 		return err
 	}
@@ -353,7 +373,7 @@ func (h *toolsDownloadHandler) sendTools(w http.ResponseWriter, reader io.ReadCl
 }
 
 // processPost handles a tools upload POST request after authentication.
-func (h *toolsUploadHandler) processPost(r *http.Request, st *state.State) (*tools.Tools, error) {
+func (h *toolsUploadHandler) processPost(r *http.Request, st *state.State, objectStoreFactory objectstore.ObjectStoreFactory) (*tools.Tools, error) {
 	query := r.URL.Query()
 
 	binaryVersionParam := query.Get("binaryVersion")
@@ -374,7 +394,7 @@ func (h *toolsUploadHandler) processPost(r *http.Request, st *state.State) (*too
 	logger.Debugf("request to upload agent binaries: %s", toolsVersion)
 	toolsVersions := []version.Binary{toolsVersion}
 	serverRoot := h.getServerRoot(r, query, st)
-	return h.handleUpload(r.Context(), r.Body, toolsVersions, serverRoot, st)
+	return h.handleUpload(r.Context(), r.Body, toolsVersions, serverRoot, st, objectStoreFactory)
 }
 
 func (h *toolsUploadHandler) getServerRoot(r *http.Request, query url.Values, st *state.State) string {
@@ -383,13 +403,13 @@ func (h *toolsUploadHandler) getServerRoot(r *http.Request, query url.Values, st
 }
 
 // handleUpload uploads the tools data from the reader to env storage as the specified version.
-func (h *toolsUploadHandler) handleUpload(ctx context.Context, r io.Reader, toolsVersions []version.Binary, serverRoot string, st *state.State) (*tools.Tools, error) {
+func (h *toolsUploadHandler) handleUpload(ctx context.Context, r io.Reader, toolsVersions []version.Binary, serverRoot string, st *state.State, objectStoreFactory objectstore.ObjectStoreFactory) (*tools.Tools, error) {
 	// Check if changes are allowed and the command may proceed.
 	blockChecker := common.NewBlockChecker(st)
 	if err := blockChecker.ChangeAllowed(ctx); err != nil {
 		return nil, errors.Trace(err)
 	}
-	storage, err := st.ToolsStorage()
+	storage, err := st.ToolsStorage(objectStoreFactory)
 	if err != nil {
 		return nil, err
 	}

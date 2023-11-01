@@ -40,12 +40,20 @@ func (ctxt *httpContext) stateForRequestUnauthenticated(r *http.Request) (*state
 	return st, nil
 }
 
-// objectStoreForRequest returns an object store instance
+// objectStoreFactoryForRequest returns an object store factory instance
 // appropriate for using for the model implicit in the given request
 // without checking any authentication information.
-func (ctxt *httpContext) objectStoreForRequest(r *http.Request) (objectstore.ObjectStore, error) {
+func (ctxt *httpContext) objectStoreFactoryForRequest(r *http.Request) (objectstore.ObjectStoreFactory, error) {
+	_, ok := httpcontext.RequestAuthInfo(r)
+	if !ok {
+		return nil, apiservererrors.ErrPerm
+	}
 	modelUUID := httpcontext.RequestModelUUID(r)
-	return ctxt.srv.shared.objectStoreFactoryGetter.GetObjectStore(r.Context(), modelUUID)
+	state, err := ctxt.statePool().SystemState()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return ctxt.srv.shared.objectStoreFactoryGetter.FactoryForModel(r.Context(), state.ControllerModelUUID(), modelUUID)
 }
 
 // statePool returns the StatePool for this controller.

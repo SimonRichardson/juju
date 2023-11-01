@@ -21,6 +21,7 @@ import (
 	"github.com/juju/juju/apiserver/facades/agent/upgrader"
 	apiservertesting "github.com/juju/juju/apiserver/testing"
 	"github.com/juju/juju/core/arch"
+	"github.com/juju/juju/core/objectstore"
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
@@ -35,12 +36,13 @@ type upgraderSuite struct {
 
 	// These are raw State objects. Use them for setup and assertions, but
 	// should never be touched by the API calls themselves
-	rawMachine *state.Machine
-	apiMachine *state.Machine
-	upgrader   *upgrader.UpgraderAPI
-	resources  *common.Resources
-	authorizer apiservertesting.FakeAuthorizer
-	hosted     *state.State
+	rawMachine   *state.Machine
+	apiMachine   *state.Machine
+	upgrader     *upgrader.UpgraderAPI
+	resources    *common.Resources
+	authorizer   apiservertesting.FakeAuthorizer
+	hosted       *state.State
+	storeFactory objectstore.ObjectStoreFactory
 
 	controllerConfigGetter *MockControllerConfigGetter
 }
@@ -80,11 +82,13 @@ func (s *upgraderSuite) SetUpTest(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	serviceFactory := s.ControllerServiceFactory(c)
+	s.storeFactory = jujutesting.NewObjectStoreFactory(c, s.ControllerModelUUID(), s.ControllerModel(c).State())
 
 	s.upgrader, err = upgrader.NewUpgraderAPI(
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, s.authorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 }
@@ -143,6 +147,7 @@ func (s *upgraderSuite) TestWatchAPIVersionApplication(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, authorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 	args := params.Entities{
@@ -187,6 +192,7 @@ func (s *upgraderSuite) TestWatchAPIVersionUnit(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, authorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 	args := params.Entities{
@@ -226,6 +232,7 @@ func (s *upgraderSuite) TestWatchAPIVersionControllerAgent(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, authorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -264,6 +271,7 @@ func (s *upgraderSuite) TestWatchAPIVersionRefusesWrongAgent(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, anAuthorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Check(err, jc.ErrorIsNil)
 	args := params.Entities{
@@ -296,6 +304,7 @@ func (s *upgraderSuite) TestToolsRefusesWrongAgent(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, anAuthorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Check(err, jc.ErrorIsNil)
 	args := params.Entities{
@@ -314,7 +323,7 @@ func (s *upgraderSuite) TestToolsForAgent(c *gc.C) {
 	agent := params.Entity{Tag: s.rawMachine.Tag().String()}
 
 	// Seed the newer agent in storage.
-	stor, err := s.ControllerModel(c).State().ToolsStorage()
+	stor, err := s.ControllerModel(c).State().ToolsStorage(s.storeFactory)
 	c.Assert(err, jc.ErrorIsNil)
 	defer func() {
 		_ = stor.Close()
@@ -373,6 +382,7 @@ func (s *upgraderSuite) TestSetToolsRefusesWrongAgent(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, anAuthorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Check(err, jc.ErrorIsNil)
 	args := params.EntitiesVersion{
@@ -435,6 +445,7 @@ func (s *upgraderSuite) TestDesiredVersionRefusesWrongAgent(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, anAuthorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Check(err, jc.ErrorIsNil)
 	args := params.Entities{
@@ -514,6 +525,7 @@ func (s *upgraderSuite) TestDesiredVersionUnrestrictedForAPIAgents(c *gc.C) {
 		s.controllerConfigGetter, systemState, s.hosted, s.resources, authorizer,
 		loggo.GetLogger("juju.apiserver.upgrader"),
 		serviceFactory.Cloud(), serviceFactory.Credential(),
+		s.storeFactory,
 	)
 	c.Assert(err, jc.ErrorIsNil)
 	args := params.Entities{Entities: []params.Entity{{Tag: s.apiMachine.Tag().String()}}}

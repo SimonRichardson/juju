@@ -266,7 +266,9 @@ func (bi binariesInfo) Less(i, j int) bool {
 }
 
 func (b *BlobStoreChecker) readAgentBinaries() {
-	toolsStorage, err := b.system.ToolsStorage()
+	// TODO (stickupkid): Once we settle on a backing blob store factory, we
+	// can update this to not be nil.
+	toolsStorage, err := b.system.ToolsStorage(nil)
 	checkErr(err, "tools storage")
 	defer func() {
 		err := toolsStorage.Close()

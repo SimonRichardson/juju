@@ -24,6 +24,7 @@ import (
 	gc "gopkg.in/check.v1"
 
 	apitesting "github.com/juju/juju/apiserver/testing"
+	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/simplestreams"
 	"github.com/juju/juju/environs/storage"
@@ -41,6 +42,14 @@ import (
 
 type baseToolsSuite struct {
 	jujutesting.ApiServerSuite
+
+	store objectstore.ObjectStoreFactory
+}
+
+func (s *baseToolsSuite) SetUpTest(c *gc.C) {
+	s.ApiServerSuite.SetUpTest(c)
+
+	s.store = jujutesting.NewObjectStoreFactory(c, s.ControllerModelUUID(), s.ControllerModel(c).State())
 }
 
 func (s *baseToolsSuite) toolsURL(query string) *url.URL {
@@ -106,7 +115,7 @@ func (s *baseToolsSuite) assertResponse(c *gc.C, resp *http.Response, expStatus 
 }
 
 func (s *baseToolsSuite) storeFakeTools(c *gc.C, st *state.State, content string, metadata binarystorage.Metadata) *coretools.Tools {
-	storage, err := st.ToolsStorage()
+	storage, err := st.ToolsStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer storage.Close()
 	err = storage.Add(strings.NewReader(content), metadata)
@@ -119,7 +128,7 @@ func (s *baseToolsSuite) storeFakeTools(c *gc.C, st *state.State, content string
 }
 
 func (s *baseToolsSuite) getToolsFromStorage(c *gc.C, st *state.State, vers string) (binarystorage.Metadata, []byte) {
-	storage, err := st.ToolsStorage()
+	storage, err := st.ToolsStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer storage.Close()
 	metadata, r, err := storage.Open(vers)
@@ -131,7 +140,7 @@ func (s *baseToolsSuite) getToolsFromStorage(c *gc.C, st *state.State, vers stri
 }
 
 func (s *baseToolsSuite) getToolsMetadataFromStorage(c *gc.C, st *state.State) []binarystorage.Metadata {
-	storage, err := st.ToolsStorage()
+	storage, err := st.ToolsStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer storage.Close()
 	metadata, err := storage.AllMetadata()
@@ -365,7 +374,7 @@ func (s *toolsSuite) TestBlockUpload(c *gc.C) {
 	})
 
 	// Check the contents.
-	storage, err := s.ControllerModel(c).State().ToolsStorage()
+	storage, err := s.ControllerModel(c).State().ToolsStorage(s.store)
 	c.Assert(err, jc.ErrorIsNil)
 	defer storage.Close()
 	_, _, err = storage.Open(vers)

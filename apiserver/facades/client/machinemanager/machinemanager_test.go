@@ -819,7 +819,7 @@ func (s *ProvisioningMachineManagerSuite) TestProvisioningScript(c *gc.C) {
 	s.st.EXPECT().Machine("0").Return(machine0, nil)
 
 	storageCloser := s.expectProvisioningStorageCloser(ctrl)
-	s.st.EXPECT().ToolsStorage().Return(storageCloser, nil)
+	s.st.EXPECT().ToolsStorage(gomock.Any()).Return(storageCloser, nil)
 
 	s.ctrlSt.EXPECT().APIHostPortsForAgents(gomock.Any()).Return([]network.SpaceHostPorts{{{
 		SpaceAddress: network.NewSpaceAddress("0.2.4.6", network.WithScope(network.ScopeCloudLocal)),
@@ -876,7 +876,7 @@ func (s *ProvisioningMachineManagerSuite) TestProvisioningScriptDisablePackageCo
 	s.st.EXPECT().Machine("0").Return(machine0, nil)
 
 	storageCloser := s.expectProvisioningStorageCloser(ctrl)
-	s.st.EXPECT().ToolsStorage().Return(storageCloser, nil)
+	s.st.EXPECT().ToolsStorage(gomock.Any()).Return(storageCloser, nil)
 
 	s.ctrlSt.EXPECT().APIHostPortsForAgents(gomock.Any()).Return([]network.SpaceHostPorts{{{
 		SpaceAddress: network.NewSpaceAddress("0.2.4.6", network.WithScope(network.ScopeCloudLocal)),

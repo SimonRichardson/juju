@@ -904,6 +904,9 @@ func (s *modelManagerStateSuite) setAPIUser(c *gc.C, user names.UserTag) {
 	s.authoriser.Tag = user
 	st := common.NewModelManagerBackend(s.ControllerModel(c), s.StatePool())
 	ctlrSt := common.NewModelManagerBackend(s.ControllerModel(c), s.StatePool())
+	state, err := s.StatePool().SystemState()
+	c.Assert(err, jc.ErrorIsNil)
+	store := jujutesting.NewObjectStoreFactory(c, s.ControllerModel(c).ControllerUUID(), state)
 
 	serviceFactory := s.ControllerServiceFactory(c)
 
@@ -912,14 +915,14 @@ func (s *modelManagerStateSuite) setAPIUser(c *gc.C, user names.UserTag) {
 	c.Assert(err, jc.ErrorIsNil)
 	configGetter := stateenvirons.EnvironConfigGetter{Model: s.ControllerModel(c), CloudService: serviceFactory.Cloud(), CredentialService: serviceFactory.Credential()}
 	newEnviron := common.EnvironFuncForModel(model, serviceFactory.Cloud(), serviceFactory.Credential(), configGetter)
-	toolsFinder := common.NewToolsFinder(s.controllerConfigGetter, configGetter, st, urlGetter, newEnviron)
+	toolsFinder := common.NewToolsFinder(s.controllerConfigGetter, configGetter, st, urlGetter, newEnviron, store)
 	modelmanager, err := modelmanager.NewModelManagerAPI(
 		mockCredentialShim{st}, nil, ctlrSt,
 		serviceFactory.Cloud(),
 		serviceFactory.Credential(),
 		&mockModelManagerService{},
 		&mockModelService{},
-		&mockObjectStore{},
+		store.ModelObjectStore(),
 		toolsFinder,
 		nil,
 		common.NewBlockChecker(st),

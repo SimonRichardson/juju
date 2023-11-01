@@ -1253,3 +1253,23 @@ func NewObjectStore(c *gc.C, st *State) objectstore.ObjectStore {
 	c.Assert(err, jc.ErrorIsNil)
 	return store
 }
+
+func NewObjectStoreFactory(c *gc.C, st *State) objectstore.ObjectStoreFactory {
+	return objectStoreFactory{
+		controller: NewObjectStore(c, st),
+		model:      NewObjectStore(c, st),
+	}
+}
+
+type objectStoreFactory struct {
+	controller objectstore.ObjectStore
+	model      objectstore.ObjectStore
+}
+
+func (f objectStoreFactory) ControllerObjectStore() objectstore.ObjectStore {
+	return f.controller
+}
+
+func (f objectStoreFactory) ModelObjectStore() objectstore.ObjectStore {
+	return f.model
+}

@@ -86,7 +86,7 @@ type MachineManagerAPI struct {
 	resources               facade.Resources
 	leadership              Leadership
 	upgradeSeriesAPI        UpgradeSeries
-	store                   objectstore.ObjectStore
+	store                   objectstore.ObjectStoreFactory
 
 	credentialInvalidatorGetter environscontext.ModelCredentialInvalidatorGetter
 	logger                      loggo.Logger
@@ -154,7 +154,7 @@ func NewFacadeV10(ctx facade.Context) (*MachineManagerAPI, error) {
 		backend,
 		serviceFactory.Cloud(),
 		serviceFactory.Credential(),
-		ctx.ObjectStoreFactory().ModelObjectStore(),
+		ctx.ObjectStoreFactory(),
 		storageAccess,
 		pool,
 		ModelAuthorizer{
@@ -175,7 +175,7 @@ func NewMachineManagerAPI(
 	backend Backend,
 	cloudService common.CloudService,
 	credentialService common.CredentialService,
-	store objectstore.ObjectStore,
+	store objectstore.ObjectStoreFactory,
 	storageAccess StorageInterface,
 	pool Pool,
 	auth Authorizer,
@@ -356,7 +356,7 @@ func (mm *MachineManagerAPI) ProvisioningScript(ctx context.Context, args params
 		return result, errors.Trace(err)
 	}
 
-	icfg, err := InstanceConfig(ctx, mm.controllerConfigService, st, mm.st, mm.cloudService, mm.credentialService, args.MachineId, args.Nonce, args.DataDir)
+	icfg, err := InstanceConfig(ctx, mm.controllerConfigService, st, mm.st, mm.cloudService, mm.credentialService, mm.store, args.MachineId, args.Nonce, args.DataDir)
 	if err != nil {
 		return result, apiservererrors.ServerError(errors.Annotate(
 			err, "getting instance config",
@@ -569,7 +569,7 @@ func (mm *MachineManagerAPI) destroyMachine(ctx context.Context, args params.Ent
 				continue
 			}
 		} else {
-			if err := machine.Destroy(mm.store); err != nil {
+			if err := machine.Destroy(mm.store.ModelObjectStore()); err != nil {
 				fail(err)
 				continue
 			}
