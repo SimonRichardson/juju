@@ -4,6 +4,7 @@
 package registry
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync/atomic"
@@ -133,7 +134,7 @@ func (r *Registry) RegisterNamed(namespace string, w worker.Worker) error {
 }
 
 func (r *Registry) register(namespace string, w worker.Worker) error {
-	err := r.runner.StartWorker(namespace, func() (worker.Worker, error) {
+	err := r.runner.StartWorker(context.TODO(), namespace, func(ctx context.Context) (worker.Worker, error) {
 		return r.watcherWrapper(w)
 	})
 	if err != nil {

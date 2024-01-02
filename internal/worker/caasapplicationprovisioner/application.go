@@ -4,6 +4,7 @@
 package caasapplicationprovisioner
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -58,14 +59,14 @@ type AppWorkerConfig struct {
 
 const tryAgain errors.ConstError = "try again"
 
-type NewAppWorkerFunc func(AppWorkerConfig) func() (worker.Worker, error)
+type NewAppWorkerFunc func(AppWorkerConfig) func(context.Context) (worker.Worker, error)
 
-func NewAppWorker(config AppWorkerConfig) func() (worker.Worker, error) {
+func NewAppWorker(config AppWorkerConfig) func(context.Context) (worker.Worker, error) {
 	ops := config.Ops
 	if ops == nil {
 		ops = &applicationOps{}
 	}
-	return func() (worker.Worker, error) {
+	return func(ctx context.Context) (worker.Worker, error) {
 		changes := make(chan struct{}, 1)
 		changes <- struct{}{}
 		a := &appWorker{

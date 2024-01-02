@@ -4,6 +4,8 @@
 package uniter
 
 import (
+	"context"
+
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -182,7 +184,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			secretsBackendGetter := func() (uniterapi.SecretsBackend, error) {
 				return secrets.NewClient(jujuSecretsAPI)
 			}
-			uniter, err := NewUniter(&UniterParams{
+			uniter, err := NewUniter(context.TODO(), &UniterParams{
 				UniterClient:                 uniterapi.UniterClientShim{uniter.NewClient(apiConn, unitTag)},
 				ResourcesClient:              resourcesClient,
 				PayloadClient:                payloadClient,

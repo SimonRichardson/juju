@@ -4,6 +4,7 @@
 package remoterelations
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -297,7 +298,7 @@ func (w *Worker) handleApplicationChanges(applicationIds []string) error {
 			}
 		}
 
-		startFunc := func() (worker.Worker, error) {
+		startFunc := func(context.Context) (worker.Worker, error) {
 			appWorker := &remoteApplicationWorker{
 				offerUUID:                         remoteApp.OfferUUID,
 				applicationName:                   remoteApp.Name,
@@ -324,7 +325,7 @@ func (w *Worker) handleApplicationChanges(applicationIds []string) error {
 		logger.Debugf("starting watcher for remote application %q", name)
 		// Start the application worker to watch for things like new relations.
 		w.offerUUIDs[name] = remoteApp.OfferUUID
-		if err := w.runner.StartWorker(name, startFunc); err != nil {
+		if err := w.runner.StartWorker(w.scopedContext(), name, startFunc); err != nil {
 			if errors.Is(err, errors.AlreadyExists) {
 				w.logger.Debugf("already running remote application worker for %q", name)
 			} else if err != nil {
@@ -353,4 +354,8 @@ func (w *Worker) Report() map[string]interface{} {
 	}
 	result["workers"] = saasWorkers
 	return result
+}
+
+func (w *Worker) scopedContext() context.Context {
+	return w.catacomb.Context(context.Background())
 }

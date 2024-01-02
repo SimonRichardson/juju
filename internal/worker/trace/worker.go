@@ -248,10 +248,10 @@ func (w *tracerWorker) workerFromCache(namespace coretrace.TaggedTracerNamespace
 }
 
 func (w *tracerWorker) initTracer(namespace coretrace.TaggedTracerNamespace) error {
-	err := w.tracerRunner.StartWorker(namespace.String(), func() (worker.Worker, error) {
-		ctx, cancel := w.scopedContext()
-		defer cancel()
+	ctx, cancel := w.scopedContext()
+	defer cancel()
 
+	err := w.tracerRunner.StartWorker(ctx, namespace.String(), func(ctx context.Context) (worker.Worker, error) {
 		return w.cfg.NewTracerWorker(
 			ctx,
 			namespace,

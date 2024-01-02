@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"context"
 	stdcontext "context"
 	"fmt"
 	"io"
@@ -567,7 +568,7 @@ func (a *MachineAgent) Run(ctx *cmd.Context) (err error) {
 	if err := a.createJujudSymlinks(agentConfig.DataDir()); err != nil {
 		return err
 	}
-	_ = a.runner.StartWorker("engine", createEngine)
+	_ = a.runner.StartWorker(ctx, "engine", createEngine)
 
 	// At this point, all workers will have been configured to start
 	close(a.workersStarted)
@@ -585,8 +586,8 @@ func (a *MachineAgent) Run(ctx *cmd.Context) (err error) {
 
 func (a *MachineAgent) makeEngineCreator(
 	agentName string, previousAgentVersion version.Number,
-) func() (worker.Worker, error) {
-	return func() (worker.Worker, error) {
+) func(context.Context) (worker.Worker, error) {
+	return func(ctx context.Context) (worker.Worker, error) {
 		metrics := agentengine.NewMetrics()
 		controllerMetricsSink := metrics.ForModel(a.CurrentConfig().Model())
 		eng, err := dependency.NewEngine(agentengine.DependencyEngineConfig(

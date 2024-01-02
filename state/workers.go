@@ -4,6 +4,7 @@
 package state
 
 import (
+	"context"
 	"time"
 
 	"github.com/juju/errors"
@@ -43,7 +44,7 @@ func newWorkers(st *State, hub *pubsub.SimpleHub) (*workers, error) {
 			Clock:        st.clock(),
 		}),
 	}
-	_ = ws.StartWorker(txnLogWorker, func() (worker.Worker, error) {
+	_ = ws.StartWorker(context.TODO(), txnLogWorker, func(ctx context.Context) (worker.Worker, error) {
 		return watcher.NewHubWatcher(watcher.HubWatcherConfig{
 			Hub:       hub,
 			Clock:     st.clock(),

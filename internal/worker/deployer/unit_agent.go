@@ -4,6 +4,7 @@
 package deployer
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -156,7 +157,7 @@ func NewUnitAgent(config UnitAgentConfig) (*UnitAgent, error) {
 	return unit, nil
 }
 
-func (a *UnitAgent) start() (worker.Worker, error) {
+func (a *UnitAgent) start(context.Context) (worker.Worker, error) {
 	a.logger.Tracef("starting workers for %q", a.name)
 	loggingContext, bufferedLogger, closeLogging, err := a.initLogging()
 	if err != nil {

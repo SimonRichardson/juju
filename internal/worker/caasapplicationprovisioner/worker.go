@@ -12,6 +12,7 @@
 package caasapplicationprovisioner
 
 import (
+	"context"
 	"time"
 
 	"github.com/juju/clock"
@@ -78,7 +79,7 @@ type CAASBroker interface {
 // Runner exposes functionalities of a worker.Runner.
 type Runner interface {
 	Worker(id string, abort <-chan struct{}) (worker.Worker, error)
-	StartWorker(id string, startFunc func() (worker.Worker, error)) error
+	StartWorker(ctx context.Context, id string, startFunc worker.StartFunc) error
 	StopAndRemoveWorker(id string, abort <-chan struct{}) error
 	worker.Worker
 }
@@ -217,11 +218,16 @@ func (p *provisioner) loop() error {
 				}
 				startFunc := p.newAppWorker(config)
 				p.logger.Debugf("starting app worker %q", appName)
-				err = p.runner.StartWorker(appName, startFunc)
+
+				err = p.runner.StartWorker(p.scopedContext(), appName, startFunc)
 				if err != nil {
 					return errors.Trace(err)
 				}
 			}
 		}
 	}
+}
+
+func (p *provisioner) scopedContext() context.Context {
+	return p.catacomb.Context(context.Background())
 }

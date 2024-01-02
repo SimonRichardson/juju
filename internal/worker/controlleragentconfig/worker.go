@@ -122,7 +122,7 @@ func (w *configWorker) Wait() error {
 func (w *configWorker) Watcher() (ConfigWatcher, error) {
 	unique := atomic.AddInt64(&w.unique, 1)
 	namespace := fmt.Sprintf("watcher-%d", unique)
-	err := w.runner.StartWorker(namespace, func() (worker.Worker, error) {
+	err := w.runner.StartWorker(w.scopedContext(), namespace, func(context.Context) (worker.Worker, error) {
 		return newSubscription(), nil
 	})
 	if err != nil {
@@ -139,7 +139,7 @@ func (w *configWorker) loop() error {
 	// We must use a buffered channel or risk missing the signal
 	// if we're not ready to receive when the signal is sent.
 	ch := make(chan os.Signal, 1)
-	w.cfg.Notify(w.catacomb.Context(context.Background()), ch)
+	w.cfg.Notify(w.scopedContext(), ch)
 
 	// Report the initial started state.
 	w.reportInternalState(stateStarted)
@@ -181,6 +181,10 @@ func (w *configWorker) reportInternalState(state string) {
 	case w.internalStates <- state:
 	default:
 	}
+}
+
+func (w *configWorker) scopedContext() context.Context {
+	return w.catacomb.Context(context.Background())
 }
 
 type subscription struct {

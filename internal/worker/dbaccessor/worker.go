@@ -642,7 +642,10 @@ func (w *dbWorker) openDatabase(namespace string) error {
 	// Note: Do not be tempted to create the worker outside of the StartWorker
 	// function. This will create potential data race if openDatabase is called
 	// multiple times for the same namespace.
-	err := w.dbRunner.StartWorker(namespace, func() (worker.Worker, error) {
+	ctx, cancel := w.scopedContext()
+	defer cancel()
+
+	err := w.dbRunner.StartWorker(ctx, namespace, func(context.Context) (worker.Worker, error) {
 		w.mu.RLock()
 		defer w.mu.RUnlock()
 		if w.dbApp == nil {

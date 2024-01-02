@@ -4,6 +4,7 @@
 package deployer
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -374,7 +375,7 @@ func (c *nestedContext) startUnitWorkers(unitName string) error {
 		return nil
 	}
 
-	err := c.runner.StartWorker(unitName, agent.start)
+	err := c.runner.StartWorker(context.TODO(), unitName, agent.start)
 	// Ensure starting a unit worker is idempotent.
 	if err == nil || errors.Is(err, errors.AlreadyExists) {
 		return nil

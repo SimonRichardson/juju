@@ -4,6 +4,8 @@
 package filenotifywatcher
 
 import (
+	"context"
+
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/worker/v3"
@@ -113,11 +115,15 @@ func (w *fileNotifyWorker) Changes(fileName string) (<-chan bool, error) {
 		return nil, errors.Trace(err)
 	}
 
-	if err := w.runner.StartWorker(fileName, func() (worker.Worker, error) {
+	if err := w.runner.StartWorker(w.scopedContext(), fileName, func(context.Context) (worker.Worker, error) {
 		return watcher, nil
 	}); err != nil {
 		return nil, errors.Annotatef(err, "starting worker for fileName %q", fileName)
 	}
 
 	return watcher.Changes(), nil
+}
+
+func (w *fileNotifyWorker) scopedContext() context.Context {
+	return w.catacomb.Context(context.Background())
 }

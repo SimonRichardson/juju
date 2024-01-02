@@ -4,6 +4,8 @@
 package metricworker
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/worker/v3"
 
@@ -25,7 +27,7 @@ func newMetricsManager(client metricsmanager.MetricsManagerClient, notify chan s
 		RestartDelay: jworker.RestartDelay,
 		Logger:       logger,
 	})
-	err := runner.StartWorker("sender", func() (worker.Worker, error) {
+	err := runner.StartWorker(context.TODO(), "sender", func(context.Context) (worker.Worker, error) {
 		return newSender(client, notify, logger), nil
 	})
 
@@ -33,7 +35,7 @@ func newMetricsManager(client metricsmanager.MetricsManagerClient, notify chan s
 		return nil, errors.Trace(err)
 	}
 
-	err = runner.StartWorker("cleanup", func() (worker.Worker, error) {
+	err = runner.StartWorker(context.TODO(), "cleanup", func(context.Context) (worker.Worker, error) {
 		return newCleanup(client, notify, logger), nil
 	})
 	if err != nil {

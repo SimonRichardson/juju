@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -123,7 +124,7 @@ func (m *ModelCommand) Run(ctx *cmd.Context) error {
 
 	m.upgradeStepsLock = upgrade.NewLock(m.CurrentConfig(), jujuversion.Current)
 
-	_ = m.runner.StartWorker("modeloperator", m.Workers)
+	_ = m.runner.StartWorker(ctx, "modeloperator", m.Workers)
 	return cmdutil.AgentDone(logger, m.runner.Wait())
 }
 
@@ -148,7 +149,7 @@ func (m *ModelCommand) Wait() error {
 	return m.errReason
 }
 
-func (m *ModelCommand) Workers() (worker.Worker, error) {
+func (m *ModelCommand) Workers(ctx context.Context) (worker.Worker, error) {
 	port := os.Getenv(caasprovider.EnvModelAgentHTTPPort)
 	if port == "" {
 		return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentHTTPPort)

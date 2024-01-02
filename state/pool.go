@@ -5,6 +5,7 @@ package state
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -185,7 +186,7 @@ func OpenStatePool(args OpenParams) (_ *StatePool, err error) {
 		Clock:        args.Clock,
 	})
 	pool.txnWatcherSession = args.MongoSession.Copy()
-	if err = pool.watcherRunner.StartWorker(txnLogWorker, func() (worker.Worker, error) {
+	if err = pool.watcherRunner.StartWorker(context.TODO(), txnLogWorker, func(ctx context.Context) (worker.Worker, error) {
 		return watcher.NewTxnWatcher(
 			watcher.TxnWatcherConfig{
 				Session:           pool.txnWatcherSession,

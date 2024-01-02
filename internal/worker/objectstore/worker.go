@@ -250,10 +250,10 @@ func (w *objectStoreWorker) workerFromCache(namespace string) (coreobjectstore.O
 }
 
 func (w *objectStoreWorker) initObjectStore(namespace string) error {
-	err := w.runner.StartWorker(namespace, func() (worker.Worker, error) {
-		ctx, cancel := w.scopedContext()
-		defer cancel()
+	ctx, cancel := w.scopedContext()
+	defer cancel()
 
+	err := w.runner.StartWorker(ctx, namespace, func(ctx context.Context) (worker.Worker, error) {
 		tracer, err := w.cfg.TracerGetter.GetTracer(ctx, coretrace.Namespace("objectstore", namespace))
 		if err != nil {
 			return nil, errors.Trace(err)

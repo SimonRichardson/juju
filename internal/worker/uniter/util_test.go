@@ -5,6 +5,7 @@ package uniter_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -1040,7 +1041,7 @@ func (s startUniter) step(c *gc.C, ctx *testContext) {
 		},
 	}
 	var err error
-	ctx.uniter, err = uniter.NewUniter(&uniterParams)
+	ctx.uniter, err = uniter.NewUniter(context.Background(), &uniterParams)
 	c.Assert(err, jc.ErrorIsNil)
 }
 

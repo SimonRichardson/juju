@@ -249,14 +249,14 @@ func (m *modelWorkerManager) loop() error {
 
 func (m *modelWorkerManager) ensure(cfg NewModelConfig) error {
 	starter := m.starter(cfg)
-	if err := m.runner.StartWorker(cfg.ModelUUID, starter); !errors.Is(err, errors.AlreadyExists) {
+	if err := m.runner.StartWorker(m.scopedContext(), cfg.ModelUUID, starter); !errors.Is(err, errors.AlreadyExists) {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (m *modelWorkerManager) starter(cfg NewModelConfig) func() (worker.Worker, error) {
-	return func() (worker.Worker, error) {
+func (m *modelWorkerManager) starter(cfg NewModelConfig) func(context.Context) (worker.Worker, error) {
+	return func(context.Context) (worker.Worker, error) {
 		modelUUID := cfg.ModelUUID
 		modelName := fmt.Sprintf("%q (%s)", cfg.ModelName, cfg.ModelUUID)
 		m.config.Logger.Debugf("starting workers for model %s", modelName)
@@ -310,4 +310,8 @@ func (m *modelWorkerManager) Report() map[string]any {
 		return nil
 	}
 	return m.runner.Report()
+}
+
+func (m *modelWorkerManager) scopedContext() context.Context {
+	return m.catacomb.Context(context.Background())
 }

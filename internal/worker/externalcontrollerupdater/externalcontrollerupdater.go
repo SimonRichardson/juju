@@ -4,6 +4,7 @@
 package externalcontrollerupdater
 
 import (
+	"context"
 	"io"
 	"reflect"
 	"time"
@@ -114,6 +115,8 @@ func (w *updaterWorker) loop() error {
 	}
 	_ = w.catacomb.Add(watcher)
 
+	ctx := w.scopedContext()
+
 	watchers := names.NewSet()
 	for {
 		select {
@@ -149,7 +152,7 @@ func (w *updaterWorker) loop() error {
 				}
 				logger.Infof("starting watcher for external controller %q", tag.Id())
 				watchers.Add(tag)
-				if err := w.runner.StartWorker(tag.Id(), func() (worker.Worker, error) {
+				if err := w.runner.StartWorker(ctx, tag.Id(), func(context.Context) (worker.Worker, error) {
 					cw := controllerWatcher{
 						tag:                                tag,
 						setExternalControllerInfo:          w.setExternalControllerInfo,
@@ -169,6 +172,10 @@ func (w *updaterWorker) loop() error {
 			}
 		}
 	}
+}
+
+func (w *updaterWorker) scopedContext() context.Context {
+	return w.catacomb.Context(context.Background())
 }
 
 // controllerWatcher is a worker that watches for changes to the external

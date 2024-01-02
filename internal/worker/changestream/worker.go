@@ -4,6 +4,8 @@
 package changestream
 
 import (
+	"context"
+
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/worker/v3"
@@ -135,7 +137,7 @@ func (w *changeStreamWorker) GetWatchableDB(namespace string) (changestream.Watc
 	}
 
 	// If the worker doesn't exist yet, create it.
-	if err := w.runner.StartWorker(namespace, func() (worker.Worker, error) {
+	if err := w.runner.StartWorker(w.scopedContext(), namespace, func(context.Context) (worker.Worker, error) {
 		db, err := w.cfg.DBGetter.GetDB(namespace)
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -182,6 +184,10 @@ func (w *changeStreamWorker) workerFromCache(namespace string) (WatchableDBWorke
 	// We didn't find the worker, so return nil, we'll create it in the next
 	// step.
 	return nil, nil
+}
+
+func (w *changeStreamWorker) scopedContext() context.Context {
+	return w.catacomb.Context(context.Background())
 }
 
 // fileNotifyWatcher is a wrapper around the FileNotifyWatcher that is used to

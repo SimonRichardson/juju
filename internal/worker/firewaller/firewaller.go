@@ -1483,7 +1483,7 @@ func (fw *Firewaller) startRelation(rel *params.RemoteRelation, role charm.Relat
 	}
 
 	// Start the worker which will watch the remote relation for things like new networks.
-	if err := fw.relationWorkerRunner.StartWorker(tag.Id(), func() (worker.Worker, error) {
+	if err := fw.relationWorkerRunner.StartWorker(fw.scopedContext(), tag.Id(), func(context.Context) (worker.Worker, error) {
 		// This may be a restart after an api error, so ensure any previous
 		// worker is killed and the catacomb is reset.
 		data.Kill()
@@ -1502,6 +1502,10 @@ func (fw *Firewaller) startRelation(rel *params.RemoteRelation, role charm.Relat
 	fw.relationIngress[tag] = data
 
 	return fw.startRelationPoller(rel.Key, rel.RemoteApplicationName, data.relationReady)
+}
+
+func (fw *Firewaller) scopedContext() context.Context {
+	return fw.catacomb.Context(context.Background())
 }
 
 // watchLoop watches the relation for networks added or removed.

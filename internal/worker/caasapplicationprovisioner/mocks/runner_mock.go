@@ -5,6 +5,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	worker "github.com/juju/worker/v3"
@@ -47,17 +48,17 @@ func (mr *MockRunnerMockRecorder) Kill() *gomock.Call {
 }
 
 // StartWorker mocks base method.
-func (m *MockRunner) StartWorker(arg0 string, arg1 func() (worker.Worker, error)) error {
+func (m *MockRunner) StartWorker(arg0 context.Context, arg1 string, arg2 worker.StartFunc) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartWorker", arg0, arg1)
+	ret := m.ctrl.Call(m, "StartWorker", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // StartWorker indicates an expected call of StartWorker.
-func (mr *MockRunnerMockRecorder) StartWorker(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockRunnerMockRecorder) StartWorker(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartWorker", reflect.TypeOf((*MockRunner)(nil).StartWorker), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartWorker", reflect.TypeOf((*MockRunner)(nil).StartWorker), arg0, arg1, arg2)
 }
 
 // StopAndRemoveWorker mocks base method.

@@ -4,6 +4,7 @@
 package uniter
 
 import (
+	stdcontext "context"
 	"fmt"
 	"os"
 	"sync"
@@ -217,26 +218,18 @@ type NewRunnerExecutorFunc func(api.ProviderIDGetter, Paths) runner.ExecFunc
 // NewUniter creates a new Uniter which will install, run, and upgrade
 // a charm on behalf of the unit with the given unitTag, by executing
 // hooks and operations provoked by changes in st.
-func NewUniter(uniterParams *UniterParams) (*Uniter, error) {
+func NewUniter(ctx stdcontext.Context, uniterParams *UniterParams) (*Uniter, error) {
 	startFunc := newUniter(uniterParams)
-	w, err := startFunc()
+	w, err := startFunc(ctx)
 	return w.(*Uniter), err
 }
 
-// StartUniter creates a new Uniter and starts it using the specified runner.
-func StartUniter(runner *worker.Runner, params *UniterParams) error {
-	startFunc := newUniter(params)
-	params.Logger.Debugf("starting uniter for %q", params.UnitTag.Id())
-	err := runner.StartWorker(params.UnitTag.Id(), startFunc)
-	return errors.Annotate(err, "error starting uniter worker")
-}
-
-func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
+func newUniter(uniterParams *UniterParams) func(stdcontext.Context) (worker.Worker, error) {
 	translateResolverErr := uniterParams.TranslateResolverErr
 	if translateResolverErr == nil {
 		translateResolverErr = func(err error) error { return err }
 	}
-	startFunc := func() (worker.Worker, error) {
+	startFunc := func(stdcontext.Context) (worker.Worker, error) {
 		u := &Uniter{
 			client:                        uniterParams.UniterClient,
 			resources:                     uniterParams.ResourcesClient,
