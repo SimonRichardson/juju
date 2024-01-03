@@ -222,21 +222,20 @@ type authResult struct {
 	userInfo               *params.AuthUserInfo
 }
 
-func (a *admin) authenticate(ctx context.Context, req params.LoginRequest) (*authResult, error) {
-	result := &authResult{
-		controllerOnlyLogin: a.root.modelUUID == "",
-		userLogin:           true,
-	}
-
+func (a *admin) requestUserTag(req params.LoginRequest) (names.Tag, error) {
 	logger.Debugf("request authToken: %q", req.Token)
+
 	if req.Token == "" && req.AuthTag != "" {
 		tag, err := names.ParseTag(req.AuthTag)
-		if err == nil {
-			result.tag = tag
+
+		// If the tag is a user tag, then just return it.
+		if err == nil && tag.Kind() == names.UserTagKind {
+			return tag, nil
 		}
+
+		// Either the tag is invalid, or it's not a user; rate limit it.
 		if err != nil || tag.Kind() != names.UserTagKind {
-			// Either the tag is invalid, or
-			// it's not a user; rate limit it.
+
 			a.srv.metricsCollector.LoginAttempts.Inc()
 			defer a.srv.metricsCollector.LoginAttempts.Dec()
 
@@ -251,15 +250,33 @@ func (a *admin) authenticate(ctx context.Context, req params.LoginRequest) (*aut
 		}
 	}
 
+	return nil, nil
+}
+
+func (a *admin) resolvedModelUUID() string {
+	if a.root.model != nil {
+		return a.root.model.UUID()
+	}
+	return a.root.modelUUID
+}
+
+func (a *admin) authenticate(ctx context.Context, req params.LoginRequest) (*authResult, error) {
+	result := &authResult{
+		controllerOnlyLogin: a.root.modelUUID == "",
+		userLogin:           true,
+	}
+
+	var err error
+	if result.tag, err = a.requestUserTag(req); err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	// If the login attempt is for a migrated model,
 	// a.root.model will be nil as the model document does not exist on this
 	// controller and a.root.modelUUID cannot be resolved.
 	// In this case use the requested model UUID to check if we need to return
 	// a redirect error.
-	modelUUID := a.root.modelUUID
-	if a.root.model != nil {
-		modelUUID = a.root.model.UUID()
-	}
+	modelUUID := a.resolvedModelUUID()
 	if err := a.maybeEmitRedirectError(modelUUID, result.tag); err != nil {
 		return nil, errors.Trace(err)
 	}
