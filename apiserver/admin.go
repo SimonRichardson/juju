@@ -260,6 +260,56 @@ func (a *admin) resolvedModelUUID() string {
 	return a.root.modelUUID
 }
 
+type connInfo struct {
+	startPinger    bool
+	controllerConn bool
+}
+
+func (a *admin) authenticateLoginRequest(ctx context.Context, modelUUID string, req params.LoginRequest, authTag names.Tag) (authentication.AuthInfo, connInfo, error) {
+	authParams := authentication.AuthParams{
+		AuthTag:       authTag,
+		Credentials:   req.Credentials,
+		Nonce:         req.Nonce,
+		Token:         req.Token,
+		Macaroons:     req.Macaroons,
+		BakeryVersion: req.BakeryVersion,
+	}
+
+	var (
+		authInfo      authentication.AuthInfo
+		authenticated bool
+	)
+	for _, authenticator := range a.srv.loginAuthenticators {
+		var err error
+		authInfo, err = authenticator.AuthenticateLoginRequest(ctx, a.root.serverHost, modelUUID, authParams)
+		if errors.Is(err, errors.NotSupported) {
+			continue
+		} else if err != nil {
+			return authInfo, connInfo{}, a.handleAuthError(err)
+		}
+
+		authenticated = true
+		break
+	}
+
+	if !authenticated {
+		return authInfo, connInfo{}, fmt.Errorf("failed to authenticate request: %w", errors.Unauthorized)
+	}
+
+	cInfo := connInfo{
+		startPinger:    true,
+		controllerConn: false,
+	}
+	if authInfo.Controller && !a.root.state.IsController() {
+		// We only need to run a pinger for controller machine
+		// agents when logging into the controller model.
+		cInfo.startPinger = false
+		cInfo.controllerConn = true
+	}
+
+	return authInfo, cInfo, nil
+}
+
 func (a *admin) authenticate(ctx context.Context, req params.LoginRequest) (*authResult, error) {
 	result := &authResult{
 		controllerOnlyLogin: a.root.modelUUID == "",
@@ -296,62 +346,40 @@ func (a *admin) authenticate(ctx context.Context, req params.LoginRequest) (*aut
 	// Anonymous logins come from other controllers (in cross-model relations).
 	// We don't need to start pingers because we don't maintain presence
 	// information for them.
-	startPinger := !result.anonymousLogin
+	validLogin := !result.anonymousLogin
+	startPinger := validLogin
 
 	var authInfo authentication.AuthInfo
 
 	// controllerConn is used to indicate a connection from
 	// the controller to a non-controller model.
 	controllerConn := false
-	if !result.anonymousLogin {
-		authParams := authentication.AuthParams{
-			AuthTag:       result.tag,
-			Credentials:   req.Credentials,
-			Nonce:         req.Nonce,
-			Token:         req.Token,
-			Macaroons:     req.Macaroons,
-			BakeryVersion: req.BakeryVersion,
+	if validLogin {
+		var cInfo connInfo
+		authInfo, cInfo, err = a.authenticateLoginRequest(ctx, modelUUID, req, result.tag)
+		if err != nil {
+			return nil, errors.Trace(err)
 		}
 
-		authenticated := false
-		for _, authenticator := range a.srv.loginAuthenticators {
-			var err error
-			authInfo, err = authenticator.AuthenticateLoginRequest(ctx, a.root.serverHost, modelUUID, authParams)
-			if errors.Is(err, errors.NotSupported) {
-				continue
-			} else if err != nil {
-				return nil, a.handleAuthError(err)
-			}
+		a.root.authInfo = authInfo
+		result.controllerMachineLogin = authInfo.Controller
 
-			authenticated = true
-			a.root.authInfo = authInfo
-			result.controllerMachineLogin = authInfo.Controller
-			break
-		}
+		startPinger = cInfo.startPinger
+		controllerConn = cInfo.controllerConn
 
-		if !authenticated {
-			return nil, fmt.Errorf("failed to authenticate request: %w", errors.Unauthorized)
-		}
-
-		if result.controllerMachineLogin && !a.root.state.IsController() {
-			// We only need to run a pinger for controller machine
-			// agents when logging into the controller model.
-			startPinger = false
-			controllerConn = true
-		}
 	} else if a.root.model == nil {
 		// Anonymous login to unknown model.
 		// Hide the fact that the model does not exist.
 		return nil, errors.Unauthorizedf("invalid entity name or password")
 	}
 	// TODO(wallyworld) - we can't yet observe anonymous logins as entity must be non-nil
-	if !result.anonymousLogin {
-		a.apiObserver.Login(a.root.authInfo.Entity.Tag(), a.root.model.ModelTag(), controllerConn, req.UserData)
+	if validLogin {
+		a.apiObserver.Login(authInfo.Entity.Tag(), a.root.model.ModelTag(), controllerConn, req.UserData)
 	}
 	a.loggedIn = true
 
 	if startPinger {
-		if err := setupPingTimeoutDisconnect(a.srv.pingClock, a.root, a.root.authInfo.Entity); err != nil {
+		if err := setupPingTimeoutDisconnect(a.srv.pingClock, a.root, authInfo.Entity); err != nil {
 			return nil, errors.Trace(err)
 		}
 	}
