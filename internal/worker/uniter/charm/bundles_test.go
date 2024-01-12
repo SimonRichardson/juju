@@ -5,6 +5,7 @@ package charm_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -69,14 +70,14 @@ func (s *BundlesDirSuite) TestGet(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	dlr := &downloader.Downloader{
-		OpenBlob: func(req downloader.Request) (io.ReadCloser, error) {
+		OpenBlob: func(ctx context.Context, req downloader.Request) (io.ReadCloser, string, error) {
 			curl := jujucharm.MustParseURL(req.URL.String())
 			if curl.Name != sch.Meta().Name {
-				return nil, errors.NotFoundf(req.URL.String())
+				return nil, "", errors.NotFoundf(req.URL.String())
 			}
 			var buf bytes.Buffer
 			err := sch.ArchiveTo(&buf)
-			return io.NopCloser(&buf), err
+			return io.NopCloser(&buf), "", err
 		},
 	}
 	d := charm.NewBundlesDir(bunsDir, dlr, loggo.GetLogger(""))
@@ -98,23 +99,23 @@ func (s *BundlesDirSuite) TestGet(c *gc.C) {
 	}
 
 	// Try to get the charm when the content doesn't match.
-	_, err = d.Read(&fakeBundleInfo{apiCharm, "", "..."}, nil)
+	_, err = d.Read(context.Background(), &fakeBundleInfo{apiCharm, "", "..."})
 	c.Check(err, gc.ErrorMatches, regexp.QuoteMeta(`failed to download charm "ch:quantal/wordpress-1" from API server: `)+`expected sha256 "...", got ".*"`)
 	checkDownloadsEmpty()
 
 	// Try to get a charm whose bundle doesn't exist.
-	_, err = d.Read(&fakeBundleInfo{apiCharm, "ch:quantal/spam-1", ""}, nil)
+	_, err = d.Read(context.Background(), &fakeBundleInfo{apiCharm, "ch:quantal/spam-1", ""})
 	c.Check(err, gc.ErrorMatches, regexp.QuoteMeta(`failed to download charm "ch:quantal/spam-1" from API server: `)+`.* not found`)
 	checkDownloadsEmpty()
 
 	// Get a charm whose bundle exists and whose content matches.
-	ch, err := d.Read(apiCharm, nil)
+	ch, err := d.Read(context.Background(), apiCharm)
 	c.Assert(err, jc.ErrorIsNil)
 	assertCharm(c, ch, sch)
 	checkDownloadsEmpty()
 
 	// Get the same charm again, without preparing a response from the server.
-	ch, err = d.Read(apiCharm, nil)
+	ch, err = d.Read(context.Background(), apiCharm)
 	c.Assert(err, jc.ErrorIsNil)
 	assertCharm(c, ch, sch)
 	checkDownloadsEmpty()
@@ -122,12 +123,13 @@ func (s *BundlesDirSuite) TestGet(c *gc.C) {
 	// Check the abort chan is honoured.
 	err = os.RemoveAll(bunsDir)
 	c.Assert(err, jc.ErrorIsNil)
-	abort := make(chan struct{})
-	close(abort)
 
-	ch, err = d.Read(apiCharm, abort)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	ch, err = d.Read(ctx, apiCharm)
 	c.Check(ch, gc.IsNil)
-	c.Check(err, gc.ErrorMatches, regexp.QuoteMeta(`failed to download charm "ch:quantal/wordpress-1" from API server: download aborted`))
+	c.Check(err, jc.ErrorIs, context.Canceled)
 	checkDownloadsEmpty()
 }
 

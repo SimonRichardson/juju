@@ -20,14 +20,14 @@ type Charms struct {
 
 // GetCharm retrieves a charm from the S3-compatible object store hosted
 // by the apiserver. Returns an archived charm as a stream of bytes
-func (c *Charms) GetCharm(ctx context.Context, modelUUID, charmRef string) (io.ReadCloser, error) {
+func (c *Charms) GetCharm(ctx context.Context, modelUUID, charmRef string) (io.ReadCloser, string, error) {
 	bucketName := fmt.Sprintf("model-%s", modelUUID)
 	objectName := fmt.Sprintf("charms/%s", charmRef)
-	reader, _, err := c.session.GetObject(ctx, bucketName, objectName)
+	reader, _, hash, err := c.session.GetObject(ctx, bucketName, objectName)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, "", errors.Trace(err)
 	}
-	return reader, nil
+	return reader, hash, nil
 }
 
 // NewCharmsS3Client creates a client to interact with charm blobs stored

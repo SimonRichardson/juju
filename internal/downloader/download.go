@@ -4,11 +4,16 @@
 package downloader
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/url"
 	"os"
+	"sync"
 
 	"github.com/juju/errors"
+	"gopkg.in/tomb.v2"
 )
 
 // Request holds a single download request.
@@ -27,88 +32,87 @@ type Request struct {
 	// the download is invalid then the func must return errors.NotValid.
 	// If no func is provided then no verification happens.
 	Verify func(*os.File) error
-
-	// Abort is a channel that will cancel the download when it is closed.
-	Abort <-chan struct{}
-}
-
-// Status represents the status of a completed download.
-type Status struct {
-	// Filename is the name of the file which holds the downloaded
-	// data on success.
-	Filename string
-
-	// Err describes any error encountered while downloading.
-	Err error
 }
 
 // StartDownload starts a new download as specified by `req` using
 // `openBlob` to actually pull the remote data.
-func StartDownload(req Request, openBlob func(Request) (io.ReadCloser, error)) *Download {
+func StartDownload(ctx context.Context, req Request, openBlob func(context.Context, Request) (io.ReadCloser, string, error)) *Download {
 	if openBlob == nil {
 		openBlob = NewHTTPBlobOpener(false)
 	}
 	dl := &Download{
-		done:     make(chan Status, 1),
 		openBlob: openBlob,
 	}
-	go dl.run(req)
+	dl.tomb.Go(func() error {
+		fileName, hash, err := dl.run(ctx, req)
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		dl.mutex.Lock()
+		dl.fileName = fileName
+		dl.hash = hash
+		dl.mutex.Unlock()
+
+		return nil
+	})
 	return dl
 }
 
 // Download can download a file from the network.
 type Download struct {
-	done     chan Status
-	openBlob func(Request) (io.ReadCloser, error)
+	tomb     tomb.Tomb
+	mutex    sync.Mutex
+	fileName string
+	hash     string
+	openBlob func(context.Context, Request) (io.ReadCloser, string, error)
 }
 
-// Done returns a channel that receives a status when the download has
-// completed or is aborted. Exactly one Status value will be sent for
-// each download once it finishes (successfully or otherwise) or is
-// aborted.
-//
-// It is the receiver's responsibility to handle and remove the
-// downloaded file.
-func (dl *Download) Done() <-chan Status {
-	return dl.done
+// Kill aborts the download.
+func (dl *Download) Kill() {
+	dl.tomb.Kill(nil)
 }
 
 // Wait blocks until the download finishes (successfully or
-// otherwise), or the download is aborted. There will only be a
-// filename if err is nil.
-func (dl *Download) Wait() (string, error) {
-	// No select required here because each download will always
-	// return a value once it completes. Downloads can be aborted via
-	// the Abort channel provided a creation time.
-	status := <-dl.Done()
-	return status.Filename, errors.Trace(status.Err)
+// otherwise), or the download is aborted.
+func (dl *Download) Wait() error {
+	return dl.tomb.Wait()
 }
 
-func (dl *Download) run(req Request) {
+// FileName returns the name of the file that was downloaded.
+func (dl *Download) FileName() string {
+	dl.mutex.Lock()
+	defer dl.mutex.Unlock()
+	return dl.fileName
+}
+
+// Hash returns the hash of the file that was downloaded.
+func (dl *Download) Hash() string {
+	dl.mutex.Lock()
+	defer dl.mutex.Unlock()
+	return dl.hash
+}
+
+func (dl *Download) run(ctx context.Context, req Request) (string, string, error) {
 	// TODO(dimitern) 2013-10-03 bug #1234715
 	// Add a testing HTTPS storage to verify the
 	// disableSSLHostnameVerification behavior here.
-	filename, err := dl.download(req)
+	filename, hash, err := dl.download(ctx, req)
 	if err != nil {
-		err = errors.Trace(err)
+		return filename, hash, errors.Trace(err)
 	} else {
 		logger.Infof("download complete (%q)", req.URL)
 		err = verifyDownload(filename, req)
 		if err != nil {
 			_ = os.Remove(filename)
-			filename = ""
+			return "", "", errors.Trace(err)
 		}
 	}
 
-	// No select needed here because the channel has a size of 1 and
-	// will only be written to once.
-	dl.done <- Status{
-		Filename: filename,
-		Err:      err,
-	}
+	return filename, hash, nil
 }
 
-func (dl *Download) download(req Request) (filename string, err error) {
+func (dl *Download) download(ctx context.Context, req Request) (filename, hash string, err error) {
 	logger.Infof("downloading from %s", req.URL)
 
 	dir := req.TargetDir
@@ -117,7 +121,7 @@ func (dl *Download) download(req Request) (filename string, err error) {
 	}
 	tempFile, err := os.CreateTemp(dir, "inprogress-")
 	if err != nil {
-		return "", errors.Trace(err)
+		return "", "", errors.Trace(err)
 	}
 	defer func() {
 		_ = tempFile.Close()
@@ -126,34 +130,50 @@ func (dl *Download) download(req Request) (filename string, err error) {
 		}
 	}()
 
-	blobReader, err := dl.openBlob(req)
+	blobReader, hash, err := dl.openBlob(ctx, req)
 	if err != nil {
-		return "", errors.Trace(err)
+		return "", "", errors.Trace(err)
 	}
 	defer func() { _ = blobReader.Close() }()
 
-	reader := &abortableReader{blobReader, req.Abort}
-	_, err = io.Copy(tempFile, reader)
-	if err != nil {
-		return "", errors.Trace(err)
+	// We shouldn't embed the context.Context into a struct, but there isn't
+	// a better way to do this without changing stdlib.
+	reader := &abortableReader{r: blobReader, ctx: ctx}
+
+	if hash == "" {
+		logger.Infof("download not verified (%q), no hash supplied", req.URL)
+		_, err = io.Copy(tempFile, reader)
+		if err != nil {
+			return "", "", errors.Trace(err)
+		}
+		return tempFile.Name(), "", nil
 	}
 
-	return tempFile.Name(), nil
+	hasher := sha256.New()
+	_, err = io.Copy(tempFile, io.TeeReader(reader, hasher))
+	if err != nil {
+		return "", "", errors.Trace(err)
+	}
+
+	summed := hex.EncodeToString(hasher.Sum(nil))
+	if summed != hash {
+		return "", "", errors.Errorf("invalid blob returned: expected sha256 %q, got %q", hash, summed)
+	}
+
+	return tempFile.Name(), summed, nil
 }
 
 // abortableReader wraps a Reader, returning an error from Read calls
 // if the abort channel provided is closed.
 type abortableReader struct {
-	r     io.Reader
-	abort <-chan struct{}
+	r   io.Reader
+	ctx context.Context
 }
 
 // Read implements io.Reader.
 func (ar *abortableReader) Read(p []byte) (int, error) {
-	select {
-	case <-ar.abort:
-		return 0, errors.New("download aborted")
-	default:
+	if err := ar.ctx.Err(); err != nil {
+		return 0, errors.Trace(err)
 	}
 	return ar.r.Read(p)
 }

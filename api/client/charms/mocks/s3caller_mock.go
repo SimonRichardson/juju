@@ -41,12 +41,13 @@ func (m *MockCharmGetter) EXPECT() *MockCharmGetterMockRecorder {
 }
 
 // GetCharm mocks base method.
-func (m *MockCharmGetter) GetCharm(arg0 context.Context, arg1, arg2 string) (io.ReadCloser, error) {
+func (m *MockCharmGetter) GetCharm(arg0 context.Context, arg1, arg2 string) (io.ReadCloser, string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCharm", arg0, arg1, arg2)
 	ret0, _ := ret[0].(io.ReadCloser)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // GetCharm indicates an expected call of GetCharm.

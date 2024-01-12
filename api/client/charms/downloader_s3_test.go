@@ -4,9 +4,11 @@
 package charms_test
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/juju/names/v5"
+	"github.com/juju/testing"
 	"go.uber.org/mock/gomock"
 	gc "gopkg.in/check.v1"
 
@@ -17,6 +19,7 @@ import (
 )
 
 type charmS3DownloaderSuite struct {
+	testing.IsolationSuite
 }
 
 var _ = gc.Suite(&charmS3DownloaderSuite{})
@@ -59,7 +62,7 @@ func (s *charmS3DownloaderSuite) TestCharmOpener(c *gc.C) {
 
 				modelTag := names.NewModelTag("testmodel")
 				mockCaller.EXPECT().ModelTag().Return(modelTag, true)
-				mockGetter.EXPECT().GetCharm(gomock.Any(), "testmodel", "mycharm-abcd0123").MinTimes(1).Return(nil, nil)
+				mockGetter.EXPECT().GetCharm(gomock.Any(), "testmodel", "mycharm-abcd0123").MinTimes(1).Return(nil, "", nil)
 			},
 		},
 	}
@@ -77,11 +80,12 @@ func (s *charmS3DownloaderSuite) TestCharmOpener(c *gc.C) {
 		}
 
 		charmOpener := charms.NewS3CharmOpener(mockGetter, mockCaller)
-		r, err := charmOpener.OpenCharm(tt.req)
+		r, hash, err := charmOpener.OpenCharm(context.Background(), tt.req)
 
 		if tt.expectedErrPattern != "" {
 			c.Assert(r, gc.IsNil)
-			c.Assert(err, gc.ErrorMatches, tt.expectedErrPattern)
+			c.Check(err, gc.ErrorMatches, tt.expectedErrPattern)
+			c.Check(hash, gc.Equals, "")
 		} else {
 			c.Assert(err, gc.IsNil)
 		}

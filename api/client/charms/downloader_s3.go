@@ -19,20 +19,20 @@ import (
 type CharmGetter interface {
 	// GetCharm returns an io.ReadCloser for the specified object within the
 	// specified bucket.
-	GetCharm(ctx context.Context, modelUUID, charmName string) (io.ReadCloser, error)
+	GetCharm(ctx context.Context, modelUUID, charmName string) (io.ReadCloser, string, error)
 }
 
 // NewS3CharmDownloader returns a new charm downloader that wraps a s3Caller
 // client for the provided endpoint.
 func NewS3CharmDownloader(charmGetter CharmGetter, apiCaller base.APICaller) *downloader.Downloader {
 	dlr := &downloader.Downloader{
-		OpenBlob: func(req downloader.Request) (io.ReadCloser, error) {
+		OpenBlob: func(ctx context.Context, req downloader.Request) (io.ReadCloser, string, error) {
 			streamer := NewS3CharmOpener(charmGetter, apiCaller)
-			reader, err := streamer.OpenCharm(req)
+			reader, hash, err := streamer.OpenCharm(ctx, req)
 			if err != nil {
-				return nil, errors.Trace(err)
+				return nil, "", errors.Trace(err)
 			}
-			return reader, nil
+			return reader, hash, nil
 		},
 	}
 	return dlr
@@ -40,25 +40,24 @@ func NewS3CharmDownloader(charmGetter CharmGetter, apiCaller base.APICaller) *do
 
 // CharmOpener provides the OpenCharm method.
 type S3CharmOpener interface {
-	OpenCharm(req downloader.Request) (io.ReadCloser, error)
+	OpenCharm(context.Context, downloader.Request) (io.ReadCloser, string, error)
 }
 
 type s3charmOpener struct {
-	ctx         context.Context
 	charmGetter CharmGetter
 	apiCaller   base.APICaller
 }
 
-func (s *s3charmOpener) OpenCharm(req downloader.Request) (io.ReadCloser, error) {
+func (s *s3charmOpener) OpenCharm(ctx context.Context, req downloader.Request) (io.ReadCloser, string, error) {
 	// Retrieve first 8 characters of the charm archive sha256
 	if len(req.ArchiveSha256) < 8 {
-		return nil, errors.NotValidf("download request with archiveSha256 length %d", len(req.ArchiveSha256))
+		return nil, "", errors.NotValidf("download request with archiveSha256 length %d", len(req.ArchiveSha256))
 	}
 	shortSha256 := req.ArchiveSha256[0:8]
 	// Retrieve charms name
 	curl, err := charm.ParseURL(req.URL.String())
 	if err != nil {
-		return nil, errors.Annotate(err, "did not receive a valid charm URL")
+		return nil, "", errors.Annotate(err, "did not receive a valid charm URL")
 	}
 
 	// We can ignore the second return bool from ModelTag() because if it's
@@ -66,13 +65,12 @@ func (s *s3charmOpener) OpenCharm(req downloader.Request) (io.ReadCloser, error)
 	modelTag, _ := s.apiCaller.ModelTag()
 
 	charmRef := fmt.Sprintf("%s-%s", curl.Name, shortSha256)
-	return s.charmGetter.GetCharm(s.ctx, modelTag.Id(), charmRef)
+	return s.charmGetter.GetCharm(ctx, modelTag.Id(), charmRef)
 }
 
 // NewS3CharmOpener returns a charm opener for the specified s3Caller.
 func NewS3CharmOpener(charmGetter CharmGetter, apiCaller base.APICaller) S3CharmOpener {
 	return &s3charmOpener{
-		ctx:         context.Background(),
 		charmGetter: charmGetter,
 		apiCaller:   apiCaller,
 	}

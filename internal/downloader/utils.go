@@ -19,17 +19,17 @@ import (
 // NewHTTPBlobOpener returns a blob opener func suitable for use with
 // Download. The opener func uses an HTTP client that enforces the
 // provided SSL hostname verification policy.
-func NewHTTPBlobOpener(hostnameVerification bool) func(Request) (io.ReadCloser, error) {
-	return func(req Request) (io.ReadCloser, error) {
+func NewHTTPBlobOpener(hostnameVerification bool) func(context.Context, Request) (io.ReadCloser, string, error) {
+	return func(ctx context.Context, req Request) (io.ReadCloser, string, error) {
 		// TODO(rog) make the download operation interruptible.
 		client := jujuhttp.NewClient(
 			jujuhttp.WithSkipHostnameVerification(!hostnameVerification),
 			jujuhttp.WithLogger(logger.ChildWithLabels("http", corelogger.HTTP)),
 		)
 
-		resp, err := client.Get(context.TODO(), req.URL.String())
+		resp, err := client.Get(ctx, req.URL.String())
 		if err != nil {
-			return nil, err
+			return nil, "", errors.Trace(err)
 		}
 		if resp.StatusCode != http.StatusOK {
 			// resp.Body is always non-nil. (see https://golang.org/pkg/net/http/#Response)
@@ -37,11 +37,13 @@ func NewHTTPBlobOpener(hostnameVerification bool) func(Request) (io.ReadCloser, 
 
 			// Blob is pending to be downloaded
 			if resp.StatusCode == http.StatusConflict {
-				return nil, errors.NotYetAvailablef("blob contents")
+				return nil, "", errors.NotYetAvailablef("blob contents")
 			}
-			return nil, errors.Errorf("bad http response: %v", resp.Status)
+			return nil, "", errors.Errorf("bad http response: %v", resp.Status)
 		}
-		return resp.Body, nil
+		// TODO (stickupkid): We should return the hash value from the server
+		// here, so we can pass it back.
+		return resp.Body, "", nil
 	}
 }
 

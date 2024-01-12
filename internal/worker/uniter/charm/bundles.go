@@ -4,6 +4,8 @@
 package charm
 
 import (
+	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"path"
@@ -18,7 +20,7 @@ import (
 type Downloader interface {
 	// Download starts a new charm archive download, waits for it to
 	// complete, and returns the local name of the file.
-	Download(req downloader.Request) (string, error)
+	Download(context.Context, downloader.Request) (string, string, error)
 }
 
 // BundlesDir is responsible for storing and retrieving charm bundles
@@ -46,13 +48,13 @@ func NewBundlesDir(path string, dlr Downloader, logger Logger) *BundlesDir {
 // Read returns a charm bundle from the directory. If no bundle exists yet,
 // one will be downloaded and validated and copied into the directory before
 // being returned. Downloads will be aborted if a value is received on abort.
-func (d *BundlesDir) Read(info BundleInfo, abort <-chan struct{}) (Bundle, error) {
+func (d *BundlesDir) Read(ctx context.Context, info BundleInfo) (Bundle, error) {
 	path := d.bundlePath(info)
 	if _, err := os.Stat(path); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		}
-		if err := d.download(info, path, abort); err != nil {
+		if err := d.download(ctx, info, path); err != nil {
 			return nil, err
 		}
 	}
@@ -62,7 +64,7 @@ func (d *BundlesDir) Read(info BundleInfo, abort <-chan struct{}) (Bundle, error
 // download fetches the supplied charm and checks that it has the correct sha256
 // hash, then copies it into the directory. If a value is received on abort, the
 // download will be stopped.
-func (d *BundlesDir) download(info BundleInfo, target string, abort <-chan struct{}) error {
+func (d *BundlesDir) download(ctx context.Context, info BundleInfo, target string) error {
 	// First download...
 	curl, err := url.Parse(info.URL())
 	if err != nil {
@@ -77,11 +79,11 @@ func (d *BundlesDir) download(info BundleInfo, target string, abort <-chan struc
 		URL:           curl,
 		TargetDir:     downloadsPath(d.path),
 		Verify:        downloader.NewSha256Verifier(expectedSha256),
-		Abort:         abort,
 	}
 	d.logger.Infof("downloading %s from API server", info.URL())
-	filename, err := d.downloader.Download(req)
+	filename, _, err := d.downloader.Download(ctx, req)
 	if err != nil {
+		fmt.Println(">>>", err)
 		return errors.Annotatef(err, "failed to download charm %q from API server", info.URL())
 	}
 	defer errors.DeferredAnnotatef(&err, "downloaded but failed to copy charm to %q from %q", target, filename)

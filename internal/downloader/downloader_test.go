@@ -4,6 +4,7 @@
 package downloader_test
 
 import (
+	"context"
 	"net/url"
 	"path/filepath"
 
@@ -56,15 +57,17 @@ func (s *DownloaderSuite) testStart(c *gc.C, hostnameVerification bool) {
 	dlr := downloader.New(downloader.NewArgs{
 		HostnameVerification: hostnameVerification,
 	})
-	dl := dlr.Start(downloader.Request{
+	dl := dlr.Start(context.Background(), downloader.Request{
 		URL:       s.URL(c, "/archive.tgz"),
 		TargetDir: tmp,
 	})
-	status := <-dl.Done()
-	c.Assert(status.Err, gc.IsNil)
-	dir, _ := filepath.Split(status.Filename)
+	err := dl.Wait()
+	c.Assert(err, jc.ErrorIsNil)
+
+	fileName := dl.FileName()
+	dir, _ := filepath.Split(fileName)
 	c.Assert(filepath.Clean(dir), gc.Equals, tmp)
-	assertFileContents(c, status.Filename, "archive")
+	assertFileContents(c, fileName, "archive")
 }
 
 func (s *DownloaderSuite) TestDownloadWithoutDisablingSSLHostnameVerification(c *gc.C) {
@@ -79,13 +82,14 @@ func (s *DownloaderSuite) TestDownload(c *gc.C) {
 	tmp := c.MkDir()
 	jujutesting.Server.Response(200, nil, []byte("archive"))
 	dlr := downloader.New(downloader.NewArgs{})
-	filename, err := dlr.Download(downloader.Request{
+	filename, hash, err := dlr.Download(context.Background(), downloader.Request{
 		URL:       s.URL(c, "/archive.tgz"),
 		TargetDir: tmp,
 	})
 	c.Assert(err, jc.ErrorIsNil)
 	dir, _ := filepath.Split(filename)
-	c.Assert(filepath.Clean(dir), gc.Equals, tmp)
+	c.Check(filepath.Clean(dir), gc.Equals, tmp)
+	c.Check(hash, gc.Equals, "")
 	assertFileContents(c, filename, "archive")
 }
 
@@ -93,7 +97,7 @@ func (s *DownloaderSuite) TestDownloadHandles409Responses(c *gc.C) {
 	tmp := c.MkDir()
 	jujutesting.Server.Response(409, nil, []byte("archive"))
 	dlr := downloader.New(downloader.NewArgs{})
-	_, err := dlr.Download(downloader.Request{
+	_, _, err := dlr.Download(context.Background(), downloader.Request{
 		URL:       s.URL(c, "/archive.tgz"),
 		TargetDir: tmp,
 	})

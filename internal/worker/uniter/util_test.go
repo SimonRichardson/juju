@@ -5,6 +5,7 @@ package uniter_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -956,16 +957,16 @@ func (s startUniter) step(c *gc.C, ctx *testContext) {
 		s.rebootQuerier = mimicRealRebootQuerier()
 	}
 	dlr := &downloader.Downloader{
-		OpenBlob: func(req downloader.Request) (io.ReadCloser, error) {
+		OpenBlob: func(_ context.Context, req downloader.Request) (io.ReadCloser, string, error) {
 			ctx.app.mu.Lock()
 			defer ctx.app.mu.Unlock()
 			curl := jujucharm.MustParseURL(ctx.app.charmURL)
 			storagePath := fmt.Sprintf("/charms/%s/%d", curl.Name, curl.Revision)
 			blob, ok := ctx.servedCharms[storagePath]
 			if !ok {
-				return nil, errors.NotFoundf(ctx.app.charmURL)
+				return nil, "", errors.NotFoundf(ctx.app.charmURL)
 			}
-			return io.NopCloser(bytes.NewReader(blob)), nil
+			return io.NopCloser(bytes.NewReader(blob)), "", nil
 		},
 	}
 	operationExecutor := operation.NewExecutor

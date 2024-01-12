@@ -4,6 +4,7 @@
 package charm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,13 +58,13 @@ type manifestDeployer struct {
 	}
 }
 
-func (d *manifestDeployer) Stage(info BundleInfo, abort <-chan struct{}) error {
+func (d *manifestDeployer) Stage(ctx context.Context, info BundleInfo) error {
 	bdr := RetryingBundleReader{
 		BundleReader: d.bundles,
 		Clock:        clock.WallClock,
 		Logger:       d.logger,
 	}
-	bundle, err := bdr.Read(info, abort)
+	bundle, err := bdr.Read(ctx, info)
 	if err != nil {
 		return err
 	}
@@ -238,7 +239,7 @@ type RetryingBundleReader struct {
 	Logger Logger
 }
 
-func (rbr RetryingBundleReader) Read(bi BundleInfo, abort <-chan struct{}) (Bundle, error) {
+func (rbr RetryingBundleReader) Read(ctx context.Context, bi BundleInfo) (Bundle, error) {
 	var (
 		bundle   Bundle
 		minDelay = 200 * time.Millisecond
@@ -251,7 +252,7 @@ func (rbr RetryingBundleReader) Read(bi BundleInfo, abort <-chan struct{}) (Bund
 		BackoffFunc: retry.ExpBackoff(minDelay, maxDelay, 2.0, true),
 		Clock:       rbr.Clock,
 		Func: func() error {
-			b, err := rbr.BundleReader.Read(bi, abort)
+			b, err := rbr.BundleReader.Read(ctx, bi)
 			if err != nil {
 				return err
 			}
@@ -261,6 +262,7 @@ func (rbr RetryingBundleReader) Read(bi BundleInfo, abort <-chan struct{}) (Bund
 		IsFatalError: func(err error) bool {
 			return err != nil && !errors.Is(err, errors.NotYetAvailable)
 		},
+		Stop: ctx.Done(),
 	})
 
 	if fetchErr != nil {
