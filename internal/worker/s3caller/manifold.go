@@ -17,6 +17,17 @@ import (
 	"github.com/juju/juju/internal/s3client"
 )
 
+// AnonymousClient represents a client that can be used to access the object
+// store anonymously.
+type AnonymousClient interface {
+	// Anonymous returns a session that can be used to access the object store
+	// anonymously. No credentials are used to create the session.
+	Anonymous() (objectstore.Session, error)
+}
+
+// NewClientFunc is a function that creates a new object store client.
+type NewClientFunc func(s3client.HTTPClient, s3client.Credentials, s3client.Logger) (objectstore.Session, error)
+
 // ManifoldConfig defines a Manifold's dependencies.
 type ManifoldConfig struct {
 	// APICallerName is the name of the APICaller resource that
@@ -24,7 +35,7 @@ type ManifoldConfig struct {
 	APICallerName string
 
 	// NewClient is used to create a new object store client.
-	NewClient func(s3client.HTTPClient, s3client.Credentials, s3client.Logger) (objectstore.Session, error)
+	NewClient NewClientFunc
 
 	// Logger is used to write logging statements for the worker.
 	Logger s3client.Logger
@@ -67,21 +78,18 @@ func (config ManifoldConfig) startFunc() dependency.StartFunc {
 			return nil, err
 		}
 
-		httpClient, err := apiConn.RootHTTPClient()
+		prefixedHTTPClient, err := apiConn.RootHTTPClient()
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
-		// TODO (stickupkid): Depending on the type of s3client we're using,
-		// will then depend on the type of credentials we need to pass in.
-		// For now, we're just using anonymous credentials, as we're just
-		// hitting the local juju api server.
-		credentials := s3client.AnonymousCredentials{}
-		session, err := config.NewClient(newHTTPClient(httpClient), credentials, config.Logger)
-		if err != nil {
-			return nil, err
-		}
-		return newS3ClientWorker(session), nil
+		return newS3ClientWorker(workerConfig{
+			ClientFactory: clientFactory{
+				prefixedHTTPClient: newHTTPClient(prefixedHTTPClient),
+				newClient:          config.NewClient,
+				logger:             config.Logger,
+			},
+		}), nil
 	}
 }
 
@@ -94,7 +102,13 @@ func outputFunc(in worker.Worker, out any) error {
 
 	switch outPointer := out.(type) {
 	case *objectstore.Session:
-		*outPointer = inWorker.session
+		session, err := inWorker.Anonymous()
+		if err != nil {
+			return errors.Trace(err)
+		}
+		*outPointer = session
+	case *AnonymousClient:
+		*outPointer = inWorker
 	default:
 		return errors.Errorf("out should be *s3caller.Session; got %T", out)
 	}
@@ -127,4 +141,20 @@ func (c *httpClient) Do(req *http.Request) (*http.Response, error) {
 
 func (c *httpClient) BaseURL() string {
 	return c.client.BaseURL
+}
+
+type clientFactory struct {
+	prefixedHTTPClient *httpClient
+	newClient          NewClientFunc
+	logger             s3client.Logger
+}
+
+// ClientFor returns a new object store client for the supplied credentials.
+func (f clientFactory) ClientFor(creds s3client.Credentials) (objectstore.Session, error) {
+	switch creds.Kind() {
+	case s3client.AnonymousCredentialsKind:
+		return f.newClient(f.prefixedHTTPClient, creds, f.logger)
+	default:
+		return nil, errors.Errorf("unknown credentials kind %q", creds.Kind())
+	}
 }

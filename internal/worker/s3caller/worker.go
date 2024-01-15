@@ -8,23 +8,29 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/juju/juju/core/objectstore"
+	"github.com/juju/juju/internal/s3client"
 )
 
-// logger is here to stop the desire of creating a package level logger.
-// Don't do this, instead use the one passed as manifold config.
-type logger interface{}
+// ClientFactory is a function that creates a new object store client.
+type ClientFactory interface {
+	// ClientFor returns a new object store client for the supplied
+	// credentials.
+	ClientFor(s3client.Credentials) (objectstore.Session, error)
+}
 
-var _ logger = struct{}{}
-
-func newS3ClientWorker(session objectstore.Session) worker.Worker {
-	w := &s3ClientWorker{session: session}
-	w.tomb.Go(w.loop)
-	return w
+type workerConfig struct {
+	ClientFactory ClientFactory
 }
 
 type s3ClientWorker struct {
-	tomb    tomb.Tomb
-	session objectstore.Session
+	tomb tomb.Tomb
+	cfg  workerConfig
+}
+
+func newS3ClientWorker(config workerConfig) worker.Worker {
+	w := &s3ClientWorker{cfg: config}
+	w.tomb.Go(w.loop)
+	return w
 }
 
 // Kill is part of the worker.Worker interface.
@@ -35,6 +41,12 @@ func (w *s3ClientWorker) Kill() {
 // Wait is part of the worker.Worker interface.
 func (w *s3ClientWorker) Wait() error {
 	return w.tomb.Wait()
+}
+
+// Anonymous returns a session that can be used to access the object store
+// anonymously. No credentials are used to create the session.
+func (w *s3ClientWorker) Anonymous() (objectstore.Session, error) {
+	return w.cfg.ClientFactory.ClientFor(s3client.AnonymousCredentials{})
 }
 
 func (w *s3ClientWorker) loop() (err error) {
