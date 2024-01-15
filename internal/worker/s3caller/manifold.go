@@ -21,9 +21,17 @@ import (
 // AnonymousClient represents a client that can be used to access the object
 // store anonymously.
 type AnonymousClient interface {
-	// Anonymous returns a session that can be used to access the object store
-	// anonymously. No credentials are used to create the session.
-	Anonymous() (objectstore.Session, error)
+	// WithAnonymous uses the current client and calls the supplied function, with
+	// a limited time context and the supplied anonymous credential client.
+	WithAnonymous(func(context.Context, objectstore.Session) error) error
+}
+
+// CredentialClient represents a client that can be used to access the object
+// store using static credentials.
+type CredentialClient interface {
+	// WithCredentials uses the current client and calls the supplied function, with
+	// a limited time context and the supplied credential client.
+	WithCredentials(func(context.Context, objectstore.Session) error) error
 }
 
 // NewClientFunc is a function that creates a new object store client.
@@ -103,12 +111,6 @@ func outputFunc(in worker.Worker, out any) error {
 	}
 
 	switch outPointer := out.(type) {
-	case *objectstore.Session:
-		session, err := inWorker.Anonymous()
-		if err != nil {
-			return errors.Trace(err)
-		}
-		*outPointer = session
 	case *AnonymousClient:
 		*outPointer = inWorker
 	default:

@@ -4,6 +4,7 @@
 package s3caller
 
 import (
+	context "context"
 	"sync"
 
 	"github.com/juju/errors"
@@ -41,8 +42,9 @@ type s3ClientWorker struct {
 	catacomb catacomb.Catacomb
 	cfg      workerConfig
 
-	mutex       sync.Mutex
-	credentials s3client.Credentials
+	mutex       sync.RWMutex
+	anonClient  objectstore.Session
+	credsClient objectstore.Session
 }
 
 func newS3ClientWorker(config workerConfig) (worker.Worker, error) {
@@ -52,14 +54,20 @@ func newS3ClientWorker(config workerConfig) (worker.Worker, error) {
 		return nil, errors.Trace(err)
 	}
 
-	credentials, err := extractCredentials(controllerConfig)
+	anonClient, err := config.ClientFactory.ClientFor(s3client.AnonymousCredentials{})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	credsClient, err := createCredentialsClient(config.ClientFactory, controllerConfig)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	w := &s3ClientWorker{
 		cfg:         config,
-		credentials: credentials,
+		anonClient:  anonClient,
+		credsClient: credsClient,
 	}
 
 	if err := catacomb.Invoke(catacomb.Plan{
@@ -82,19 +90,30 @@ func (w *s3ClientWorker) Wait() error {
 	return w.catacomb.Wait()
 }
 
-// Anonymous returns a session that can be used to access the object store
-// anonymously. No credentials are used to create the session.
-func (w *s3ClientWorker) Anonymous() (objectstore.Session, error) {
-	return w.cfg.ClientFactory.ClientFor(s3client.AnonymousCredentials{})
+// WithAnonymous uses the current client and calls the supplied function, with
+// a limited time context and the supplied anonymous credential client.
+func (w *s3ClientWorker) WithAnonymous(fn func(context.Context, objectstore.Session) error) error {
+	w.mutex.RLock()
+	client := w.anonClient
+	w.mutex.RUnlock()
+
+	ctx, cancel := w.scopedContext()
+	defer cancel()
+
+	return fn(ctx, client)
 }
 
-// Credentials returns a session that can be used to access the object store
-// using the supplied credentials.
-func (w *s3ClientWorker) Credentials() (objectstore.Session, error) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
+// WithCredentials uses the current client and calls the supplied function, with
+// a limited time context and the supplied credentials client.
+func (w *s3ClientWorker) WithCredentials(fn func(context.Context, objectstore.Session) error) error {
+	w.mutex.RLock()
+	client := w.credsClient
+	w.mutex.RUnlock()
 
-	return w.cfg.ClientFactory.ClientFor(w.credentials)
+	ctx, cancel := w.scopedContext()
+	defer cancel()
+
+	return fn(ctx, client)
 }
 
 func (w *s3ClientWorker) loop() (err error) {
@@ -112,29 +131,34 @@ func (w *s3ClientWorker) loop() (err error) {
 		case <-w.catacomb.Dying():
 			return w.catacomb.ErrDying()
 		case <-watcher.Changes():
-			if err := w.updateCredentials(); err != nil {
+			controllerConfig, err := w.cfg.ControllerConfigService.ControllerConfig()
+			if err != nil {
 				return errors.Trace(err)
 			}
+
+			credsClient, err := createCredentialsClient(w.cfg.ClientFactory, controllerConfig)
+			if err != nil {
+				return errors.Trace(err)
+			}
+
+			w.mutex.Lock()
+			w.credsClient = credsClient
+			w.mutex.Unlock()
 		}
 	}
 }
 
-func (w *s3ClientWorker) updateCredentials() error {
-	controllerConfig, err := w.cfg.ControllerConfigService.ControllerConfig()
-	if err != nil {
-		return errors.Trace(err)
-	}
+func (w *s3ClientWorker) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(w.catacomb.Context(context.Background()))
+}
 
+func createCredentialsClient(clientFactory ClientFactory, controllerConfig controller.Config) (objectstore.Session, error) {
 	credentials, err := extractCredentials(controllerConfig)
 	if err != nil {
-		return errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	w.credentials = credentials
-	return nil
+	return clientFactory.ClientFor(credentials)
 }
 
 func extractCredentials(controllerConfig controller.Config) (s3client.Credentials, error) {

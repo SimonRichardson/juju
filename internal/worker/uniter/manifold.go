@@ -21,13 +21,13 @@ import (
 	"github.com/juju/juju/core/leadership"
 	"github.com/juju/juju/core/machinelock"
 	"github.com/juju/juju/core/model"
-	"github.com/juju/juju/core/objectstore"
 	coretrace "github.com/juju/juju/core/trace"
 	"github.com/juju/juju/internal/observability/probe"
 	"github.com/juju/juju/internal/s3client"
 	"github.com/juju/juju/internal/secrets"
 	"github.com/juju/juju/internal/worker/common/reboot"
 	"github.com/juju/juju/internal/worker/fortress"
+	"github.com/juju/juju/internal/worker/s3caller"
 	"github.com/juju/juju/internal/worker/secretexpire"
 	"github.com/juju/juju/internal/worker/secretrotate"
 	"github.com/juju/juju/internal/worker/trace"
@@ -155,7 +155,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				tracer = coretrace.NoopTracer{}
 			}
 
-			var objectStoreCaller objectstore.Session
+			var objectStoreCaller s3caller.AnonymousClient
 			if err := getter.Get(config.S3CallerName, &objectStoreCaller); err != nil {
 				return nil, errors.Trace(err)
 			}
