@@ -13,6 +13,7 @@ import (
 	httprequest "gopkg.in/httprequest.v1"
 
 	"github.com/juju/juju/api"
+	"github.com/juju/juju/api/controller/controller"
 	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/internal/s3client"
 )
@@ -61,36 +62,37 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			config.APICallerName,
 		},
 		Output: outputFunc,
-		Start:  config.startFunc(),
+		Start:  config.start,
 	}
 }
 
 // startFunc returns a StartFunc that creates a S3 client based on the supplied
 // manifold config and wraps it in a worker.
-func (config ManifoldConfig) startFunc() dependency.StartFunc {
-	return func(ctx context.Context, getter dependency.Getter) (worker.Worker, error) {
-		if err := config.Validate(); err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		var apiConn api.Connection
-		if err := getter.Get(config.APICallerName, &apiConn); err != nil {
-			return nil, err
-		}
-
-		prefixedHTTPClient, err := apiConn.RootHTTPClient()
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		return newS3ClientWorker(workerConfig{
-			ClientFactory: clientFactory{
-				prefixedHTTPClient: newHTTPClient(prefixedHTTPClient),
-				newClient:          config.NewClient,
-				logger:             config.Logger,
-			},
-		}), nil
+func (config ManifoldConfig) start(ctx context.Context, getter dependency.Getter) (worker.Worker, error) {
+	if err := config.Validate(); err != nil {
+		return nil, errors.Trace(err)
 	}
+
+	var apiConn api.Connection
+	if err := getter.Get(config.APICallerName, &apiConn); err != nil {
+		return nil, err
+	}
+
+	controllerConfigClient := controller.NewClient(apiConn)
+
+	prefixedHTTPClient, err := apiConn.RootHTTPClient()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return newS3ClientWorker(workerConfig{
+		ClientFactory: clientFactory{
+			prefixedHTTPClient: newHTTPClient(prefixedHTTPClient),
+			newClient:          config.NewClient,
+			logger:             config.Logger,
+		},
+		ControllerConfigService: controllerConfigClient,
+	})
 }
 
 // outputFunc extracts a S3 client from a *s3caller.

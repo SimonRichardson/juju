@@ -1199,7 +1199,6 @@ const (
 	stateConfigWatcherName = "state-config-watcher"
 	stateName              = "state"
 	apiCallerName          = "api-caller"
-	s3CallerName           = "s3-caller"
 	apiConfigWatcherName   = "api-config-watcher"
 	centralHubName         = "central-hub"
 	presenceName           = "presence"
