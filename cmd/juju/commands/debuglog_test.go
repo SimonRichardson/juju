@@ -4,6 +4,7 @@
 package commands
 
 import (
+	"context"
 	"time"
 
 	"github.com/juju/cmd/v3/cmdtesting"
@@ -251,7 +252,7 @@ type fakeDebugLogAPI struct {
 	err    error
 }
 
-func (fake *fakeDebugLogAPI) WatchDebugLog(params common.DebugLogParams) (<-chan common.LogMessage, error) {
+func (fake *fakeDebugLogAPI) WatchDebugLog(ctx context.Context, params common.DebugLogParams) (<-chan common.LogMessage, error) {
 	if fake.err != nil {
 		return nil, fake.err
 	}

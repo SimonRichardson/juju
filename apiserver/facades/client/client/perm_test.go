@@ -4,6 +4,7 @@
 package client_test
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -176,7 +177,7 @@ func (s *permSuite) testOperationPerm(
 }
 
 func opClientAddRelation(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	_, err := application.NewClient(st).AddRelation([]string{"nosuch1", "nosuch2"}, nil)
+	_, err := application.NewClient(st).AddRelation(context.Background(), []string{"nosuch1", "nosuch2"}, nil)
 	if params.IsCodeNotFound(err) {
 		err = nil
 	}
@@ -184,7 +185,7 @@ func opClientAddRelation(c *gc.C, st api.Connection, _ *state.State) (func(), er
 }
 
 func opClientDestroyRelation(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	err := application.NewClient(st).DestroyRelation((*bool)(nil), (*time.Duration)(nil), "nosuch1", "nosuch2")
+	err := application.NewClient(st).DestroyRelation(context.Background(), (*bool)(nil), (*time.Duration)(nil), "nosuch1", "nosuch2")
 	if params.IsCodeNotFound(err) {
 		err = nil
 	}
@@ -192,7 +193,7 @@ func opClientDestroyRelation(c *gc.C, st api.Connection, _ *state.State) (func()
 }
 
 func opClientStatus(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	status, err := apiclient.NewClient(st, coretesting.NoopLogger{}).Status(nil)
+	status, err := apiclient.NewClient(st, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	if err != nil {
 		c.Check(status, gc.IsNil)
 		return func() {}, err
@@ -205,7 +206,7 @@ func opClientStatus(c *gc.C, st api.Connection, _ *state.State) (func(), error) 
 }
 
 func opClientApplicationGet(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	_, err := application.NewClient(st).Get(model.GenerationMaster, "wordpress")
+	_, err := application.NewClient(st).Get(context.Background(), model.GenerationMaster, "wordpress")
 	if err != nil {
 		return func() {}, err
 	}
@@ -213,7 +214,7 @@ func opClientApplicationGet(c *gc.C, st api.Connection, _ *state.State) (func(),
 }
 
 func opClientApplicationExpose(c *gc.C, st api.Connection, mst *state.State) (func(), error) {
-	err := application.NewClient(st).Expose("wordpress", nil)
+	err := application.NewClient(st).Expose(context.Background(), "wordpress", nil)
 	if err != nil {
 		return func() {}, err
 	}
@@ -226,7 +227,7 @@ func opClientApplicationExpose(c *gc.C, st api.Connection, mst *state.State) (fu
 }
 
 func opClientApplicationUnexpose(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	err := application.NewClient(st).Unexpose("wordpress", nil)
+	err := application.NewClient(st).Unexpose(context.Background(), "wordpress", nil)
 	if err != nil {
 		return func() {}, err
 	}
@@ -234,7 +235,7 @@ func opClientApplicationUnexpose(c *gc.C, st api.Connection, _ *state.State) (fu
 }
 
 func opClientResolved(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	err := application.NewClient(st).ResolveUnitErrors([]string{"wordpress/1"}, false, false)
+	err := application.NewClient(st).ResolveUnitErrors(context.Background(), []string{"wordpress/1"}, false, false)
 	// There are several scenarios in which this test is called, one is
 	// that the user is not authorized.  In that case we want to exit now,
 	// letting the error percolate out so the caller knows that the
@@ -252,7 +253,7 @@ func opClientResolved(c *gc.C, st api.Connection, _ *state.State) (func(), error
 }
 
 func opClientGetAnnotations(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	ann, err := annotations.NewClient(st).Get([]string{"application-wordpress"})
+	ann, err := annotations.NewClient(st).Get(context.Background(), []string{"application-wordpress"})
 	if err != nil {
 		return func() {}, err
 	}
@@ -268,7 +269,7 @@ func opClientSetAnnotations(c *gc.C, st api.Connection, _ *state.State) (func(),
 	setParams := map[string]map[string]string{
 		"application-wordpress": pairs,
 	}
-	_, err := annotations.NewClient(st).Set(setParams)
+	_, err := annotations.NewClient(st).Set(context.Background(), setParams)
 	if err != nil {
 		return func() {}, err
 	}
@@ -277,7 +278,7 @@ func opClientSetAnnotations(c *gc.C, st api.Connection, _ *state.State) (func(),
 		setParams := map[string]map[string]string{
 			"application-wordpress": pairs,
 		}
-		_, err := annotations.NewClient(st).Set(setParams)
+		_, err := annotations.NewClient(st).Set(context.Background(), setParams)
 		c.Assert(err, jc.ErrorIsNil)
 	}, nil
 }
@@ -290,7 +291,7 @@ func opClientApplicationSetCharm(c *gc.C, st api.Connection, _ *state.State) (fu
 			Origin: apicharm.Origin{Source: "local"},
 		},
 	}
-	err := application.NewClient(st).SetCharm(model.GenerationMaster, cfg)
+	err := application.NewClient(st).SetCharm(context.Background(), model.GenerationMaster, cfg)
 	if params.IsCodeNotFound(err) {
 		err = nil
 	}
@@ -298,7 +299,7 @@ func opClientApplicationSetCharm(c *gc.C, st api.Connection, _ *state.State) (fu
 }
 
 func opClientAddApplicationUnits(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	_, err := application.NewClient(st).AddUnits(application.AddUnitsParams{
+	_, err := application.NewClient(st).AddUnits(context.Background(), application.AddUnitsParams{
 		ApplicationName: "nosuch",
 		NumUnits:        1,
 	})
@@ -310,6 +311,7 @@ func opClientAddApplicationUnits(c *gc.C, st api.Connection, _ *state.State) (fu
 
 func opClientDestroyApplicationUnits(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
 	_, err := application.NewClient(st).DestroyUnits(
+		context.Background(),
 		application.DestroyUnitsParams{Units: []string{"wordpress/99"}})
 	if err != nil && strings.HasPrefix(err.Error(), "no units were destroyed") {
 		err = nil
@@ -318,7 +320,7 @@ func opClientDestroyApplicationUnits(c *gc.C, st api.Connection, _ *state.State)
 }
 
 func opClientDestroyUnit(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	_, err := application.NewClient(st).DestroyUnits(application.DestroyUnitsParams{
+	_, err := application.NewClient(st).DestroyUnits(context.Background(), application.DestroyUnitsParams{
 		Units: []string{"wordpress/99"},
 	})
 	return func() {}, err
@@ -326,6 +328,7 @@ func opClientDestroyUnit(c *gc.C, st api.Connection, _ *state.State) (func(), er
 
 func opClientApplicationDestroy(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
 	_, err := application.NewClient(st).DestroyApplications(
+		context.Background(),
 		application.DestroyApplicationsParams{Applications: []string{"non-existent"}})
 	if params.IsCodeNotFound(err) {
 		err = nil
@@ -334,20 +337,20 @@ func opClientApplicationDestroy(c *gc.C, st api.Connection, _ *state.State) (fun
 }
 
 func opClientDestroyApplication(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	_, err := application.NewClient(st).DestroyApplications(application.DestroyApplicationsParams{
+	_, err := application.NewClient(st).DestroyApplications(context.Background(), application.DestroyApplicationsParams{
 		Applications: []string{"non-existent"},
 	})
 	return func() {}, err
 }
 
 func opClientGetApplicationConstraints(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	_, err := application.NewClient(st).GetConstraints("wordpress")
+	_, err := application.NewClient(st).GetConstraints(context.Background(), "wordpress")
 	return func() {}, err
 }
 
 func opClientSetApplicationConstraints(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
 	nullConstraints := constraints.Value{}
-	err := application.NewClient(st).SetConstraints("wordpress", nullConstraints)
+	err := application.NewClient(st).SetConstraints(context.Background(), "wordpress", nullConstraints)
 	if err != nil {
 		return func() {}, err
 	}
@@ -384,7 +387,7 @@ func opClientModelSet(c *gc.C, st api.Connection, _ *state.State) (func(), error
 }
 
 func opClientWatchAll(c *gc.C, st api.Connection, _ *state.State) (func(), error) {
-	watcher, err := apiclient.NewClient(st, coretesting.NoopLogger{}).WatchAll()
+	watcher, err := apiclient.NewClient(st, coretesting.NoopLogger{}).WatchAll(context.Background())
 	if err == nil {
 		watcher.Stop()
 	}

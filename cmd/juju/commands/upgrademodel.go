@@ -177,7 +177,7 @@ type ModelUpgraderAPI interface {
 // ControllerAPI defines the controller API methods.
 type ControllerAPI interface {
 	CloudSpec(modelTag names.ModelTag) (environscloudspec.CloudSpec, error)
-	ControllerConfig() (controller.Config, error)
+	ControllerConfig(context.Context) (controller.Config, error)
 	ModelConfig() (map[string]interface{}, error)
 	Close() error
 }

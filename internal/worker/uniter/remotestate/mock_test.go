@@ -4,6 +4,7 @@
 package remotestate_test
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -206,11 +207,11 @@ func (m *mockUniterClient) WatchStorageAttachment(
 	return watcher, nil
 }
 
-func (m *mockUniterClient) UpdateStatusHookInterval() (time.Duration, error) {
+func (m *mockUniterClient) UpdateStatusHookInterval(context.Context) (time.Duration, error) {
 	return m.updateStatusInterval, nil
 }
 
-func (m *mockUniterClient) WatchUpdateStatusHookInterval() (watcher.NotifyWatcher, error) {
+func (m *mockUniterClient) WatchUpdateStatusHookInterval(context.Context) (watcher.NotifyWatcher, error) {
 	return m.updateStatusIntervalWatcher, nil
 }
 

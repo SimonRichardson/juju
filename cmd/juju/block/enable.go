@@ -4,6 +4,8 @@
 package block
 
 import (
+	"context"
+
 	"github.com/juju/cmd/v3"
 	"github.com/juju/errors"
 
@@ -60,18 +62,18 @@ func (c *enableCommand) Info() *cmd.Info {
 // unblockClientAPI defines the client API methods that unblock command uses.
 type unblockClientAPI interface {
 	Close() error
-	SwitchBlockOff(blockType string) error
+	SwitchBlockOff(ctx context.Context, blockType string) error
 }
 
 // Run implements Command.
-func (c *enableCommand) Run(_ *cmd.Context) error {
+func (c *enableCommand) Run(ctx *cmd.Context) error {
 	api, err := c.apiFunc(c)
 	if err != nil {
 		return errors.Annotate(err, "cannot connect to the API")
 	}
 	defer api.Close()
 
-	return api.SwitchBlockOff(c.target)
+	return api.SwitchBlockOff(ctx, c.target)
 }
 
 const enableDoc = `

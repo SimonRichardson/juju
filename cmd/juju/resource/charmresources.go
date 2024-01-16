@@ -4,6 +4,8 @@
 package resource
 
 import (
+	"context"
+
 	"github.com/juju/charm/v12"
 	charmresource "github.com/juju/charm/v12/resource"
 	"github.com/juju/cmd/v3"
@@ -19,7 +21,7 @@ import (
 
 // ResourceLister lists resources for the given charm ids.
 type ResourceLister interface {
-	ListResources(ids []CharmID) ([][]charmresource.Resource, error)
+	ListResources(ctx context.Context, ids []CharmID) ([][]charmresource.Resource, error)
 }
 
 // CharmResourceLister lists the resource of a charm.
@@ -180,7 +182,7 @@ func (c *baseCharmResourcesCommand) baseRun(ctx *cmd.Context) error {
 		Channel: channel,
 	}
 
-	resources, err := resourceLister.ListResources([]CharmID{
+	resources, err := resourceLister.ListResources(ctx, []CharmID{
 		charm,
 	})
 	if err != nil {
@@ -247,7 +249,7 @@ type CharmhubResourceLister struct {
 }
 
 // ListResources implements CharmResourceLister.
-func (c *CharmhubResourceLister) ListResources(ids []CharmID) ([][]charmresource.Resource, error) {
+func (c *CharmhubResourceLister) ListResources(ctx context.Context, ids []CharmID) ([][]charmresource.Resource, error) {
 	if len(ids) != 1 {
 		return nil, errors.Errorf("expected one resource to list")
 	}
@@ -262,7 +264,7 @@ func (c *CharmhubResourceLister) ListResources(ids []CharmID) ([][]charmresource
 		return nil, errors.Trace(err)
 	}
 	client := charms.NewClient(apiRoot)
-	results, err := client.ListCharmResources(id.URL, apicharm.Origin{
+	results, err := client.ListCharmResources(ctx, id.URL, apicharm.Origin{
 		Source: apicharm.OriginCharmHub,
 		Track:  track,
 		Risk:   string(id.Channel.Risk),

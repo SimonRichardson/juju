@@ -4,6 +4,7 @@
 package waitfor
 
 import (
+	"context"
 	"reflect"
 	"strings"
 
@@ -23,8 +24,8 @@ type modelAllWatchShim struct {
 	*apiclient.Client
 }
 
-func (s modelAllWatchShim) WatchAll() (api.AllWatcher, error) {
-	return s.Client.WatchAll()
+func (s modelAllWatchShim) WatchAll(ctx context.Context) (api.AllWatcher, error) {
+	return s.Client.WatchAll(ctx)
 }
 
 // runQuery handles the more complex error handling of a query with a given

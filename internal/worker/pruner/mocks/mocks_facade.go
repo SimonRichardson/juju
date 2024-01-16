@@ -58,30 +58,30 @@ func (mr *MockFacadeMockRecorder) ModelConfig(arg0 any) *gomock.Call {
 }
 
 // Prune mocks base method.
-func (m *MockFacade) Prune(arg0 time.Duration, arg1 int) error {
+func (m *MockFacade) Prune(arg0 context.Context, arg1 time.Duration, arg2 int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Prune", arg0, arg1)
+	ret := m.ctrl.Call(m, "Prune", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Prune indicates an expected call of Prune.
-func (mr *MockFacadeMockRecorder) Prune(arg0, arg1 any) *gomock.Call {
+func (mr *MockFacadeMockRecorder) Prune(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prune", reflect.TypeOf((*MockFacade)(nil).Prune), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prune", reflect.TypeOf((*MockFacade)(nil).Prune), arg0, arg1, arg2)
 }
 
 // WatchForModelConfigChanges mocks base method.
-func (m *MockFacade) WatchForModelConfigChanges() (watcher.Watcher[struct{}], error) {
+func (m *MockFacade) WatchForModelConfigChanges(arg0 context.Context) (watcher.Watcher[struct{}], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WatchForModelConfigChanges")
+	ret := m.ctrl.Call(m, "WatchForModelConfigChanges", arg0)
 	ret0, _ := ret[0].(watcher.Watcher[struct{}])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WatchForModelConfigChanges indicates an expected call of WatchForModelConfigChanges.
-func (mr *MockFacadeMockRecorder) WatchForModelConfigChanges() *gomock.Call {
+func (mr *MockFacadeMockRecorder) WatchForModelConfigChanges(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchForModelConfigChanges", reflect.TypeOf((*MockFacade)(nil).WatchForModelConfigChanges))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchForModelConfigChanges", reflect.TypeOf((*MockFacade)(nil).WatchForModelConfigChanges), arg0)
 }

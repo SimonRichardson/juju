@@ -242,7 +242,7 @@ func (*mockCaller) BestFacadeVersion(facade string) int {
 	return 0
 }
 
-func (c *mockLogForwardConfig) WatchForLogForwardConfigChanges() (watcher.NotifyWatcher, error) {
+func (c *mockLogForwardConfig) WatchForLogForwardConfigChanges(context.Context) (watcher.NotifyWatcher, error) {
 	c.changes = make(chan struct{}, 1)
 	c.changes <- struct{}{}
 	return &mockWatcher{
@@ -250,7 +250,7 @@ func (c *mockLogForwardConfig) WatchForLogForwardConfigChanges() (watcher.Notify
 	}, nil
 }
 
-func (c *mockLogForwardConfig) LogForwardConfig() (*syslog.RawConfig, bool, error) {
+func (c *mockLogForwardConfig) LogForwardConfig(context.Context) (*syslog.RawConfig, bool, error) {
 	return &syslog.RawConfig{
 		Enabled:    c.enabled,
 		Host:       c.host,

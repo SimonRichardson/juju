@@ -186,9 +186,9 @@ func (c *Client) DestroyController(args DestroyControllerParams) error {
 
 // ListBlockedModels returns a list of all models within the controller
 // which have at least one block in place.
-func (c *Client) ListBlockedModels() ([]params.ModelBlockInfo, error) {
+func (c *Client) ListBlockedModels(ctx context.Context) ([]params.ModelBlockInfo, error) {
 	result := params.ModelBlockInfoList{}
-	err := c.facade.FacadeCall(context.TODO(), "ListBlockedModels", nil, &result)
+	err := c.facade.FacadeCall(ctx, "ListBlockedModels", nil, &result)
 	return result.Models, err
 }
 

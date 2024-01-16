@@ -5,6 +5,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	stdcontext "context"
 	"fmt"
 	"text/template"
@@ -147,7 +148,7 @@ type destroyControllerAPI interface {
 	HostedModelConfigs() ([]controllerapi.HostedConfig, error)
 	CloudSpec(names.ModelTag) (environscloudspec.CloudSpec, error)
 	DestroyController(controllerapi.DestroyControllerParams) error
-	ListBlockedModels() ([]params.ModelBlockInfo, error)
+	ListBlockedModels(context.Context) ([]params.ModelBlockInfo, error)
 	ModelStatus(models ...names.ModelTag) ([]base.ModelStatus, error)
 	AllModels() ([]base.UserModel, error)
 	ControllerConfig() (controller.Config, error)
@@ -472,7 +473,7 @@ func (c *destroyCommand) ensureUserFriendlyErrorLog(destroyErr error, ctx *cmd.C
 	if params.IsCodeOperationBlocked(destroyErr) {
 		logger.Errorf(destroyControllerBlockedMsg)
 		if api != nil {
-			models, err := api.ListBlockedModels()
+			models, err := api.ListBlockedModels(ctx)
 			out := &bytes.Buffer{}
 			if err == nil {
 				var info interface{}

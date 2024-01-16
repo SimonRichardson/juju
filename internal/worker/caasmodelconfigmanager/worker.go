@@ -41,8 +41,8 @@ type Logger interface {
 
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/facade_mock.go github.com/juju/juju/internal/worker/caasmodelconfigmanager Facade
 type Facade interface {
-	ControllerConfig() (controller.Config, error)
-	WatchControllerConfig() (watcher.StringsWatcher, error)
+	ControllerConfig(context.Context) (controller.Config, error)
+	WatchControllerConfig(context.Context) (watcher.StringsWatcher, error)
 }
 
 //go:generate go run go.uber.org/mock/mockgen -package mocks -destination mocks/broker_mock.go github.com/juju/juju/internal/worker/caasmodelconfigmanager CAASBroker
@@ -134,7 +134,10 @@ func (w *manager) Wait() error {
 }
 
 func (w *manager) loop() (err error) {
-	watcher, err := w.config.Facade.WatchControllerConfig()
+	ctx, cancel := w.scopedContext()
+	defer cancel()
+
+	watcher, err := w.config.Facade.WatchControllerConfig(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -164,7 +167,7 @@ func (w *manager) loop() (err error) {
 		case <-w.catacomb.Dying():
 			return w.catacomb.ErrDying()
 		case _ = <-watcher.Changes():
-			controllerConfig, err := w.config.Facade.ControllerConfig()
+			controllerConfig, err := w.config.Facade.ControllerConfig(ctx)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -235,4 +238,8 @@ func (w *manager) ensureImageRepoSecret(ctx context.Context, reg registry.Regist
 		return time.Duration(0), errors.Annotatef(err, "ensuring image repository secret for %q", w.name)
 	}
 	return nextRefresh, nil
+}
+
+func (w *manager) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(w.catacomb.Context(context.Background()))
 }

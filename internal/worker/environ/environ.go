@@ -25,8 +25,8 @@ var _ logger = struct{}{}
 // that allows clients to be informed of changes to the configuration.
 type ConfigObserver interface {
 	environs.EnvironConfigGetter
-	WatchForModelConfigChanges() (watcher.NotifyWatcher, error)
-	WatchCloudSpecChanges() (watcher.NotifyWatcher, error)
+	WatchForModelConfigChanges(context.Context) (watcher.NotifyWatcher, error)
+	WatchCloudSpecChanges(context.Context) (watcher.NotifyWatcher, error)
 }
 
 // Config describes the dependencies of a Tracker.
@@ -100,11 +100,14 @@ func (t *Tracker) Environ() environs.Environ {
 }
 
 func (t *Tracker) loop() (err error) {
+	ctx, cancel := t.scopedContext()
+	defer cancel()
+
 	cfg := t.environ.Config()
 	defer errors.DeferredAnnotatef(&err, "model %q (%s)", cfg.Name(), cfg.UUID())
 
 	logger := t.config.Logger
-	environWatcher, err := t.config.Observer.WatchForModelConfigChanges()
+	environWatcher, err := t.config.Observer.WatchForModelConfigChanges(ctx)
 	if err != nil {
 		return errors.Annotate(err, "watching environ config")
 	}
@@ -122,7 +125,7 @@ func (t *Tracker) loop() (err error) {
 	if cloudSpecSetter, ok = t.environ.(environs.CloudSpecSetter); !ok {
 		logger.Warningf("cloud type %v doesn't support dynamic changing of cloud spec", t.environ.Config().Type())
 	} else {
-		cloudWatcher, err := t.config.Observer.WatchCloudSpecChanges()
+		cloudWatcher, err := t.config.Observer.WatchCloudSpecChanges(ctx)
 		if err != nil {
 			return errors.Annotate(err, "cannot watch environ cloud spec")
 		}
@@ -176,4 +179,8 @@ func (t *Tracker) Kill() {
 // Wait is part of the worker.Worker interface.
 func (t *Tracker) Wait() error {
 	return t.catacomb.Wait()
+}
+
+func (t *Tracker) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(t.catacomb.Context(context.Background()))
 }

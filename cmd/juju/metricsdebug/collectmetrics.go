@@ -4,6 +4,7 @@
 package metricsdebug
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -83,7 +84,7 @@ func (c *collectMetricsCommand) Init(args []string) error {
 
 type runClient interface {
 	action.APIClient
-	Run(run actionapi.RunParams) (actionapi.EnqueuedActions, error)
+	Run(ctx context.Context, run actionapi.RunParams) (actionapi.EnqueuedActions, error)
 }
 
 var newRunClient = func(conn api.Connection) runClient {
@@ -152,7 +153,7 @@ func (c *collectMetricsCommand) Run(ctx *cmd.Context) error {
 	}
 
 	// trigger metrics collection
-	runResults, err := runnerClient.Run(runParams)
+	runResults, err := runnerClient.Run(ctx, runParams)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -171,7 +172,7 @@ func (c *collectMetricsCommand) Run(ctx *cmd.Context) error {
 			wg.Done()
 			continue
 		}
-		actionResult, err := getActionResult(runnerClient, r.Action.ID, clk, wait)
+		actionResult, err := getActionResult(ctx, runnerClient, r.Action.ID, clk, wait)
 		if err != nil {
 			_, _ = fmt.Fprintf(ctx.Stderr, "failed to collect metrics: %v\n", err)
 			wg.Done()
@@ -190,7 +191,7 @@ func (c *collectMetricsCommand) Run(ctx *cmd.Context) error {
 				Units:    []string{unitId},
 				Commands: "nc -U ../" + sender.DefaultMetricsSendSocketName,
 			}
-			sendResults, err := runnerClient.Run(sendParams)
+			sendResults, err := runnerClient.Run(ctx, sendParams)
 			if err != nil {
 				_, _ = fmt.Fprintf(ctx.Stderr, "failed to send metrics for unit %v: %v\n", unitId, err)
 				return
@@ -203,7 +204,7 @@ func (c *collectMetricsCommand) Run(ctx *cmd.Context) error {
 				_, _ = fmt.Fprintf(ctx.Stderr, "failed to send metrics for unit %v: %v\n", unitId, sendResults.Actions[0].Error)
 				return
 			}
-			actionResult, err := getActionResult(runnerClient, sendResults.Actions[0].Action.ID, clk, wait)
+			actionResult, err := getActionResult(ctx, runnerClient, sendResults.Actions[0].Action.ID, clk, wait)
 			if err != nil {
 				_, _ = fmt.Fprintf(ctx.Stderr, "failed to send metrics for unit %v: %v\n", unitId, err)
 				return
@@ -224,7 +225,7 @@ func (c *collectMetricsCommand) Run(ctx *cmd.Context) error {
 }
 
 // getActionResult abstracts over the action CLI function that we use here to fetch results
-var getActionResult = func(c runClient, actionId string, clk clock.Clock, wait clock.Timer) (actionapi.ActionResult, error) {
+var getActionResult = func(ctx context.Context, c runClient, actionId string, clk clock.Clock, wait clock.Timer) (actionapi.ActionResult, error) {
 	tick := clk.NewTimer(2 * time.Second)
-	return action.GetActionResult(c, actionId, tick, wait)
+	return action.GetActionResult(ctx, c, actionId, tick, wait)
 }

@@ -83,7 +83,7 @@ type OpenLogForwarderArgs struct {
 }
 
 // processNewConfig acts on a new syslog forward config change.
-func (lf *LogForwarder) processNewConfig(currentSender SendCloser) (SendCloser, error) {
+func (lf *LogForwarder) processNewConfig(ctx context.Context, currentSender SendCloser) (SendCloser, error) {
 	lf.mu.Lock()
 	defer lf.mu.Unlock()
 
@@ -97,7 +97,7 @@ func (lf *LogForwarder) processNewConfig(currentSender SendCloser) (SendCloser, 
 	}
 
 	// Get the new config and set up log forwarding if enabled.
-	cfg, ok, err := lf.args.LogForwardConfig.LogForwardConfig()
+	cfg, ok, err := lf.args.LogForwardConfig.LogForwardConfig(ctx)
 	if err != nil {
 		_ = closeExisting()
 		return nil, errors.Trace(err)
@@ -177,7 +177,10 @@ func NewLogForwarder(args OpenLogForwarderArgs) (*LogForwarder, error) {
 }
 
 func (lf *LogForwarder) loop() error {
-	configWatcher, err := lf.args.LogForwardConfig.WatchForLogForwardConfigChanges()
+	ctx, cancel := lf.scopedContext()
+	defer cancel()
+
+	configWatcher, err := lf.args.LogForwardConfig.WatchForLogForwardConfigChanges(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -203,7 +206,7 @@ func (lf *LogForwarder) loop() error {
 					// TODO(wallyworld) - this should be configurable via lf.args.LogForwardConfig
 					MaxLookbackRecords: 100,
 				}
-				stream, err = lf.args.OpenLogStream(context.TODO(), lf.args.Caller, streamCfg, lf.args.ControllerUUID)
+				stream, err = lf.args.OpenLogStream(ctx, lf.args.Caller, streamCfg, lf.args.ControllerUUID)
 				if err != nil {
 					lf.catacomb.Kill(errors.Annotate(err, "creating log stream"))
 					break
@@ -238,7 +241,7 @@ func (lf *LogForwarder) loop() error {
 			if !ok {
 				return errors.New("syslog configuration watcher closed")
 			}
-			if sender, err = lf.processNewConfig(sender); err != nil {
+			if sender, err = lf.processNewConfig(ctx, sender); err != nil {
 				return errors.Trace(err)
 			}
 		case rec := <-records:
@@ -260,4 +263,8 @@ func (lf *LogForwarder) Kill() {
 // Wait implements Worker.Wait()
 func (lf *LogForwarder) Wait() error {
 	return lf.catacomb.Wait()
+}
+
+func (lf *LogForwarder) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(lf.catacomb.Context(context.Background()))
 }

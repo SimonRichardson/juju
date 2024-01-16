@@ -90,7 +90,7 @@ func (context *runContext) ModelConfig(_ context.Context) (*config.Config, error
 	return config.New(config.UseDefaults, context.config)
 }
 
-func (context *runContext) ControllerConfig() (controller.Config, error) {
+func (context *runContext) ControllerConfig(context.Context) (controller.Config, error) {
 	context.mu.Lock()
 	defer context.mu.Unlock()
 	context.stub.AddCall("ControllerConfig")
@@ -135,7 +135,7 @@ func (context *runContext) CloseCloudSpecNotify() {
 }
 
 // WatchForModelConfigChanges is part of the environ.ConfigObserver interface.
-func (context *runContext) WatchForModelConfigChanges() (watcher.NotifyWatcher, error) {
+func (context *runContext) WatchForModelConfigChanges(context.Context) (watcher.NotifyWatcher, error) {
 	context.mu.Lock()
 	defer context.mu.Unlock()
 	context.stub.AddCall("WatchForModelConfigChanges")
@@ -145,7 +145,7 @@ func (context *runContext) WatchForModelConfigChanges() (watcher.NotifyWatcher, 
 	return context.watcher, nil
 }
 
-func (context *runContext) WatchCloudSpecChanges() (watcher.NotifyWatcher, error) {
+func (context *runContext) WatchCloudSpecChanges(context.Context) (watcher.NotifyWatcher, error) {
 	context.mu.Lock()
 	defer context.mu.Unlock()
 	context.stub.AddCall("WatchCloudSpecChanges")

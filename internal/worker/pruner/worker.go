@@ -25,8 +25,8 @@ var (
 
 // Facade represents an API that implements status history pruning.
 type Facade interface {
-	Prune(time.Duration, int) error
-	WatchForModelConfigChanges() (watcher.NotifyWatcher, error)
+	Prune(context.Context, time.Duration, int) error
+	WatchForModelConfigChanges(context.Context) (watcher.NotifyWatcher, error)
 	ModelConfig(context.Context) (*config.Config, error)
 }
 
@@ -58,7 +58,10 @@ func (w *PrunerWorker) Config() *Config {
 
 // Work is the main body of generic pruner loop.
 func (w *PrunerWorker) Work(getPrunerConfig func(*config.Config) (time.Duration, uint)) error {
-	modelConfigWatcher, err := w.config.Facade.WatchForModelConfigChanges()
+	ctx, cancel := w.scopedContext()
+	defer cancel()
+
+	modelConfigWatcher, err := w.config.Facade.WatchForModelConfigChanges(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -105,11 +108,15 @@ func (w *PrunerWorker) Work(getPrunerConfig func(*config.Config) (time.Duration,
 			}
 
 		case <-timerCh:
-			err := w.config.Facade.Prune(maxAge, int(maxCollectionMB))
+			err := w.config.Facade.Prune(ctx, maxAge, int(maxCollectionMB))
 			if err != nil {
 				return errors.Trace(err)
 			}
 			timer.Reset(w.config.PruneInterval)
 		}
 	}
+}
+
+func (w *PrunerWorker) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(w.catacomb.Context(context.Background()))
 }

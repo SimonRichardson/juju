@@ -3,7 +3,11 @@
 
 package api
 
-import "github.com/juju/juju/rpc/params"
+import (
+	"context"
+
+	"github.com/juju/juju/rpc/params"
+)
 
 // AllWatcher represents methods used on the AllWatcher
 // Primarily to facilitate mock tests.
@@ -23,5 +27,5 @@ type AllWatcher interface {
 type WatchAllAPI interface {
 	// WatchAll returns an AllWatcher, from which you can request the Next
 	// collection of Deltas.
-	WatchAll() (AllWatcher, error)
+	WatchAll(context.Context) (AllWatcher, error)
 }

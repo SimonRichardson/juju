@@ -178,7 +178,7 @@ func (c *listOperationsCommand) Run(ctx *cmd.Context) error {
 		limit := int(c.limit)
 		args.Limit = &limit
 	}
-	results, err := api.ListOperations(args)
+	results, err := api.ListOperations(ctx, args)
 	if err != nil {
 		return errors.Trace(err)
 	}

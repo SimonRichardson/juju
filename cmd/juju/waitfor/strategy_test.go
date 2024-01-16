@@ -39,7 +39,7 @@ func (s *strategySuite) TestRun(c *gc.C) {
 	allWatcher.EXPECT().Stop()
 
 	client := mocks.NewMockWatchAllAPI(ctrl)
-	client.EXPECT().WatchAll().Return(allWatcher, nil)
+	client.EXPECT().WatchAll(gomock.Any()).Return(allWatcher, nil)
 
 	var executed bool
 	var deltas []params.Delta
@@ -75,7 +75,7 @@ func (s *strategySuite) TestRunWithCallback(c *gc.C) {
 	allWatcher.EXPECT().Stop()
 
 	client := mocks.NewMockWatchAllAPI(ctrl)
-	client.EXPECT().WatchAll().Return(allWatcher, nil)
+	client.EXPECT().WatchAll(gomock.Any()).Return(allWatcher, nil)
 
 	var eventType EventType
 

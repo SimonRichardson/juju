@@ -712,7 +712,7 @@ func (s *startUniter) expectRemoteStateWatchers(c *gc.C, ctx *testContext) {
 		return w, nil
 	}).AnyTimes()
 
-	ctx.api.EXPECT().WatchUpdateStatusHookInterval().DoAndReturn(func() (watcher.NotifyWatcher, error) {
+	ctx.api.EXPECT().WatchUpdateStatusHookInterval(gomock.Any()).DoAndReturn(func() (watcher.NotifyWatcher, error) {
 		ch := make(chan struct{}, 1)
 		ch <- struct{}{}
 		w := watchertest.NewMockNotifyWatcher(ch)
@@ -841,7 +841,7 @@ func (s startUniter) setupUniter(c *gc.C, ctx *testContext) {
 	// Consumed secrets initial event.
 	ctx.secretsClient.EXPECT().GetConsumerSecretsRevisionInfo(ctx.unit.Name(), []string(nil)).Return(nil, nil).AnyTimes()
 
-	ctx.api.EXPECT().UpdateStatusHookInterval().Return(time.Minute, nil).AnyTimes()
+	ctx.api.EXPECT().UpdateStatusHookInterval(gomock.Any()).Return(time.Minute, nil).AnyTimes()
 	ctx.api.EXPECT().LeadershipSettings().Return(&stubLeadershipSettingsAccessor{}).AnyTimes()
 
 	// Storage attachments init.

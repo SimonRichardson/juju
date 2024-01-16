@@ -45,7 +45,7 @@ var (
 	nextVersion    = version.Number{Major: 1, Minor: 2, Patch: 4}
 )
 
-func runStatus(c *gc.C, testCtx *context, args ...string) (code int, stdout, stderr string) {
+func runStatus(c *gc.C, testCtx *statusContext, args ...string) (code int, stdout, stderr string) {
 	ctx := cmdtesting.Context(c)
 	code = cmd.Main(NewStatusCommandForTest(testCtx.store, testCtx.api, clock.WallClock), ctx, args)
 	stdout = ctx.Stdout.(*bytes.Buffer).String()
@@ -94,7 +94,7 @@ func test(summary string, steps ...stepper) testCase {
 }
 
 type stepper interface {
-	step(c *gc.C, ctx *context)
+	step(c *gc.C, ctx *statusContext)
 }
 
 //
@@ -106,7 +106,7 @@ type charmInfo struct {
 	url   string
 }
 
-type context struct {
+type statusContext struct {
 	expectIsoTime    bool
 	spaceName        string
 	charms           map[string]charmInfo
@@ -119,7 +119,7 @@ type context struct {
 	api   *fakeStatusAPI
 }
 
-func (ctx *context) run(c *gc.C, steps []stepper) {
+func (ctx *statusContext) run(c *gc.C, steps []stepper) {
 	for i, s := range steps {
 		c.Logf("step %d", i)
 		c.Logf("%#v", s)
@@ -127,9 +127,9 @@ func (ctx *context) run(c *gc.C, steps []stepper) {
 	}
 }
 
-func (s *StatusSuite) newContext() *context {
+func (s *StatusSuite) newContext() *statusContext {
 	now := time.Now()
-	return &context{
+	return &statusContext{
 		charms:           make(map[string]charmInfo),
 		subordinateApps:  make(map[string]*params.ApplicationStatus),
 		subordinateUnits: make(map[string]int),
@@ -3278,7 +3278,7 @@ type setSLA struct {
 	level string
 }
 
-func (s setSLA) step(c *gc.C, ctx *context) {
+func (s setSLA) step(c *gc.C, ctx *statusContext) {
 	ctx.api.result.Model.SLA = s.level
 }
 
@@ -3287,7 +3287,7 @@ type setModelSuspended struct {
 	reason  string
 }
 
-func (s setModelSuspended) step(c *gc.C, ctx *context) {
+func (s setModelSuspended) step(c *gc.C, ctx *statusContext) {
 	ctx.api.result.Model.ModelStatus.Status = status.Suspended.String()
 	ctx.api.result.Model.ModelStatus.Info = s.message
 	ctx.api.result.Model.ModelStatus.Data = map[string]interface{}{"reason": s.reason}
@@ -3299,7 +3299,7 @@ type addMachine struct {
 	job       coremodel.MachineJob
 }
 
-func (am addMachine) step(c *gc.C, ctx *context) {
+func (am addMachine) step(c *gc.C, ctx *statusContext) {
 	now := time.Now()
 	ctx.api.result.Machines[am.machineId] = params.MachineStatus{
 		Base:              params.Base{Name: "ubuntu", Channel: "12.10"},
@@ -3331,7 +3331,7 @@ type recordAgentStartInformation struct {
 	hostname  string
 }
 
-func (ri recordAgentStartInformation) step(c *gc.C, ctx *context) {
+func (ri recordAgentStartInformation) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[ri.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3351,7 +3351,7 @@ type addContainer struct {
 	job       coremodel.MachineJob
 }
 
-func (ac addContainer) step(c *gc.C, ctx *context) {
+func (ac addContainer) step(c *gc.C, ctx *statusContext) {
 	m, ok := getMachine(ctx, ac.parentId)
 	c.Assert(ok, jc.IsTrue)
 
@@ -3383,7 +3383,7 @@ type startMachine struct {
 	machineId string
 }
 
-func (sm startMachine) step(c *gc.C, ctx *context) {
+func (sm startMachine) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[sm.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3401,7 +3401,7 @@ type startMissingMachine struct {
 	machineId string
 }
 
-func (sm startMissingMachine) step(c *gc.C, ctx *context) {
+func (sm startMissingMachine) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[sm.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3421,7 +3421,7 @@ type startAliveMachine struct {
 	displayName string
 }
 
-func (sam startAliveMachine) step(c *gc.C, ctx *context) {
+func (sam startAliveMachine) step(c *gc.C, ctx *statusContext) {
 	m, ok := getMachine(ctx, sam.machineId)
 	c.Assert(ok, jc.IsTrue)
 
@@ -3452,7 +3452,7 @@ type startMachineWithHardware struct {
 	hc        instance.HardwareCharacteristics
 }
 
-func (sm startMachineWithHardware) step(c *gc.C, ctx *context) {
+func (sm startMachineWithHardware) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[sm.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3467,7 +3467,7 @@ type setMachineInstanceStatus struct {
 	Message   string
 }
 
-func (sm setMachineInstanceStatus) step(c *gc.C, ctx *context) {
+func (sm setMachineInstanceStatus) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[sm.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3486,7 +3486,7 @@ type setMachineModificationStatus struct {
 	Message   string
 }
 
-func (sm setMachineModificationStatus) step(c *gc.C, ctx *context) {
+func (sm setMachineModificationStatus) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[sm.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3503,11 +3503,11 @@ type addSpace struct {
 	spaceName string
 }
 
-func (sp addSpace) step(c *gc.C, ctx *context) {
+func (sp addSpace) step(c *gc.C, ctx *statusContext) {
 	ctx.spaceName = sp.spaceName
 }
 
-func getMachine(ctx *context, machineId string) (params.MachineStatus, bool) {
+func getMachine(ctx *statusContext, machineId string) (params.MachineStatus, bool) {
 	parentId := strings.Split(machineId, "/")[0]
 	m, ok := ctx.api.result.Machines[parentId]
 	if ok && parentId == machineId {
@@ -3538,7 +3538,7 @@ again:
 	}
 }
 
-func saveMachine(ctx *context, machineId string, update params.MachineStatus) {
+func saveMachine(ctx *statusContext, machineId string, update params.MachineStatus) {
 	machines := ctx.api.result.Machines
 	parts := strings.Split(machineId, "/")
 	parentId := parts[0]
@@ -3576,7 +3576,7 @@ type setAddresses struct {
 	addresses []network.SpaceAddress
 }
 
-func (sa setAddresses) step(c *gc.C, ctx *context) {
+func (sa setAddresses) step(c *gc.C, ctx *statusContext) {
 	m, ok := getMachine(ctx, sa.machineId)
 	c.Assert(ok, jc.IsTrue)
 
@@ -3610,7 +3610,7 @@ type setTools struct {
 	version   version.Binary
 }
 
-func (st setTools) step(c *gc.C, ctx *context) {
+func (st setTools) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[st.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3623,7 +3623,7 @@ type setUnitTools struct {
 	version  version.Binary
 }
 
-func (st setUnitTools) step(c *gc.C, ctx *context) {
+func (st setUnitTools) step(c *gc.C, ctx *statusContext) {
 	u, ok := unitByName(ctx, st.unitName)
 	c.Assert(ok, jc.IsTrue)
 
@@ -3635,7 +3635,7 @@ type addCharmHubCharm struct {
 	name string
 }
 
-func (ac addCharmHubCharm) addCharmStep(c *gc.C, ctx *context, scheme string, rev int) {
+func (ac addCharmHubCharm) addCharmStep(c *gc.C, ctx *statusContext, scheme string, rev int) {
 	ch := testcharms.Hub.CharmDir(ac.name)
 	name := ch.Meta().Name
 	curl := fmt.Sprintf("%s:%s-%d", scheme, name, rev)
@@ -3645,7 +3645,7 @@ func (ac addCharmHubCharm) addCharmStep(c *gc.C, ctx *context, scheme string, re
 	}
 }
 
-func (ac addCharmHubCharm) step(c *gc.C, ctx *context) {
+func (ac addCharmHubCharm) step(c *gc.C, ctx *statusContext) {
 	ch := testcharms.Repo.CharmDir(ac.name)
 	ac.addCharmStep(c, ctx, "ch", ch.Revision())
 }
@@ -3656,7 +3656,7 @@ type addCharmHubCharmWithRevision struct {
 	rev    int
 }
 
-func (ac addCharmHubCharmWithRevision) step(c *gc.C, ctx *context) {
+func (ac addCharmHubCharmWithRevision) step(c *gc.C, ctx *statusContext) {
 	ac.addCharmStep(c, ctx, ac.scheme, ac.rev)
 }
 
@@ -3664,7 +3664,7 @@ type addLocalCharm struct {
 	name string
 }
 
-func (ac addLocalCharm) addCharmStep(c *gc.C, ctx *context, scheme string, rev int) {
+func (ac addLocalCharm) addCharmStep(c *gc.C, ctx *statusContext, scheme string, rev int) {
 	ch := testcharms.Repo.CharmDir(ac.name)
 	name := ch.Meta().Name
 	curl := fmt.Sprintf("%s:quantal/%s-%d", scheme, name, rev)
@@ -3674,7 +3674,7 @@ func (ac addLocalCharm) addCharmStep(c *gc.C, ctx *context, scheme string, rev i
 	}
 }
 
-func (ac addLocalCharm) step(c *gc.C, ctx *context) {
+func (ac addLocalCharm) step(c *gc.C, ctx *statusContext) {
 	ch := testcharms.Repo.CharmDir(ac.name)
 	ac.addCharmStep(c, ctx, "local", ch.Revision())
 }
@@ -3685,7 +3685,7 @@ type addLocalCharmWithRevision struct {
 	rev    int
 }
 
-func (ac addLocalCharmWithRevision) step(c *gc.C, ctx *context) {
+func (ac addLocalCharmWithRevision) step(c *gc.C, ctx *statusContext) {
 	ac.addCharmStep(c, ctx, ac.scheme, ac.rev)
 }
 
@@ -3695,7 +3695,7 @@ type addApplication struct {
 	binding map[string]string
 }
 
-func (as addApplication) step(c *gc.C, ctx *context) {
+func (as addApplication) step(c *gc.C, ctx *statusContext) {
 	info, ok := ctx.charms[as.charm]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3774,7 +3774,7 @@ type addRemoteApplication struct {
 	isConsumerProxy bool
 }
 
-func (as addRemoteApplication) step(c *gc.C, ctx *context) {
+func (as addRemoteApplication) step(c *gc.C, ctx *statusContext) {
 	info, ok := ctx.charms[as.charm]
 	c.Assert(ok, jc.IsTrue)
 	var endpoints []params.RemoteEndpoint
@@ -3821,7 +3821,7 @@ type addApplicationOffer struct {
 	endpoints       []string
 }
 
-func (ao addApplicationOffer) step(c *gc.C, ctx *context) {
+func (ao addApplicationOffer) step(c *gc.C, ctx *statusContext) {
 	app, ok := ctx.api.result.Applications[ao.applicationName]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3860,7 +3860,7 @@ type addOfferConnection struct {
 	relationKey     string
 }
 
-func (oc addOfferConnection) step(c *gc.C, ctx *context) {
+func (oc addOfferConnection) step(c *gc.C, ctx *statusContext) {
 	offer, ok := ctx.api.result.Offers[oc.name]
 	c.Assert(ok, jc.IsTrue)
 	offer.TotalConnectedCount++
@@ -3875,7 +3875,7 @@ type setApplicationExposed struct {
 	exposed bool
 }
 
-func (sse setApplicationExposed) step(c *gc.C, ctx *context) {
+func (sse setApplicationExposed) step(c *gc.C, ctx *statusContext) {
 	app, ok := ctx.api.result.Applications[sse.name]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3888,7 +3888,7 @@ type setApplicationCharm struct {
 	charm string
 }
 
-func (ssc setApplicationCharm) step(c *gc.C, ctx *context) {
+func (ssc setApplicationCharm) step(c *gc.C, ctx *statusContext) {
 	app, ok := ctx.api.result.Applications[ssc.name]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3908,7 +3908,7 @@ type addCharmPlaceholder struct {
 	rev  int
 }
 
-func (ac addCharmPlaceholder) step(c *gc.C, ctx *context) {
+func (ac addCharmPlaceholder) step(c *gc.C, ctx *statusContext) {
 	ch := testcharms.Repo.CharmDir(ac.name)
 	name := ch.Meta().Name
 	curl := fmt.Sprintf("ch:quantal/%s-%d", name, ac.rev)
@@ -3931,7 +3931,7 @@ type addUnit struct {
 	machineId       string
 }
 
-func (au addUnit) step(c *gc.C, ctx *context) {
+func (au addUnit) step(c *gc.C, ctx *statusContext) {
 	app, ok := ctx.api.result.Applications[au.applicationName]
 	c.Assert(ok, jc.IsTrue)
 
@@ -3973,7 +3973,7 @@ type addAliveUnit struct {
 	machineId       string
 }
 
-func (aau addAliveUnit) step(c *gc.C, ctx *context) {
+func (aau addAliveUnit) step(c *gc.C, ctx *statusContext) {
 	app, ok := ctx.api.result.Applications[aau.applicationName]
 	c.Assert(ok, jc.IsTrue)
 
@@ -4017,7 +4017,7 @@ type setUnitMeterStatus struct {
 	message  string
 }
 
-func (s setUnitMeterStatus) step(c *gc.C, ctx *context) {
+func (s setUnitMeterStatus) step(c *gc.C, ctx *statusContext) {
 	appName, _ := names.UnitApplication(s.unitName)
 	app, ok := ctx.api.result.Applications[appName]
 	c.Assert(ok, jc.IsTrue)
@@ -4034,7 +4034,7 @@ type setModelMeterStatus struct {
 	message string
 }
 
-func (s setModelMeterStatus) step(c *gc.C, ctx *context) {
+func (s setModelMeterStatus) step(c *gc.C, ctx *statusContext) {
 	ctx.api.result.Model.MeterStatus = params.MeterStatus{
 		Color:   strings.ToLower(s.color),
 		Message: s.message,
@@ -4045,7 +4045,7 @@ type setUnitAsLeader struct {
 	unitName string
 }
 
-func (s setUnitAsLeader) step(c *gc.C, ctx *context) {
+func (s setUnitAsLeader) step(c *gc.C, ctx *statusContext) {
 	u, ok := unitByName(ctx, s.unitName)
 	c.Assert(ok, jc.IsTrue)
 
@@ -4053,7 +4053,7 @@ func (s setUnitAsLeader) step(c *gc.C, ctx *context) {
 	updateUnit(ctx, s.unitName, &u)
 }
 
-func unitByName(ctx *context, unitName string) (params.UnitStatus, bool) {
+func unitByName(ctx *statusContext, unitName string) (params.UnitStatus, bool) {
 	appName, _ := names.UnitApplication(unitName)
 	u, ok := ctx.api.result.Applications[appName].Units[unitName]
 	if !ok {
@@ -4070,7 +4070,7 @@ func unitByName(ctx *context, unitName string) (params.UnitStatus, bool) {
 	return u, ok
 }
 
-func updateUnit(ctx *context, unitName string, u *params.UnitStatus) {
+func updateUnit(ctx *statusContext, unitName string, u *params.UnitStatus) {
 	appName, _ := names.UnitApplication(unitName)
 	if _, ok := ctx.api.result.Applications[appName].Units[unitName]; ok {
 		ctx.api.result.Applications[appName].Units[unitName] = *u
@@ -4095,7 +4095,7 @@ type setUnitStatus struct {
 	statusData map[string]interface{}
 }
 
-func (sus setUnitStatus) step(c *gc.C, ctx *context) {
+func (sus setUnitStatus) step(c *gc.C, ctx *statusContext) {
 	u, ok := unitByName(ctx, sus.unitName)
 	c.Assert(ok, jc.IsTrue)
 
@@ -4134,7 +4134,7 @@ type setAgentStatus struct {
 	statusData map[string]interface{}
 }
 
-func (sus setAgentStatus) step(c *gc.C, ctx *context) {
+func (sus setAgentStatus) step(c *gc.C, ctx *statusContext) {
 	u, ok := unitByName(ctx, sus.unitName)
 	c.Assert(ok, jc.IsTrue)
 
@@ -4181,7 +4181,7 @@ type setUnitCharmURL struct {
 	charm    string
 }
 
-func (uc setUnitCharmURL) step(c *gc.C, ctx *context) {
+func (uc setUnitCharmURL) step(c *gc.C, ctx *statusContext) {
 	appName, _ := names.UnitApplication(uc.unitName)
 	u, ok := ctx.api.result.Applications[appName].Units[uc.unitName]
 	c.Assert(ok, jc.IsTrue)
@@ -4205,7 +4205,7 @@ type setUnitWorkloadVersion struct {
 	version  string
 }
 
-func (wv setUnitWorkloadVersion) step(c *gc.C, ctx *context) {
+func (wv setUnitWorkloadVersion) step(c *gc.C, ctx *statusContext) {
 	appName, _ := names.UnitApplication(wv.unitName)
 	app, ok := ctx.api.result.Applications[appName]
 	c.Assert(ok, jc.IsTrue)
@@ -4220,7 +4220,7 @@ type openUnitPort struct {
 	number   int
 }
 
-func (oup openUnitPort) step(c *gc.C, ctx *context) {
+func (oup openUnitPort) step(c *gc.C, ctx *statusContext) {
 	appName, _ := names.UnitApplication(oup.unitName)
 	u, ok := ctx.api.result.Applications[appName].Units[oup.unitName]
 	c.Assert(ok, jc.IsTrue)
@@ -4245,7 +4245,7 @@ type ensureDyingApplication struct {
 	applicationName string
 }
 
-func (e ensureDyingApplication) step(c *gc.C, ctx *context) {
+func (e ensureDyingApplication) step(c *gc.C, ctx *statusContext) {
 	app, ok := ctx.api.result.Applications[e.applicationName]
 	c.Assert(ok, jc.IsTrue)
 
@@ -4257,7 +4257,7 @@ type ensureDeadMachine struct {
 	machineId string
 }
 
-func (e ensureDeadMachine) step(c *gc.C, ctx *context) {
+func (e ensureDeadMachine) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[e.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -4271,7 +4271,7 @@ type setMachineStatus struct {
 	statusInfo string
 }
 
-func (sms setMachineStatus) step(c *gc.C, ctx *context) {
+func (sms setMachineStatus) step(c *gc.C, ctx *statusContext) {
 	m, ok := getMachine(ctx, sms.machineId)
 	c.Assert(ok, jc.IsTrue)
 
@@ -4305,7 +4305,7 @@ func canRelateTo(ep1, ep2 charm.Relation) bool {
 		counterpartRole(ep1.Role) == ep2.Role
 }
 
-func appEndpoints(c *gc.C, ctx *context, appName string) ([]charm.Relation, bool) {
+func appEndpoints(c *gc.C, ctx *statusContext, appName string) ([]charm.Relation, bool) {
 	remoteApp, ok := ctx.api.result.RemoteApplications[appName]
 	if !ok {
 		remoteApp, ok = ctx.remoteProxies[appName]
@@ -4357,7 +4357,7 @@ func appEndpoints(c *gc.C, ctx *context, appName string) ([]charm.Relation, bool
 	return result, ch.charm.Meta().Subordinate
 }
 
-func inferEndpoints(c *gc.C, ctx *context, app1Name, app2Name string) ([]params.EndpointStatus, string) {
+func inferEndpoints(c *gc.C, ctx *statusContext, app1Name, app2Name string) ([]params.EndpointStatus, string) {
 	ch1ep, ch1Subordinate := appEndpoints(c, ctx, app1Name)
 	ch2ep, ch2Subordinate := appEndpoints(c, ctx, app2Name)
 	var (
@@ -4393,7 +4393,7 @@ type relateApplications struct {
 	status     string
 }
 
-func (rs relateApplications) step(c *gc.C, ctx *context) {
+func (rs relateApplications) step(c *gc.C, ctx *statusContext) {
 	endpoints, interfaceName := inferEndpoints(c, ctx, rs.app1, rs.app2)
 	id := len(ctx.api.result.Relations) + 1
 	scope := "global"
@@ -4485,7 +4485,7 @@ type addSubordinate struct {
 	subApplication string
 }
 
-func (as addSubordinate) step(c *gc.C, ctx *context) {
+func (as addSubordinate) step(c *gc.C, ctx *statusContext) {
 	prinAappName, _ := names.UnitApplication(as.prinUnit)
 
 	endpoints, _ := inferEndpoints(c, ctx, prinAappName, as.subApplication)
@@ -4518,7 +4518,7 @@ type setCharmProfiles struct {
 	profiles  []string
 }
 
-func (s setCharmProfiles) step(c *gc.C, ctx *context) {
+func (s setCharmProfiles) step(c *gc.C, ctx *statusContext) {
 	m, ok := ctx.api.result.Machines[s.machineId]
 	c.Assert(ok, jc.IsTrue)
 
@@ -4538,7 +4538,7 @@ type addBranch struct {
 	name string
 }
 
-func (s addBranch) step(c *gc.C, ctx *context) {
+func (s addBranch) step(c *gc.C, ctx *statusContext) {
 	ctx.api.result.Branches[s.name] = params.BranchStatus{
 		CreatedBy:     "testuser",
 		AssignedUnits: make(map[string][]string),
@@ -4550,7 +4550,7 @@ type trackBranch struct {
 	unitName string
 }
 
-func (s trackBranch) step(c *gc.C, ctx *context) {
+func (s trackBranch) step(c *gc.C, ctx *statusContext) {
 	b, ok := ctx.api.result.Branches[s.branch]
 	c.Assert(ok, jc.IsTrue)
 
@@ -4565,7 +4565,7 @@ type expect struct {
 	stderr string
 }
 
-func (e expect) step(c *gc.C, ctx *context) {
+func (e expect) step(c *gc.C, ctx *statusContext) {
 	c.Logf("\nexpect: %s\n", e.what)
 
 	// Now execute the command for each format.
@@ -4677,7 +4677,7 @@ func substituteSpacingBetweenTimestampAndNotes(c *gc.C, in string) string {
 
 type setToolsUpgradeAvailable struct{}
 
-func (ua setToolsUpgradeAvailable) step(c *gc.C, ctx *context) {
+func (ua setToolsUpgradeAvailable) step(c *gc.C, ctx *statusContext) {
 	ctx.api.result.Model.AvailableVersion = nextVersion.String()
 }
 
@@ -4817,7 +4817,7 @@ func (s *StatusSuite) TestStatusWithFormatOneline(c *gc.C) {
 	assertOneLineStatus(c, ctx, expected)
 }
 
-func assertOneLineStatus(c *gc.C, ctx *context, expected string) {
+func assertOneLineStatus(c *gc.C, ctx *statusContext, expected string) {
 	ctx.api.expectIncludeStorage = true
 
 	code, stdout, stderr := runStatus(c, ctx, "--no-color", "--format", "oneline")
@@ -4838,7 +4838,7 @@ func assertOneLineStatus(c *gc.C, ctx *context, expected string) {
 	c.Assert(stdout, gc.Equals, expected)
 }
 
-func (s *StatusSuite) prepareTabularData(c *gc.C) *context {
+func (s *StatusSuite) prepareTabularData(c *gc.C) *statusContext {
 	ctx := s.newContext()
 	steps := []stepper{
 		setToolsUpgradeAvailable{},
@@ -5486,7 +5486,7 @@ foo/1   up            things are looking up
 // Filtering Feature
 //
 
-func (s *StatusSuite) setupModel(c *gc.C) *context {
+func (s *StatusSuite) setupModel(c *gc.C) *statusContext {
 	ctx := s.newContext()
 
 	steps := []stepper{
@@ -5911,7 +5911,7 @@ func (s *StatusSuite) TestNonTabularRelations(c *gc.C) {
 	c.Assert(strings.Contains(stdout, "storage:"), jc.IsTrue)
 }
 
-func (s *StatusSuite) prepareBranchesOutput(c *gc.C) *context {
+func (s *StatusSuite) prepareBranchesOutput(c *gc.C) *statusContext {
 	ctx := s.setupModel(c)
 	addBranch{"test"}.step(c, ctx)
 	addBranch{"bla"}.step(c, ctx)

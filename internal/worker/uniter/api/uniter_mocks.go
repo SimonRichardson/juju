@@ -433,18 +433,18 @@ func (mr *MockUniterClientMockRecorder) UnitWorkloadVersion(tag any) *gomock.Cal
 }
 
 // UpdateStatusHookInterval mocks base method.
-func (m *MockUniterClient) UpdateStatusHookInterval() (time.Duration, error) {
+func (m *MockUniterClient) UpdateStatusHookInterval(arg0 context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateStatusHookInterval")
+	ret := m.ctrl.Call(m, "UpdateStatusHookInterval", arg0)
 	ret0, _ := ret[0].(time.Duration)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateStatusHookInterval indicates an expected call of UpdateStatusHookInterval.
-func (mr *MockUniterClientMockRecorder) UpdateStatusHookInterval() *gomock.Call {
+func (mr *MockUniterClientMockRecorder) UpdateStatusHookInterval(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatusHookInterval", reflect.TypeOf((*MockUniterClient)(nil).UpdateStatusHookInterval))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatusHookInterval", reflect.TypeOf((*MockUniterClient)(nil).UpdateStatusHookInterval), arg0)
 }
 
 // WatchRelationUnits mocks base method.
@@ -478,16 +478,16 @@ func (mr *MockUniterClientMockRecorder) WatchStorageAttachment(arg0, arg1 any) *
 }
 
 // WatchUpdateStatusHookInterval mocks base method.
-func (m *MockUniterClient) WatchUpdateStatusHookInterval() (watcher.NotifyWatcher, error) {
+func (m *MockUniterClient) WatchUpdateStatusHookInterval(arg0 context.Context) (watcher.NotifyWatcher, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WatchUpdateStatusHookInterval")
+	ret := m.ctrl.Call(m, "WatchUpdateStatusHookInterval", arg0)
 	ret0, _ := ret[0].(watcher.NotifyWatcher)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WatchUpdateStatusHookInterval indicates an expected call of WatchUpdateStatusHookInterval.
-func (mr *MockUniterClientMockRecorder) WatchUpdateStatusHookInterval() *gomock.Call {
+func (mr *MockUniterClientMockRecorder) WatchUpdateStatusHookInterval(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchUpdateStatusHookInterval", reflect.TypeOf((*MockUniterClient)(nil).WatchUpdateStatusHookInterval))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchUpdateStatusHookInterval", reflect.TypeOf((*MockUniterClient)(nil).WatchUpdateStatusHookInterval), arg0)
 }

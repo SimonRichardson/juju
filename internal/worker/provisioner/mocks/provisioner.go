@@ -333,18 +333,18 @@ func (mr *MockControllerAPIMockRecorder) CACert() *gomock.Call {
 }
 
 // ControllerConfig mocks base method.
-func (m *MockControllerAPI) ControllerConfig() (controller.Config, error) {
+func (m *MockControllerAPI) ControllerConfig(arg0 context.Context) (controller.Config, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ControllerConfig")
+	ret := m.ctrl.Call(m, "ControllerConfig", arg0)
 	ret0, _ := ret[0].(controller.Config)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ControllerConfig indicates an expected call of ControllerConfig.
-func (mr *MockControllerAPIMockRecorder) ControllerConfig() *gomock.Call {
+func (mr *MockControllerAPIMockRecorder) ControllerConfig(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockControllerAPI)(nil).ControllerConfig))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockControllerAPI)(nil).ControllerConfig), arg0)
 }
 
 // ModelConfig mocks base method.
@@ -378,18 +378,18 @@ func (mr *MockControllerAPIMockRecorder) ModelUUID() *gomock.Call {
 }
 
 // WatchForModelConfigChanges mocks base method.
-func (m *MockControllerAPI) WatchForModelConfigChanges() (watcher.Watcher[struct{}], error) {
+func (m *MockControllerAPI) WatchForModelConfigChanges(arg0 context.Context) (watcher.Watcher[struct{}], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WatchForModelConfigChanges")
+	ret := m.ctrl.Call(m, "WatchForModelConfigChanges", arg0)
 	ret0, _ := ret[0].(watcher.Watcher[struct{}])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WatchForModelConfigChanges indicates an expected call of WatchForModelConfigChanges.
-func (mr *MockControllerAPIMockRecorder) WatchForModelConfigChanges() *gomock.Call {
+func (mr *MockControllerAPIMockRecorder) WatchForModelConfigChanges(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchForModelConfigChanges", reflect.TypeOf((*MockControllerAPI)(nil).WatchForModelConfigChanges))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchForModelConfigChanges", reflect.TypeOf((*MockControllerAPI)(nil).WatchForModelConfigChanges), arg0)
 }
 
 // MockMachinesAPI is a mock of MachinesAPI interface.

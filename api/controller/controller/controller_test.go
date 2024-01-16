@@ -4,6 +4,7 @@
 package controller_test
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -527,7 +528,7 @@ func (s *Suite) TestControllerConfig(c *gc.C) {
 	})
 
 	client := controller.NewClient(apiCaller)
-	m, err := client.ControllerConfig()
+	m, err := client.ControllerConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(m, jc.DeepEquals, corecontroller.Config{"api-port": 666})
 }
@@ -554,7 +555,7 @@ func (s *Suite) TestListBlockedModels(c *gc.C) {
 	})
 
 	client := controller.NewClient(apiCaller)
-	results, err := client.ListBlockedModels()
+	results, err := client.ListBlockedModels(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(results, jc.DeepEquals, []params.ModelBlockInfo{
 		{

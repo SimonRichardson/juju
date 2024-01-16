@@ -112,7 +112,7 @@ func (c *listCommand) Run(ctx *cmd.Context) error {
 	}
 	defer api.Close()
 
-	actions, err := api.ApplicationCharmActions(c.appName)
+	actions, err := api.ApplicationCharmActions(ctx, c.appName)
 	if err != nil {
 		return err
 	}

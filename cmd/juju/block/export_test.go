@@ -4,6 +4,8 @@
 package block
 
 import (
+	"context"
+
 	"github.com/juju/cmd/v3"
 
 	"github.com/juju/juju/cmd/modelcmd"
@@ -38,7 +40,7 @@ func NewEnableCommandForTest(store jujuclient.ClientStore, api unblockClientAPI,
 type listMockAPI interface {
 	blockListAPI
 	// Can't include two interfaces that specify the same method
-	ListBlockedModels() ([]params.ModelBlockInfo, error)
+	ListBlockedModels(ctx context.Context) ([]params.ModelBlockInfo, error)
 }
 
 // NewListCommandForTest returns a new list command with the

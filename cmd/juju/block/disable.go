@@ -4,6 +4,7 @@
 package block
 
 import (
+	"context"
 	"strings"
 
 	"github.com/juju/cmd/v3"
@@ -62,7 +63,7 @@ func (c *disableCommand) Info() *cmd.Info {
 
 type blockClientAPI interface {
 	Close() error
-	SwitchBlockOn(blockType, msg string) error
+	SwitchBlockOn(ctx context.Context, blockType, msg string) error
 }
 
 // Run implements Command.Run
@@ -73,7 +74,7 @@ func (c *disableCommand) Run(ctx *cmd.Context) error {
 	}
 	defer api.Close()
 
-	return api.SwitchBlockOn(c.target, c.message)
+	return api.SwitchBlockOn(ctx, c.target, c.message)
 }
 
 var disableCommandDoc = `

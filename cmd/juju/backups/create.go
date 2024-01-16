@@ -4,6 +4,7 @@
 package backups
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -119,7 +120,7 @@ func (c *createCommand) Run(ctx *cmd.Context) error {
 		ctx.Warningf(downloadWarning)
 	}
 
-	metadataResult, copyFrom, err := c.create(client)
+	metadataResult, copyFrom, err := c.create(ctx, client)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -169,8 +170,8 @@ func (c *createCommand) download(ctx *cmd.Context, client APIClient, copyFrom st
 	return nil
 }
 
-func (c *createCommand) create(client APIClient) (*params.BackupsMetadataResult, string, error) {
-	result, err := client.Create(c.Notes, c.NoDownload)
+func (c *createCommand) create(ctx context.Context, client APIClient) (*params.BackupsMetadataResult, string, error) {
+	result, err := client.Create(ctx, c.Notes, c.NoDownload)
 	if err != nil {
 		return nil, "", errors.Trace(err)
 	}

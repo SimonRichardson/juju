@@ -167,7 +167,7 @@ func (s *loginSuite) TestLoginAsDeactivatedUser(c *gc.C) {
 	password := "password"
 	u := f.MakeUser(c, &factory.UserParams{Password: password, Disabled: true})
 
-	_, err := apiclient.NewClient(st, coretesting.NoopLogger{}).Status(nil)
+	_, err := apiclient.NewClient(st, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	c.Assert(err, gc.NotNil)
 	c.Check(errors.Is(err, errors.NotImplemented), jc.IsTrue)
 	c.Check(strings.Contains(err.Error(), `unknown facade type "Client"`), jc.IsTrue)
@@ -179,7 +179,7 @@ func (s *loginSuite) TestLoginAsDeactivatedUser(c *gc.C) {
 		Code:    "unauthorized access",
 	})
 
-	_, err = apiclient.NewClient(st, coretesting.NoopLogger{}).Status(nil)
+	_, err = apiclient.NewClient(st, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	c.Assert(err, gc.NotNil)
 	c.Check(errors.Is(err, errors.NotImplemented), jc.IsTrue)
 	c.Check(strings.Contains(err.Error(), `unknown facade type "Client"`), jc.IsTrue)
@@ -193,7 +193,7 @@ func (s *loginSuite) TestLoginAsDeletedUser(c *gc.C) {
 	password := "password"
 	u := f.MakeUser(c, &factory.UserParams{Password: password})
 
-	_, err := apiclient.NewClient(st, coretesting.NoopLogger{}).Status(nil)
+	_, err := apiclient.NewClient(st, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	c.Assert(err, gc.NotNil)
 	c.Check(errors.Is(err, errors.NotImplemented), jc.IsTrue)
 	c.Check(strings.Contains(err.Error(), `unknown facade type "Client"`), jc.IsTrue)
@@ -208,7 +208,7 @@ func (s *loginSuite) TestLoginAsDeletedUser(c *gc.C) {
 		Code:    "unauthorized access",
 	})
 
-	_, err = apiclient.NewClient(st, coretesting.NoopLogger{}).Status(nil)
+	_, err = apiclient.NewClient(st, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	c.Assert(err, gc.NotNil)
 	c.Check(errors.Is(err, errors.NotImplemented), jc.IsTrue)
 	c.Check(strings.Contains(err.Error(), `unknown facade type "Client"`), jc.IsTrue)
@@ -914,7 +914,7 @@ func (s *migrationSuite) TestImportingModel(c *gc.C) {
 	// Users should be able to log in but RPC requests should fail.
 	userConn := s.OpenControllerModelAPI(c)
 	defer userConn.Close()
-	_, err = apiclient.NewClient(userConn, coretesting.NoopLogger{}).Status(nil)
+	_, err = apiclient.NewClient(userConn, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	c.Check(err, gc.ErrorMatches, "migration in progress, model is importing")
 
 	// Machines should be able to use the API.
@@ -934,7 +934,7 @@ func (s *migrationSuite) TestExportingModel(c *gc.C) {
 	defer userConn.Close()
 
 	// Status is fine.
-	_, err = apiclient.NewClient(userConn, coretesting.NoopLogger{}).Status(nil)
+	_, err = apiclient.NewClient(userConn, coretesting.NoopLogger{}).Status(context.Background(), nil)
 	c.Check(err, jc.ErrorIsNil)
 
 	// Modifying commands like destroy machines are not.

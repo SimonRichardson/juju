@@ -4,6 +4,7 @@
 package remotestate
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -375,6 +376,9 @@ func (w *RemoteStateWatcher) setUp(unitTag names.UnitTag) (err error) {
 }
 
 func (w *RemoteStateWatcher) loop(unitTag names.UnitTag) (err error) {
+	ctx, cancel := w.scopedContext()
+	defer cancel()
+
 	if err := w.setUp(unitTag); err != nil {
 		return errors.Trace(err)
 	}
@@ -519,7 +523,7 @@ func (w *RemoteStateWatcher) loop(unitTag names.UnitTag) (err error) {
 	requiredEvents++
 
 	var seenUpdateStatusIntervalChange bool
-	updateStatusIntervalw, err := w.client.WatchUpdateStatusHookInterval()
+	updateStatusIntervalw, err := w.client.WatchUpdateStatusHookInterval(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -736,7 +740,7 @@ func (w *RemoteStateWatcher) loop(unitTag names.UnitTag) (err error) {
 			observedEvent(&seenUpdateStatusIntervalChange)
 
 			var err error
-			updateStatusInterval, err = w.client.UpdateStatusHookInterval()
+			updateStatusInterval, err = w.client.UpdateStatusHookInterval(ctx)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -1422,4 +1426,8 @@ func (w *RemoteStateWatcher) markShutdown() {
 	w.mu.Lock()
 	w.current.Shutdown = true
 	w.mu.Unlock()
+}
+
+func (w *RemoteStateWatcher) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(w.catacomb.Context(context.Background()))
 }

@@ -4,6 +4,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -240,7 +241,7 @@ func (c *debugLogCommand) parseEntity(entity string) string {
 }
 
 type DebugLogAPI interface {
-	WatchDebugLog(params common.DebugLogParams) (<-chan common.LogMessage, error)
+	WatchDebugLog(ctx context.Context, params common.DebugLogParams) (<-chan common.LogMessage, error)
 	Close() error
 }
 
@@ -281,7 +282,7 @@ func (c *debugLogCommand) Run(ctx *cmd.Context) error {
 			}
 			defer client.Close()
 
-			messages, err := client.WatchDebugLog(c.params)
+			messages, err := client.WatchDebugLog(ctx, c.params)
 			if err != nil {
 				return err
 			}

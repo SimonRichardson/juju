@@ -5,6 +5,7 @@ package controller_test
 
 import (
 	"bytes"
+	"context"
 	"time"
 
 	"github.com/juju/cmd/v3"
@@ -108,7 +109,7 @@ func (f *fakeDestroyAPI) DestroyController(args apicontroller.DestroyControllerP
 	return f.NextErr()
 }
 
-func (f *fakeDestroyAPI) ListBlockedModels() ([]params.ModelBlockInfo, error) {
+func (f *fakeDestroyAPI) ListBlockedModels(context.Context) ([]params.ModelBlockInfo, error) {
 	f.MethodCall(f, "ListBlockedModels")
 	return f.blocks, f.NextErr()
 }

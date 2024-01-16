@@ -25,7 +25,7 @@ import (
 type APIClient interface {
 	io.Closer
 	// Create sends an RPC request to create a new backup.
-	Create(notes string, noDownload bool) (*params.BackupsMetadataResult, error)
+	Create(ctx context.Context, notes string, noDownload bool) (*params.BackupsMetadataResult, error)
 	// Download pulls the backup archive file.
 	Download(ctx context.Context, filename string) (io.ReadCloser, error)
 }

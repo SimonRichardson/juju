@@ -31,9 +31,9 @@ func NewModelWatcher(facade base.FacadeCaller) *ModelWatcher {
 
 // WatchForModelConfigChanges return a NotifyWatcher waiting for the
 // model configuration to change.
-func (e *ModelWatcher) WatchForModelConfigChanges() (watcher.NotifyWatcher, error) {
+func (e *ModelWatcher) WatchForModelConfigChanges(ctx context.Context) (watcher.NotifyWatcher, error) {
 	var result params.NotifyWatchResult
-	err := e.facade.FacadeCall(context.TODO(), "WatchForModelConfigChanges", nil, &result)
+	err := e.facade.FacadeCall(ctx, "WatchForModelConfigChanges", nil, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (e *ModelWatcher) WatchForModelConfigChanges() (watcher.NotifyWatcher, erro
 // ModelConfig returns the current model configuration.
 func (e *ModelWatcher) ModelConfig(ctx context.Context) (*config.Config, error) {
 	var result params.ModelConfigResult
-	err := e.facade.FacadeCall(context.TODO(), "ModelConfig", nil, &result)
+	err := e.facade.FacadeCall(ctx, "ModelConfig", nil, &result)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -56,17 +56,17 @@ func (e *ModelWatcher) ModelConfig(ctx context.Context) (*config.Config, error) 
 
 // WatchForLogForwardConfigChanges return a NotifyWatcher waiting for the
 // log forward syslog configuration to change.
-func (e *ModelWatcher) WatchForLogForwardConfigChanges() (watcher.NotifyWatcher, error) {
+func (e *ModelWatcher) WatchForLogForwardConfigChanges(ctx context.Context) (watcher.NotifyWatcher, error) {
 	// TODO(wallyworld) - lp:1602237 - this needs to have it's own backend implementation.
 	// For now, we'll piggyback off the ModelConfig API.
-	return e.WatchForModelConfigChanges()
+	return e.WatchForModelConfigChanges(ctx)
 }
 
 // LogForwardConfig returns the current log forward syslog configuration.
-func (e *ModelWatcher) LogForwardConfig() (*syslog.RawConfig, bool, error) {
+func (e *ModelWatcher) LogForwardConfig(ctx context.Context) (*syslog.RawConfig, bool, error) {
 	// TODO(wallyworld) - lp:1602237 - this needs to have it's own backend implementation.
 	// For now, we'll piggyback off the ModelConfig API.
-	modelConfig, err := e.ModelConfig(context.Background())
+	modelConfig, err := e.ModelConfig(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -75,10 +75,10 @@ func (e *ModelWatcher) LogForwardConfig() (*syslog.RawConfig, bool, error) {
 }
 
 // UpdateStatusHookInterval returns the current update status hook interval.
-func (e *ModelWatcher) UpdateStatusHookInterval() (time.Duration, error) {
+func (e *ModelWatcher) UpdateStatusHookInterval(ctx context.Context) (time.Duration, error) {
 	// TODO(wallyworld) - lp:1602237 - this needs to have it's own backend implementation.
 	// For now, we'll piggyback off the ModelConfig API.
-	modelConfig, err := e.ModelConfig(context.Background())
+	modelConfig, err := e.ModelConfig(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -87,8 +87,8 @@ func (e *ModelWatcher) UpdateStatusHookInterval() (time.Duration, error) {
 
 // WatchUpdateStatusHookInterval returns a NotifyWatcher that fires when the
 // update status hook interval changes.
-func (e *ModelWatcher) WatchUpdateStatusHookInterval() (watcher.NotifyWatcher, error) {
+func (e *ModelWatcher) WatchUpdateStatusHookInterval(ctx context.Context) (watcher.NotifyWatcher, error) {
 	// TODO(wallyworld) - lp:1602237 - this needs to have it's own backend implementation.
 	// For now, we'll piggyback off the ModelConfig API.
-	return e.WatchForModelConfigChanges()
+	return e.WatchForModelConfigChanges(ctx)
 }

@@ -4,6 +4,8 @@
 package logforwarder
 
 import (
+	"context"
+
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/internal/logfwd/syslog"
 )
@@ -12,10 +14,10 @@ import (
 type LogForwardConfig interface {
 	// WatchForLogForwardConfigChanges return a NotifyWatcher waiting for the
 	// log forward configuration to change.
-	WatchForLogForwardConfigChanges() (watcher.NotifyWatcher, error)
+	WatchForLogForwardConfigChanges(context.Context) (watcher.NotifyWatcher, error)
 
 	// LogForwardConfig returns the current log forward configuration.
-	LogForwardConfig() (*syslog.RawConfig, bool, error)
+	LogForwardConfig(context.Context) (*syslog.RawConfig, bool, error)
 }
 
 type LogSinkSpec struct {

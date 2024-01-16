@@ -233,7 +233,7 @@ func (c *runCommand) enqueueActions(ctx *cmd.Context) (*actionapi.EnqueuedAction
 		actions[i].Name = c.actionName
 		actions[i].Parameters = actionParams
 	}
-	results, err := c.api.EnqueueOperation(actions)
+	results, err := c.api.EnqueueOperation(ctx, actions)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

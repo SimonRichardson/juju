@@ -154,12 +154,12 @@ func (s *workerSuite) TestWorkerTokenRefreshRequired(c *gc.C) {
 
 	controllerConfigChangedChan := make(chan []string, 1)
 	w := startWorker(
-		s.facade.EXPECT().WatchControllerConfig().DoAndReturn(func() (watcher.StringsWatcher, error) {
+		s.facade.EXPECT().WatchControllerConfig(gomock.Any()).DoAndReturn(func() (watcher.StringsWatcher, error) {
 			controllerConfigChangedChan <- []string{controller.CAASImageRepo}
 			return watchertest.NewMockStringsWatcher(controllerConfigChangedChan), nil
 		}),
 		// 1st round.
-		s.facade.EXPECT().ControllerConfig().Return(s.controllerConfig, nil),
+		s.facade.EXPECT().ControllerConfig(gomock.Any()).Return(s.controllerConfig, nil),
 		s.reg.EXPECT().Ping().Return(nil),
 		s.reg.EXPECT().ShouldRefreshAuth().Return(true, time.Duration(0)),
 		s.reg.EXPECT().RefreshAuth().Return(nil),
@@ -217,12 +217,12 @@ func (s *workerSuite) TestWorkerTokenRefreshNotRequiredThenRetry(c *gc.C) {
 
 	controllerConfigChangedChan := make(chan []string, 1)
 	w := startWorker(
-		s.facade.EXPECT().WatchControllerConfig().DoAndReturn(func() (watcher.StringsWatcher, error) {
+		s.facade.EXPECT().WatchControllerConfig(gomock.Any()).DoAndReturn(func() (watcher.StringsWatcher, error) {
 			controllerConfigChangedChan <- []string{controller.CAASImageRepo}
 			return watchertest.NewMockStringsWatcher(controllerConfigChangedChan), nil
 		}),
 		// 1st round.
-		s.facade.EXPECT().ControllerConfig().Return(s.controllerConfig, nil),
+		s.facade.EXPECT().ControllerConfig(gomock.Any()).Return(s.controllerConfig, nil),
 		s.reg.EXPECT().Ping().Return(nil),
 		s.reg.EXPECT().ShouldRefreshAuth().Return(true, time.Duration(0)),
 		s.reg.EXPECT().RefreshAuth().Return(nil),
@@ -284,11 +284,11 @@ func (s *workerSuite) TestWorkerNoOpsForPublicRepo(c *gc.C) {
 
 	controllerConfigChangedChan := make(chan []string, 1)
 	w := startWorker(
-		s.facade.EXPECT().WatchControllerConfig().DoAndReturn(func() (watcher.StringsWatcher, error) {
+		s.facade.EXPECT().WatchControllerConfig(gomock.Any()).DoAndReturn(func() (watcher.StringsWatcher, error) {
 			controllerConfigChangedChan <- []string{controller.CAASImageRepo}
 			return watchertest.NewMockStringsWatcher(controllerConfigChangedChan), nil
 		}),
-		s.facade.EXPECT().ControllerConfig().DoAndReturn(func() (controller.Config, error) {
+		s.facade.EXPECT().ControllerConfig(gomock.Any()).DoAndReturn(func() (controller.Config, error) {
 			close(done)
 			return s.controllerConfig, nil
 		}),

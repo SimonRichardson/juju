@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	controller "github.com/juju/juju/controller"
@@ -41,31 +42,31 @@ func (m *MockFacade) EXPECT() *MockFacadeMockRecorder {
 }
 
 // ControllerConfig mocks base method.
-func (m *MockFacade) ControllerConfig() (controller.Config, error) {
+func (m *MockFacade) ControllerConfig(arg0 context.Context) (controller.Config, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ControllerConfig")
+	ret := m.ctrl.Call(m, "ControllerConfig", arg0)
 	ret0, _ := ret[0].(controller.Config)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ControllerConfig indicates an expected call of ControllerConfig.
-func (mr *MockFacadeMockRecorder) ControllerConfig() *gomock.Call {
+func (mr *MockFacadeMockRecorder) ControllerConfig(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockFacade)(nil).ControllerConfig))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockFacade)(nil).ControllerConfig), arg0)
 }
 
 // WatchControllerConfig mocks base method.
-func (m *MockFacade) WatchControllerConfig() (watcher.Watcher[[]string], error) {
+func (m *MockFacade) WatchControllerConfig(arg0 context.Context) (watcher.Watcher[[]string], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WatchControllerConfig")
+	ret := m.ctrl.Call(m, "WatchControllerConfig", arg0)
 	ret0, _ := ret[0].(watcher.Watcher[[]string])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WatchControllerConfig indicates an expected call of WatchControllerConfig.
-func (mr *MockFacadeMockRecorder) WatchControllerConfig() *gomock.Call {
+func (mr *MockFacadeMockRecorder) WatchControllerConfig(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchControllerConfig", reflect.TypeOf((*MockFacade)(nil).WatchControllerConfig))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchControllerConfig", reflect.TypeOf((*MockFacade)(nil).WatchControllerConfig), arg0)
 }

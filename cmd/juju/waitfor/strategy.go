@@ -68,7 +68,7 @@ func (s *Strategy) Run(
 		Stop:        ctx.Done(),
 		Func: func() error {
 			s.dispatch(WatchAllStarted)
-			return s.run(q, name, input, runFn)
+			return s.run(ctx, q, name, input, runFn)
 		},
 		IsFatalError: func(err error) bool {
 			if e, ok := errors.Cause(err).(*rpc.RequestError); ok && isWatcherStopped(e) {
@@ -83,13 +83,13 @@ func (s *Strategy) Run(
 	})
 }
 
-func (s *Strategy) run(q query.Query, name string, input string, fn StrategyFunc) error {
+func (s *Strategy) run(ctx context.Context, q query.Query, name string, input string, fn StrategyFunc) error {
 	client, err := s.ClientFn()
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	watcher, err := client.WatchAll()
+	watcher, err := client.WatchAll(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}

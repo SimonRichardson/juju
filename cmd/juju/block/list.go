@@ -4,6 +4,7 @@
 package block
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -95,7 +96,7 @@ func (c *listCommand) listForModel(ctx *cmd.Context) (err error) {
 	}
 	defer api.Close()
 
-	result, err := api.List()
+	result, err := api.List(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -113,7 +114,7 @@ func (c *listCommand) listForController(ctx *cmd.Context) (err error) {
 	}
 	defer api.Close()
 
-	result, err := api.ListBlockedModels()
+	result, err := api.ListBlockedModels(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -138,14 +139,14 @@ func (c *listCommand) formatter(writer io.Writer, value interface{}) error {
 // blockListAPI defines the client API methods that block list command uses.
 type blockListAPI interface {
 	Close() error
-	List() ([]params.Block, error)
+	List(ctx context.Context) ([]params.Block, error)
 }
 
 // controllerListAPI defines the methods on the controller API endpoint
 // that the blocks command calls.
 type controllerListAPI interface {
 	Close() error
-	ListBlockedModels() ([]params.ModelBlockInfo, error)
+	ListBlockedModels(ctx context.Context) ([]params.ModelBlockInfo, error)
 }
 
 // BlockInfo defines the serialization behaviour of the block information.

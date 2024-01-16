@@ -139,7 +139,7 @@ func (c *showTaskCommand) Run(ctx *cmd.Context) error {
 
 	shouldWatch := c.wait.Nanoseconds() >= 0
 	if shouldWatch {
-		result, err := fetchResult(api, c.requestedId)
+		result, err := fetchResult(ctx, api, c.requestedId)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -148,7 +148,7 @@ func (c *showTaskCommand) Run(ctx *cmd.Context) error {
 	}
 
 	if shouldWatch {
-		logsWatcher, err = api.WatchActionProgress(c.requestedId)
+		logsWatcher, err = api.WatchActionProgress(ctx, c.requestedId)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -161,9 +161,9 @@ func (c *showTaskCommand) Run(ctx *cmd.Context) error {
 	var result actionapi.ActionResult
 	if shouldWatch {
 		tick := c.clock.NewTimer(resultPollTime)
-		result, err = GetActionResult(api, c.requestedId, tick, wait)
+		result, err = GetActionResult(ctx, api, c.requestedId, tick, wait)
 	} else {
-		result, err = fetchResult(api, c.requestedId)
+		result, err = fetchResult(ctx, api, c.requestedId)
 	}
 	close(actionDone)
 	if logsWatcher != nil {

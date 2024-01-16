@@ -121,7 +121,7 @@ func (p *provisioner) Wait() error {
 }
 
 // getStartTask creates a new worker for the provisioner,
-func (p *provisioner) getStartTask(harvestMode config.HarvestMode, workerCount int) (ProvisionerTask, error) {
+func (p *provisioner) getStartTask(ctx context.Context, harvestMode config.HarvestMode, workerCount int) (ProvisionerTask, error) {
 	// Start responding to changes in machines, and to any further updates
 	// to the environment config.
 	machineWatcher, err := p.getMachineWatcher()
@@ -137,12 +137,12 @@ func (p *provisioner) getStartTask(harvestMode config.HarvestMode, workerCount i
 		return nil, errors.Errorf("agent's tag is not a machine or controller agent tag, got %T", hostTag)
 	}
 
-	modelCfg, err := p.controllerAPI.ModelConfig(context.TODO())
+	modelCfg, err := p.controllerAPI.ModelConfig(ctx)
 	if err != nil {
 		return nil, errors.Annotate(err, "could not retrieve the model config.")
 	}
 
-	controllerCfg, err := p.controllerAPI.ControllerConfig()
+	controllerCfg, err := p.controllerAPI.ControllerConfig(ctx)
 	if err != nil {
 		return nil, errors.Annotate(err, "could not retrieve the controller config.")
 	}
@@ -213,12 +213,15 @@ func NewEnvironProvisioner(
 }
 
 func (p *environProvisioner) loop() error {
+	ctx, cancel := p.scopedContext()
+	defer cancel()
+
 	// TODO(mjs channeling axw) - It would be better if there were
 	// APIs to watch and fetch provisioner specific config instead of
 	// watcher for all changes to model config. This would avoid the
 	// need for a full model config.
 	var modelConfigChanges <-chan struct{}
-	modelWatcher, err := p.controllerAPI.WatchForModelConfigChanges()
+	modelWatcher, err := p.controllerAPI.WatchForModelConfigChanges(ctx)
 	if err != nil {
 		return loggedErrorStack(p.logger, errors.Trace(err))
 	}
@@ -227,14 +230,14 @@ func (p *environProvisioner) loop() error {
 	}
 	modelConfigChanges = modelWatcher.Changes()
 
-	modelConfig, err := p.controllerAPI.ModelConfig(context.TODO())
+	modelConfig, err := p.controllerAPI.ModelConfig(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	p.configObserver.notify(modelConfig)
 	harvestMode := modelConfig.ProvisionerHarvestMode()
 	workerCount := modelConfig.NumProvisionWorkers()
-	task, err := p.getStartTask(harvestMode, workerCount)
+	task, err := p.getStartTask(ctx, harvestMode, workerCount)
 	if err != nil {
 		return loggedErrorStack(p.logger, errors.Trace(err))
 	}
@@ -250,7 +253,7 @@ func (p *environProvisioner) loop() error {
 			if !ok {
 				return errors.New("model configuration watcher closed")
 			}
-			modelConfig, err := p.controllerAPI.ModelConfig(context.TODO())
+			modelConfig, err := p.controllerAPI.ModelConfig(ctx)
 			if err != nil {
 				return errors.Annotate(err, "cannot load model configuration")
 			}
@@ -279,6 +282,10 @@ func (p *environProvisioner) setConfig(modelConfig *config.Config) error {
 	}
 	p.configObserver.notify(modelConfig)
 	return nil
+}
+
+func (p *environProvisioner) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(p.catacomb.Context(context.Background()))
 }
 
 // NewContainerProvisioner returns a new Provisioner. When new machines
@@ -322,7 +329,10 @@ func NewContainerProvisioner(
 }
 
 func (p *containerProvisioner) loop() error {
-	modelWatcher, err := p.controllerAPI.WatchForModelConfigChanges()
+	ctx, cancel := p.scopedContext()
+	defer cancel()
+
+	modelWatcher, err := p.controllerAPI.WatchForModelConfigChanges(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -338,7 +348,7 @@ func (p *containerProvisioner) loop() error {
 	harvestMode := modelConfig.ProvisionerHarvestMode()
 	workerCount := modelConfig.NumContainerProvisionWorkers()
 
-	task, err := p.getStartTask(harvestMode, workerCount)
+	task, err := p.getStartTask(ctx, harvestMode, workerCount)
 	if err != nil {
 		return loggedErrorStack(p.logger, errors.Trace(err))
 	}
@@ -396,4 +406,8 @@ func (p *containerProvisioner) getMachineWatcher() (watcher.StringsWatcher, erro
 
 func (p *containerProvisioner) getRetryWatcher() (watcher.NotifyWatcher, error) {
 	return nil, errors.NotImplementedf("getRetryWatcher")
+}
+
+func (p *containerProvisioner) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(p.catacomb.Context(context.Background()))
 }

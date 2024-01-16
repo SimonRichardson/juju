@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	api "github.com/juju/juju/cmd/juju/waitfor/api"
@@ -41,18 +42,18 @@ func (m *MockWatchAllAPI) EXPECT() *MockWatchAllAPIMockRecorder {
 }
 
 // WatchAll mocks base method.
-func (m *MockWatchAllAPI) WatchAll() (api.AllWatcher, error) {
+func (m *MockWatchAllAPI) WatchAll(arg0 context.Context) (api.AllWatcher, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WatchAll")
+	ret := m.ctrl.Call(m, "WatchAll", arg0)
 	ret0, _ := ret[0].(api.AllWatcher)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WatchAll indicates an expected call of WatchAll.
-func (mr *MockWatchAllAPIMockRecorder) WatchAll() *gomock.Call {
+func (mr *MockWatchAllAPIMockRecorder) WatchAll(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchAll", reflect.TypeOf((*MockWatchAllAPI)(nil).WatchAll))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchAll", reflect.TypeOf((*MockWatchAllAPI)(nil).WatchAll), arg0)
 }
 
 // MockAllWatcher is a mock of AllWatcher interface.

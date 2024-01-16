@@ -4,6 +4,7 @@
 package block_test
 
 import (
+	"context"
 	"errors"
 
 	"github.com/juju/cmd/v3"
@@ -177,10 +178,10 @@ func (c *mockListClient) Close() error {
 	return nil
 }
 
-func (c *mockListClient) List() ([]params.Block, error) {
+func (c *mockListClient) List(ctx context.Context) ([]params.Block, error) {
 	return c.blocks, c.err
 }
 
-func (c *mockListClient) ListBlockedModels() ([]params.ModelBlockInfo, error) {
+func (c *mockListClient) ListBlockedModels(ctx context.Context) ([]params.ModelBlockInfo, error) {
 	return c.modelBlocks, c.err
 }

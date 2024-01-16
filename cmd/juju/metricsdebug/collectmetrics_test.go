@@ -4,6 +4,8 @@
 package metricsdebug_test
 
 import (
+	"context"
+
 	"github.com/juju/charm/v12"
 	"github.com/juju/cmd/v3/cmdtesting"
 	"github.com/juju/errors"
@@ -341,7 +343,7 @@ type testRunClient struct {
 }
 
 // Run implements the runClient interface.
-func (t *testRunClient) Run(run actionapi.RunParams) (actionapi.EnqueuedActions, error) {
+func (t *testRunClient) Run(ctx context.Context, run actionapi.RunParams) (actionapi.EnqueuedActions, error) {
 	t.AddCall("Run", run)
 	if t.err != "" {
 		return actionapi.EnqueuedActions{}, errors.New(t.err)

@@ -242,7 +242,7 @@ func (c *execCommand) Run(ctx *cmd.Context) error {
 
 	var runResults actionapi.EnqueuedActions
 	if c.all {
-		runResults, err = c.api.RunOnAllMachines(c.commands, c.wait)
+		runResults, err = c.api.RunOnAllMachines(ctx, c.commands, c.wait)
 	} else {
 		runParams := actionapi.RunParams{
 			Commands:       c.commands,
@@ -261,7 +261,7 @@ func (c *execCommand) Run(ctx *cmd.Context) error {
 		if modelType == model.CAAS {
 			runParams.WorkloadContext = !c.operator
 		}
-		runResults, err = c.api.Run(runParams)
+		runResults, err = c.api.Run(ctx, runParams)
 	}
 
 	if err != nil {

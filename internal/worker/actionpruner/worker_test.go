@@ -44,7 +44,7 @@ func (s *PrunerSuite) TestRunStop(c *gc.C) {
 	w := watchertest.NewMockNotifyWatcher(ch)
 
 	facade := mocks.NewMockFacade(ctrl)
-	facade.EXPECT().WatchForModelConfigChanges().Return(w, nil)
+	facade.EXPECT().WatchForModelConfigChanges(gomock.Any()).Return(w, nil)
 
 	// Depending on the host compute speed, the loop may select either
 	// the watcher change event, or the catacomb's dying event first.

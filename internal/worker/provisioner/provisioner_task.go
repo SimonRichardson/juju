@@ -4,7 +4,7 @@
 package provisioner
 
 import (
-	stdcontext "context"
+	"context"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -92,11 +92,11 @@ type ToolsFinder interface {
 
 // ControllerAPI describes API methods for querying a controller.
 type ControllerAPI interface {
-	ControllerConfig() (controller.Config, error)
+	ControllerConfig(context.Context) (controller.Config, error)
 	CACert() (string, error)
 	ModelUUID() (string, error)
-	ModelConfig(stdcontext.Context) (*config.Config, error)
-	WatchForModelConfigChanges() (watcher.NotifyWatcher, error)
+	ModelConfig(context.Context) (*config.Config, error)
+	WatchForModelConfigChanges(context.Context) (watcher.NotifyWatcher, error)
 	APIAddresses() ([]string, error)
 }
 
@@ -244,7 +244,7 @@ func (task *provisionerTask) loop() (taskErr error) {
 	// When the watcher is started, it will have the initial changes be all
 	// the machines that are relevant. Also, since this is available straight
 	// away, we know there will be some changes right off the bat.
-	ctx := task.cloudCallCtxFunc(stdcontext.Background())
+	ctx := task.cloudCallCtxFunc(context.Background())
 	for {
 		select {
 		case ids, ok := <-task.machineChanges:

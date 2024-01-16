@@ -4,6 +4,7 @@
 package status
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -156,7 +157,7 @@ type fakeStatusAPI struct {
 	errors               []error
 }
 
-func (f *fakeStatusAPI) Status(args *client.StatusArgs) (*params.FullStatus, error) {
+func (f *fakeStatusAPI) Status(ctx context.Context, args *client.StatusArgs) (*params.FullStatus, error) {
 	if f.expectIncludeStorage != args.IncludeStorage {
 		return nil, errors.New("IncludeStorage arg mismatch")
 	}
