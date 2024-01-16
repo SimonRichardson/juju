@@ -58,7 +58,7 @@ type ResolvedCharm struct {
 
 // ResolveCharms resolves the given charm URLs with an optionally specified
 // preferred channel.
-func (c *Client) ResolveCharms(charms []CharmToResolve) ([]ResolvedCharm, error) {
+func (c *Client) ResolveCharms(ctx context.Context, charms []CharmToResolve) ([]ResolvedCharm, error) {
 	args := params.ResolveCharmsWithChannel{
 		Resolve: make([]params.ResolveCharmWithChannel, len(charms)),
 	}
@@ -71,14 +71,14 @@ func (c *Client) ResolveCharms(charms []CharmToResolve) ([]ResolvedCharm, error)
 	}
 	if c.BestAPIVersion() < 7 {
 		var result params.ResolveCharmWithChannelResultsV6
-		if err := c.facade.FacadeCall(context.TODO(), "ResolveCharms", args, &result); err != nil {
+		if err := c.facade.FacadeCall(ctx, "ResolveCharms", args, &result); err != nil {
 			return nil, errors.Trace(apiservererrors.RestoreError(err))
 		}
 		return transform.Slice(result.Results, c.resolveCharmV6), nil
 	}
 
 	var result params.ResolveCharmWithChannelResults
-	if err := c.facade.FacadeCall(context.TODO(), "ResolveCharms", args, &result); err != nil {
+	if err := c.facade.FacadeCall(ctx, "ResolveCharms", args, &result); err != nil {
 		return nil, errors.Trace(apiservererrors.RestoreError(err))
 	}
 	return transform.Slice(result.Results, c.resolveCharm), nil
@@ -143,7 +143,7 @@ type DownloadInfo struct {
 
 // GetDownloadInfo will get a download information from the given charm URL
 // using the appropriate charm store.
-func (c *Client) GetDownloadInfo(curl *charm.URL, origin apicharm.Origin) (DownloadInfo, error) {
+func (c *Client) GetDownloadInfo(ctx context.Context, curl *charm.URL, origin apicharm.Origin) (DownloadInfo, error) {
 	args := params.CharmURLAndOrigins{
 		Entities: []params.CharmURLAndOrigin{{
 			CharmURL: curl.String(),
@@ -151,7 +151,7 @@ func (c *Client) GetDownloadInfo(curl *charm.URL, origin apicharm.Origin) (Downl
 		}},
 	}
 	var results params.DownloadInfoResults
-	if err := c.facade.FacadeCall(context.TODO(), "GetDownloadInfos", args, &results); err != nil {
+	if err := c.facade.FacadeCall(ctx, "GetDownloadInfos", args, &results); err != nil {
 		return DownloadInfo{}, errors.Trace(err)
 	}
 	if num := len(results.Results); num != 1 {
@@ -175,14 +175,14 @@ func (c *Client) GetDownloadInfo(curl *charm.URL, origin apicharm.Origin) (Downl
 // If the AddCharm API call fails because of an authorization error
 // when retrieving the charm from the charm store, an error
 // satisfying params.IsCodeUnauthorized will be returned.
-func (c *Client) AddCharm(curl *charm.URL, origin apicharm.Origin, force bool) (apicharm.Origin, error) {
+func (c *Client) AddCharm(ctx context.Context, curl *charm.URL, origin apicharm.Origin, force bool) (apicharm.Origin, error) {
 	args := params.AddCharmWithOrigin{
 		URL:    curl.String(),
 		Origin: origin.ParamsCharmOrigin(),
 		Force:  force,
 	}
 	var result params.CharmOriginResult
-	if err := c.facade.FacadeCall(context.TODO(), "AddCharm", args, &result); err != nil {
+	if err := c.facade.FacadeCall(ctx, "AddCharm", args, &result); err != nil {
 		return apicharm.Origin{}, errors.Trace(err)
 	}
 	return apicharm.APICharmOrigin(result.Origin)
@@ -191,7 +191,7 @@ func (c *Client) AddCharm(curl *charm.URL, origin apicharm.Origin, force bool) (
 // CheckCharmPlacement checks to see if a charm can be placed into the
 // application. If the application doesn't exist then it is considered fine to
 // be placed there.
-func (c *Client) CheckCharmPlacement(applicationName string, curl *charm.URL) error {
+func (c *Client) CheckCharmPlacement(ctx context.Context, applicationName string, curl *charm.URL) error {
 	args := params.ApplicationCharmPlacements{
 		Placements: []params.ApplicationCharmPlacement{{
 			Application: applicationName,
@@ -199,14 +199,14 @@ func (c *Client) CheckCharmPlacement(applicationName string, curl *charm.URL) er
 		}},
 	}
 	var result params.ErrorResults
-	if err := c.facade.FacadeCall(context.TODO(), "CheckCharmPlacement", args, &result); err != nil {
+	if err := c.facade.FacadeCall(ctx, "CheckCharmPlacement", args, &result); err != nil {
 		return errors.Trace(err)
 	}
 	return result.OneError()
 }
 
 // ListCharmResources returns a list of associated resources for a given charm.
-func (c *Client) ListCharmResources(curl *charm.URL, origin apicharm.Origin) ([]charmresource.Resource, error) {
+func (c *Client) ListCharmResources(ctx context.Context, curl *charm.URL, origin apicharm.Origin) ([]charmresource.Resource, error) {
 	args := params.CharmURLAndOrigins{
 		Entities: []params.CharmURLAndOrigin{{
 			CharmURL: curl.String(),
@@ -214,7 +214,7 @@ func (c *Client) ListCharmResources(curl *charm.URL, origin apicharm.Origin) ([]
 		}},
 	}
 	var results params.CharmResourcesResults
-	if err := c.facade.FacadeCall(context.TODO(), "ListCharmResources", args, &results); err != nil {
+	if err := c.facade.FacadeCall(ctx, "ListCharmResources", args, &results); err != nil {
 		return nil, errors.Trace(err)
 	}
 

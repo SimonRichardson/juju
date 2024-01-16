@@ -66,25 +66,25 @@ type StatusArgs struct {
 }
 
 // Status returns the status of the juju model.
-func (c *Client) Status(args *StatusArgs) (*params.FullStatus, error) {
+func (c *Client) Status(ctx context.Context, args *StatusArgs) (*params.FullStatus, error) {
 	if args == nil {
 		args = &StatusArgs{}
 	}
 	if c.BestAPIVersion() <= 6 {
-		return c.statusV6(args.Patterns, args.IncludeStorage)
+		return c.statusV6(ctx, args.Patterns, args.IncludeStorage)
 	}
 	var result params.FullStatus
 	p := params.StatusParams{Patterns: args.Patterns, IncludeStorage: args.IncludeStorage}
-	if err := c.facade.FacadeCall(context.TODO(), "FullStatus", p, &result); err != nil {
+	if err := c.facade.FacadeCall(ctx, "FullStatus", p, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (c *Client) statusV6(patterns []string, includeStorage bool) (*params.FullStatus, error) {
+func (c *Client) statusV6(ctx context.Context, patterns []string, includeStorage bool) (*params.FullStatus, error) {
 	var result params.FullStatus
 	p := params.StatusParams{Patterns: patterns}
-	if err := c.facade.FacadeCall(context.TODO(), "FullStatus", p, &result); err != nil {
+	if err := c.facade.FacadeCall(ctx, "FullStatus", p, &result); err != nil {
 		return nil, err
 	}
 	// Older servers don't fill out model type, but
@@ -130,7 +130,7 @@ func (c *Client) statusV6(patterns []string, includeStorage bool) (*params.FullS
 // StatusHistory retrieves the last <size> results of
 // <kind:combined|agent|workload|machine|machineinstance|container|containerinstance> status
 // for <name> unit
-func (c *Client) StatusHistory(kind status.HistoryKind, tag names.Tag, filter status.StatusHistoryFilter) (status.History, error) {
+func (c *Client) StatusHistory(ctx context.Context, kind status.HistoryKind, tag names.Tag, filter status.StatusHistoryFilter) (status.History, error) {
 	var results params.StatusHistoryResults
 	args := params.StatusHistoryRequest{
 		Kind: string(kind),
@@ -143,7 +143,7 @@ func (c *Client) StatusHistory(kind status.HistoryKind, tag names.Tag, filter st
 		Tag: tag.String(),
 	}
 	bulkArgs := params.StatusHistoryRequests{Requests: []params.StatusHistoryRequest{args}}
-	err := c.facade.FacadeCall(context.TODO(), "StatusHistory", bulkArgs, &results)
+	err := c.facade.FacadeCall(ctx, "StatusHistory", bulkArgs, &results)
 	if err != nil {
 		return status.History{}, errors.Trace(err)
 	}
@@ -175,9 +175,9 @@ func (c *Client) StatusHistory(kind status.HistoryKind, tag names.Tag, filter st
 
 // WatchAll returns an AllWatcher, from which you can request the Next
 // collection of Deltas.
-func (c *Client) WatchAll() (*api.AllWatcher, error) {
+func (c *Client) WatchAll(ctx context.Context) (*api.AllWatcher, error) {
 	var info params.AllWatcherId
-	if err := c.facade.FacadeCall(context.TODO(), "WatchAll", nil, &info); err != nil {
+	if err := c.facade.FacadeCall(ctx, "WatchAll", nil, &info); err != nil {
 		return nil, err
 	}
 	return api.NewAllWatcher(c.conn, &info.AllWatcherId), nil
@@ -193,19 +193,13 @@ func (c *Client) Close() error {
 
 // SetModelAgentVersion sets the model agent-version setting
 // to the given value.
-func (c *Client) SetModelAgentVersion(version version.Number, stream string, ignoreAgentVersions bool) error {
+func (c *Client) SetModelAgentVersion(ctx context.Context, version version.Number, stream string, ignoreAgentVersions bool) error {
 	args := params.SetModelAgentVersion{
 		Version:             version,
 		AgentStream:         stream,
 		IgnoreAgentVersions: ignoreAgentVersions,
 	}
-	return c.facade.FacadeCall(context.TODO(), "SetModelAgentVersion", args, nil)
-}
-
-// AbortCurrentUpgrade aborts and archives the current upgrade
-// synchronisation record, if any.
-func (c *Client) AbortCurrentUpgrade() error {
-	return c.facade.FacadeCall(context.TODO(), "AbortCurrentUpgrade", nil, nil)
+	return c.facade.FacadeCall(ctx, "SetModelAgentVersion", args, nil)
 }
 
 // UploadTools uploads tools at the specified location to the API server over HTTPS.
@@ -240,6 +234,6 @@ func (c *Client) httpPost(ctx context.Context, content io.ReadSeeker, endpoint, 
 
 // WatchDebugLog returns a channel of structured Log Messages. Only log entries
 // that match the filtering specified in the DebugLogParams are returned.
-func (c *Client) WatchDebugLog(args common.DebugLogParams) (<-chan common.LogMessage, error) {
-	return common.StreamDebugLog(context.TODO(), c.conn, args)
+func (c *Client) WatchDebugLog(ctx context.Context, args common.DebugLogParams) (<-chan common.LogMessage, error) {
+	return common.StreamDebugLog(ctx, c.conn, args)
 }

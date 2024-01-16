@@ -4,6 +4,7 @@
 package application_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/juju/charm/v12"
@@ -452,7 +453,7 @@ func (s *getSuite) TestApplicationGet(c *gc.C) {
 		expect.Application = app.Name()
 		expect.Charm = ch.Meta().Name
 		client := apiapplication.NewClient(s.OpenControllerModelAPI(c))
-		got, err := client.Get(model.GenerationMaster, app.Name())
+		got, err := client.Get(context.Background(), model.GenerationMaster, app.Name())
 		c.Assert(err, jc.ErrorIsNil)
 		c.Assert(*got, jc.DeepEquals, expect)
 	}
@@ -479,7 +480,7 @@ func (s *getSuite) TestGetMaxResolutionInt(c *gc.C) {
 	err := app.UpdateCharmConfig(model.GenerationMaster, map[string]interface{}{"skill-level": nonFloatInt})
 	c.Assert(err, jc.ErrorIsNil)
 	client := apiapplication.NewClient(s.OpenControllerModelAPI(c))
-	got, err := client.Get(model.GenerationMaster, app.Name())
+	got, err := client.Get(context.Background(), model.GenerationMaster, app.Name())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(got.CharmConfig["skill-level"], jc.DeepEquals, map[string]interface{}{
 		"description": "A number indicating skill.",

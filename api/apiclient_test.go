@@ -1404,7 +1404,7 @@ func (s *apiclientSuite) TestWatchDebugLogParamsEncoded(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	defer conn.Close()
 	client := apiclient.NewClient(conn, jtesting.NoopLogger{})
-	_, err = client.WatchDebugLog(params)
+	_, err = client.WatchDebugLog(context.Background(), params)
 	c.Assert(err, jc.ErrorIsNil)
 
 	connectURL, err := url.Parse(catcher.Location())
@@ -1423,7 +1423,7 @@ func (s *apiclientSuite) TestWatchDebugLogConnected(c *gc.C) {
 	// Use the no tail option so we don't try to start a tailing cursor
 	// on the oplog when there is no oplog configured in mongo as the tests
 	// don't set up mongo in replicaset mode.
-	messages, err := cl.WatchDebugLog(common.DebugLogParams{NoTail: true})
+	messages, err := cl.WatchDebugLog(context.Background(), common.DebugLogParams{NoTail: true})
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(messages, gc.NotNil)
 }

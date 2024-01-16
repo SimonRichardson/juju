@@ -57,7 +57,7 @@ func (h *httpPutter) PutCharm(ctx context.Context, _, _, curlStr string, body io
 	apiURI := url.URL{Path: "/charms", RawQuery: args.Encode()}
 
 	var resp params.CharmsResponse
-	req, err := http.NewRequest("POST", apiURI.String(), body)
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURI.String(), body)
 	if err != nil {
 		return "", errors.Annotate(err, "cannot create upload request")
 	}
