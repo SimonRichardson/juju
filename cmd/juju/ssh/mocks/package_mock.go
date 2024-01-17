@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	io "io"
 	os "os"
 	reflect "reflect"
@@ -214,18 +215,18 @@ func (mr *MockLeaderAPIMockRecorder) Close() *gomock.Call {
 }
 
 // Leader mocks base method.
-func (m *MockLeaderAPI) Leader(arg0 string) (string, error) {
+func (m *MockLeaderAPI) Leader(arg0 context.Context, arg1 string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Leader", arg0)
+	ret := m.ctrl.Call(m, "Leader", arg0, arg1)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Leader indicates an expected call of Leader.
-func (mr *MockLeaderAPIMockRecorder) Leader(arg0 any) *gomock.Call {
+func (mr *MockLeaderAPIMockRecorder) Leader(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leader", reflect.TypeOf((*MockLeaderAPI)(nil).Leader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leader", reflect.TypeOf((*MockLeaderAPI)(nil).Leader), arg0, arg1)
 }
 
 // MockSSHClientAPI is a mock of SSHClientAPI interface.
@@ -379,18 +380,18 @@ func (m *MockSSHControllerAPI) EXPECT() *MockSSHControllerAPIMockRecorder {
 }
 
 // ControllerConfig mocks base method.
-func (m *MockSSHControllerAPI) ControllerConfig() (controller.Config, error) {
+func (m *MockSSHControllerAPI) ControllerConfig(arg0 context.Context) (controller.Config, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ControllerConfig")
+	ret := m.ctrl.Call(m, "ControllerConfig", arg0)
 	ret0, _ := ret[0].(controller.Config)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ControllerConfig indicates an expected call of ControllerConfig.
-func (mr *MockSSHControllerAPIMockRecorder) ControllerConfig() *gomock.Call {
+func (mr *MockSSHControllerAPIMockRecorder) ControllerConfig(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockSSHControllerAPI)(nil).ControllerConfig))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockSSHControllerAPI)(nil).ControllerConfig), arg0)
 }
 
 // MockStatusClientAPI is a mock of StatusClientAPI interface.
@@ -431,18 +432,18 @@ func (mr *MockStatusClientAPIMockRecorder) Close() *gomock.Call {
 }
 
 // Status mocks base method.
-func (m *MockStatusClientAPI) Status(arg0 *client.StatusArgs) (*params.FullStatus, error) {
+func (m *MockStatusClientAPI) Status(arg0 context.Context, arg1 *client.StatusArgs) (*params.FullStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Status", arg0)
+	ret := m.ctrl.Call(m, "Status", arg0, arg1)
 	ret0, _ := ret[0].(*params.FullStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Status indicates an expected call of Status.
-func (mr *MockStatusClientAPIMockRecorder) Status(arg0 any) *gomock.Call {
+func (mr *MockStatusClientAPIMockRecorder) Status(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockStatusClientAPI)(nil).Status), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockStatusClientAPI)(nil).Status), arg0, arg1)
 }
 
 // MockCloudCredentialAPI is a mock of CloudCredentialAPI interface.
@@ -564,9 +565,9 @@ func (mr *MockApplicationAPIMockRecorder) Close() *gomock.Call {
 }
 
 // GetCharmURLOrigin mocks base method.
-func (m *MockApplicationAPI) GetCharmURLOrigin(arg0, arg1 string) (*charm.URL, charm0.Origin, error) {
+func (m *MockApplicationAPI) GetCharmURLOrigin(arg0 context.Context, arg1, arg2 string) (*charm.URL, charm0.Origin, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCharmURLOrigin", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetCharmURLOrigin", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*charm.URL)
 	ret1, _ := ret[1].(charm0.Origin)
 	ret2, _ := ret[2].(error)
@@ -574,39 +575,39 @@ func (m *MockApplicationAPI) GetCharmURLOrigin(arg0, arg1 string) (*charm.URL, c
 }
 
 // GetCharmURLOrigin indicates an expected call of GetCharmURLOrigin.
-func (mr *MockApplicationAPIMockRecorder) GetCharmURLOrigin(arg0, arg1 any) *gomock.Call {
+func (mr *MockApplicationAPIMockRecorder) GetCharmURLOrigin(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCharmURLOrigin", reflect.TypeOf((*MockApplicationAPI)(nil).GetCharmURLOrigin), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCharmURLOrigin", reflect.TypeOf((*MockApplicationAPI)(nil).GetCharmURLOrigin), arg0, arg1, arg2)
 }
 
 // Leader mocks base method.
-func (m *MockApplicationAPI) Leader(arg0 string) (string, error) {
+func (m *MockApplicationAPI) Leader(arg0 context.Context, arg1 string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Leader", arg0)
+	ret := m.ctrl.Call(m, "Leader", arg0, arg1)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Leader indicates an expected call of Leader.
-func (mr *MockApplicationAPIMockRecorder) Leader(arg0 any) *gomock.Call {
+func (mr *MockApplicationAPIMockRecorder) Leader(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leader", reflect.TypeOf((*MockApplicationAPI)(nil).Leader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leader", reflect.TypeOf((*MockApplicationAPI)(nil).Leader), arg0, arg1)
 }
 
 // UnitsInfo mocks base method.
-func (m *MockApplicationAPI) UnitsInfo(arg0 []names.UnitTag) ([]application.UnitInfo, error) {
+func (m *MockApplicationAPI) UnitsInfo(arg0 context.Context, arg1 []names.UnitTag) ([]application.UnitInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UnitsInfo", arg0)
+	ret := m.ctrl.Call(m, "UnitsInfo", arg0, arg1)
 	ret0, _ := ret[0].([]application.UnitInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UnitsInfo indicates an expected call of UnitsInfo.
-func (mr *MockApplicationAPIMockRecorder) UnitsInfo(arg0 any) *gomock.Call {
+func (mr *MockApplicationAPIMockRecorder) UnitsInfo(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnitsInfo", reflect.TypeOf((*MockApplicationAPI)(nil).UnitsInfo), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnitsInfo", reflect.TypeOf((*MockApplicationAPI)(nil).UnitsInfo), arg0, arg1)
 }
 
 // MockCharmAPI is a mock of CharmAPI interface.
@@ -633,18 +634,18 @@ func (m *MockCharmAPI) EXPECT() *MockCharmAPIMockRecorder {
 }
 
 // CharmInfo mocks base method.
-func (m *MockCharmAPI) CharmInfo(arg0 string) (*charms.CharmInfo, error) {
+func (m *MockCharmAPI) CharmInfo(arg0 context.Context, arg1 string) (*charms.CharmInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CharmInfo", arg0)
+	ret := m.ctrl.Call(m, "CharmInfo", arg0, arg1)
 	ret0, _ := ret[0].(*charms.CharmInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CharmInfo indicates an expected call of CharmInfo.
-func (mr *MockCharmAPIMockRecorder) CharmInfo(arg0 any) *gomock.Call {
+func (mr *MockCharmAPIMockRecorder) CharmInfo(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CharmInfo", reflect.TypeOf((*MockCharmAPI)(nil).CharmInfo), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CharmInfo", reflect.TypeOf((*MockCharmAPI)(nil).CharmInfo), arg0, arg1)
 }
 
 // Close mocks base method.

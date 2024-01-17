@@ -4,6 +4,7 @@
 package application_test
 
 import (
+	"context"
 	"strings"
 
 	"github.com/juju/cmd/v3/cmdtesting"
@@ -47,7 +48,7 @@ func (f *fakeApplicationAddUnitAPI) ModelUUID() string {
 	return "fake-uuid"
 }
 
-func (f *fakeApplicationAddUnitAPI) AddUnits(args apiapplication.AddUnitsParams) ([]string, error) {
+func (f *fakeApplicationAddUnitAPI) AddUnits(ctx context.Context, args apiapplication.AddUnitsParams) ([]string, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -61,7 +62,7 @@ func (f *fakeApplicationAddUnitAPI) AddUnits(args apiapplication.AddUnitsParams)
 	return nil, nil
 }
 
-func (f *fakeApplicationAddUnitAPI) ScaleApplication(args apiapplication.ScaleApplicationParams) (params.ScaleApplicationResult, error) {
+func (f *fakeApplicationAddUnitAPI) ScaleApplication(ctx context.Context, args apiapplication.ScaleApplicationParams) (params.ScaleApplicationResult, error) {
 	if f.err != nil {
 		return params.ScaleApplicationResult{}, f.err
 	}

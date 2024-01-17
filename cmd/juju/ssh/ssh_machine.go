@@ -5,6 +5,7 @@ package ssh
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -135,7 +136,7 @@ func (c *sshMachine) setPublicKeyRetryStrategy(retryStrategy retry.CallArgs) {
 // command's Run method.
 //
 // The sshClient, apiAddr and proxy fields are initialized after this call.
-func (c *sshMachine) initRun(mc ModelCommand) (err error) {
+func (c *sshMachine) initRun(ctx context.Context, mc ModelCommand) (err error) {
 	if c.modelName, err = mc.ModelIdentifier(); err != nil {
 		return errors.Trace(err)
 	}
@@ -226,8 +227,8 @@ func (c *sshMachine) ssh(ctx Context, enablePty bool, target *resolvedTarget) er
 	return cmd.Run()
 }
 
-func (c *sshMachine) copy(_ Context) error {
-	args, targets, err := c.expandSCPArgs(c.getArgs())
+func (c *sshMachine) copy(ctx Context) error {
+	args, targets, err := c.expandSCPArgs(ctx, c.getArgs())
 	if err != nil {
 		return err
 	}
@@ -238,7 +239,7 @@ func (c *sshMachine) copy(_ Context) error {
 			// we need to route the traffic via the machine that hosts it.
 			// This is required as the controller is unable to route fan
 			// traffic across subnets.
-			if err = c.maybePopulateTargetViaField(target, c.statusClient.Status); err != nil {
+			if err = c.maybePopulateTargetViaField(ctx, target, c.statusClient.Status); err != nil {
 				return errors.Trace(err)
 			}
 		}
@@ -255,7 +256,7 @@ func (c *sshMachine) copy(_ Context) error {
 // 0:some/path or application/0:some/path, and translates them into
 // ubuntu@machine:some/path so they can be passed as arguments to scp, and pass
 // the rest verbatim on to scp
-func (c *sshMachine) expandSCPArgs(args []string) ([]string, []*resolvedTarget, error) {
+func (c *sshMachine) expandSCPArgs(ctx context.Context, args []string) ([]string, []*resolvedTarget, error) {
 	outArgs := make([]string, len(args))
 	var targets []*resolvedTarget
 	for i, arg := range args {
@@ -266,7 +267,7 @@ func (c *sshMachine) expandSCPArgs(args []string) ([]string, []*resolvedTarget, 
 			continue
 		}
 
-		target, err := c.resolveTarget(v[0])
+		target, err := c.resolveTarget(ctx, v[0])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -414,10 +415,10 @@ func (c *sshMachine) ensureAPIClient(mc ModelCommand) error {
 	return nil
 }
 
-func (c *sshMachine) resolveTarget(target string) (*resolvedTarget, error) {
+func (c *sshMachine) resolveTarget(ctx context.Context, target string) (*resolvedTarget, error) {
 	// If the user specified a leader unit, try to resolve it to the
 	// appropriate unit name and override the requested target name.
-	resolvedTargetName, err := c.maybeResolveLeaderUnit(target)
+	resolvedTargetName, err := c.maybeResolveLeaderUnit(ctx, target)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -545,8 +546,8 @@ func (c *sshMachine) AllowInterspersedFlags() bool {
 	return false
 }
 
-func (c *sshMachine) maybePopulateTargetViaField(target *resolvedTarget, statusGetter func(*client.StatusArgs) (*params.FullStatus, error)) error {
-	status, err := statusGetter(nil)
+func (c *sshMachine) maybePopulateTargetViaField(ctx context.Context, target *resolvedTarget, statusGetter func(context.Context, *client.StatusArgs) (*params.FullStatus, error)) error {
+	status, err := statusGetter(ctx, nil)
 	if err != nil {
 		return errors.Trace(err)
 	}

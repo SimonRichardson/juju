@@ -4,6 +4,8 @@
 package ssh
 
 import (
+	"context"
+
 	"github.com/juju/charm/v12"
 	"github.com/juju/names/v5"
 
@@ -19,7 +21,7 @@ import (
 
 // StatusClientAPI defines status related APIs.
 type StatusClientAPI interface {
-	Status(args *client.StatusArgs) (*params.FullStatus, error)
+	Status(ctx context.Context, args *client.StatusArgs) (*params.FullStatus, error)
 	Close() error
 }
 
@@ -33,15 +35,15 @@ type CloudCredentialAPI interface {
 
 // ApplicationAPI defines application related APIs.
 type ApplicationAPI interface {
-	Leader(string) (string, error)
+	Leader(context.Context, string) (string, error)
 	Close() error
-	UnitsInfo(units []names.UnitTag) ([]application.UnitInfo, error)
-	GetCharmURLOrigin(branchName, applicationName string) (*charm.URL, apicharm.Origin, error)
+	UnitsInfo(ctx context.Context, units []names.UnitTag) ([]application.UnitInfo, error)
+	GetCharmURLOrigin(ctx context.Context, branchName, applicationName string) (*charm.URL, apicharm.Origin, error)
 }
 
 // CharmAPI defines charm related APIs.
 type CharmAPI interface {
-	CharmInfo(charmURL string) (*charms.CharmInfo, error)
+	CharmInfo(ctx context.Context, charmURL string) (*charms.CharmInfo, error)
 	Close() error
 }
 
@@ -62,5 +64,5 @@ type SSHClientAPI interface {
 
 // SSHControllerAPI defines controller related APIs.
 type SSHControllerAPI interface {
-	ControllerConfig() (controller.Config, error)
+	ControllerConfig(context.Context) (controller.Config, error)
 }

@@ -52,7 +52,7 @@ type mockBlockClient struct {
 
 var errOther = errors.New("other error")
 
-func (c *mockBlockClient) List() ([]params.Block, error) {
+func (c *mockBlockClient) List(context.Context) ([]params.Block, error) {
 	c.retryCount += 1
 	if c.retryCount == 5 {
 		return nil, &rpc.RequestError{Message: params.CodeUpgradeInProgress, Code: params.CodeUpgradeInProgress}

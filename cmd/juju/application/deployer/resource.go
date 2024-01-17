@@ -69,7 +69,7 @@ func DeployResources(
 		ResourceValues: filenames,
 		Revisions:      revisions,
 		ResourcesMeta:  res,
-		Client:         &deployClient{apiClient},
+		Client:         &deployClient{Client: apiClient},
 		Filesystem:     filesystem,
 	})
 	if err != nil {
@@ -83,8 +83,8 @@ type deployClient struct {
 }
 
 // AddPendingResources adds pending metadata for store-based resources.
-func (cl *deployClient) AddPendingResources(applicationID string, chID resources.CharmID, res []charmresource.Resource) ([]string, error) {
-	return cl.Client.AddPendingResources(resources.AddPendingResourcesArgs{
+func (cl *deployClient) AddPendingResources(ctx context.Context, applicationID string, chID resources.CharmID, res []charmresource.Resource) ([]string, error) {
+	return cl.Client.AddPendingResources(ctx, resources.AddPendingResourcesArgs{
 		ApplicationID: applicationID,
 		CharmID:       chID,
 		Resources:     res,

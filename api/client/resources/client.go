@@ -53,14 +53,14 @@ func NewClient(apiCaller base.APICallCloser, options ...Option) (*Client, error)
 
 // ListResources calls the ListResources API server method with
 // the given application names.
-func (c Client) ListResources(applications []string) ([]resources.ApplicationResources, error) {
+func (c Client) ListResources(ctx context.Context, applications []string) ([]resources.ApplicationResources, error) {
 	args, err := newListResourcesArgs(applications)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var apiResults params.ResourcesResults
-	if err := c.facade.FacadeCall(context.TODO(), "ListResources", &args, &apiResults); err != nil {
+	if err := c.facade.FacadeCall(ctx, "ListResources", &args, &apiResults); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -159,7 +159,7 @@ type AddPendingResourcesArgs struct {
 
 // AddPendingResources sends the provided resource info up to Juju
 // without making it available yet.
-func (c Client) AddPendingResources(args AddPendingResourcesArgs) ([]string, error) {
+func (c Client) AddPendingResources(ctx context.Context, args AddPendingResourcesArgs) ([]string, error) {
 	tag := names.NewApplicationTag(args.ApplicationID)
 	apiArgs, err := newAddPendingResourcesArgsV2(tag, args.CharmID, args.Resources)
 	if err != nil {
@@ -167,7 +167,7 @@ func (c Client) AddPendingResources(args AddPendingResourcesArgs) ([]string, err
 	}
 
 	var result params.AddPendingResourcesResult
-	if err := c.facade.FacadeCall(context.TODO(), "AddPendingResources", &apiArgs, &result); err != nil {
+	if err := c.facade.FacadeCall(ctx, "AddPendingResources", &apiArgs, &result); err != nil {
 		return nil, errors.Trace(err)
 	}
 	if result.Error != nil {
@@ -229,7 +229,7 @@ func (c Client) UploadPendingResource(ctx context.Context, application string, r
 		return "", errors.Errorf("invalid application %q", application)
 	}
 
-	ids, err := c.AddPendingResources(AddPendingResourcesArgs{
+	ids, err := c.AddPendingResources(ctx, AddPendingResourcesArgs{
 		ApplicationID: application,
 		Resources:     []charmresource.Resource{res},
 	})

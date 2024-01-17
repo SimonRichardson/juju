@@ -4,6 +4,8 @@
 package ssh
 
 import (
+	"context"
+
 	"github.com/juju/retry"
 	"github.com/juju/utils/v3"
 
@@ -35,8 +37,8 @@ func (c *sshContainer) CleanupRun() {
 	c.cleanupRun()
 }
 
-func (c *sshContainer) ResolveTarget(target string) (*resolvedTarget, error) {
-	return c.resolveTarget(target)
+func (c *sshContainer) ResolveTarget(ctx context.Context, target string) (*resolvedTarget, error) {
+	return c.resolveTarget(ctx, target)
 }
 
 func (c *sshContainer) SSH(ctx Context, enablePty bool, target *resolvedTarget) error {
@@ -59,8 +61,8 @@ func (c *sshContainer) SetArgs(args []string) {
 	c.setArgs(args)
 }
 
-func (c *sshContainer) InitRun(mc ModelCommand) (err error) {
-	return c.initRun(mc)
+func (c *sshContainer) InitRun(ctx context.Context, mc ModelCommand) (err error) {
+	return c.initRun(ctx, mc)
 }
 
 func (c *sshContainer) Namespace() string {
@@ -69,13 +71,13 @@ func (c *sshContainer) Namespace() string {
 
 type SSHContainerInterfaceForTest interface {
 	CleanupRun()
-	ResolveTarget(string) (*resolvedTarget, error)
+	ResolveTarget(context.Context, string) (*resolvedTarget, error)
 	SSH(Context, bool, *resolvedTarget) error
 	Copy(ctx Context) error
 	GetExecClient() (k8sexec.Executor, error)
 	ModelName() string
 	SetArgs([]string)
-	InitRun(mc ModelCommand) (err error)
+	InitRun(ctx context.Context, mc ModelCommand) (err error)
 	Namespace() string
 }
 

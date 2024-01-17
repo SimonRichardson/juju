@@ -160,7 +160,7 @@ func (s *UploadSuite) TestAddPendingResources(c *gc.C) {
 	s.mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "AddPendingResources", &args, result).SetArg(3, results).Return(nil)
 
 	cURL := charm.MustParseURL("ch:spam")
-	pendingIDs, err := s.client.AddPendingResources(resources.AddPendingResourcesArgs{
+	pendingIDs, err := s.client.AddPendingResources(context.Background(), resources.AddPendingResourcesArgs{
 		ApplicationID: "a-application",
 		CharmID: resources.CharmID{
 			URL: cURL,

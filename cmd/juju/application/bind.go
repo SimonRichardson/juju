@@ -4,6 +4,7 @@
 package application
 
 import (
+	"context"
 	"strings"
 
 	"github.com/juju/cmd/v3"
@@ -36,8 +37,8 @@ func NewBindCommand() cmd.Command {
 // ApplicationBindClient defines a subset of the application facade that deals with
 // querying and updating application bindings.
 type ApplicationBindClient interface {
-	Get(string, string) (*params.ApplicationGetResults, error)
-	MergeBindings(req params.ApplicationMergeBindingsArgs) error
+	Get(context.Context, string, string) (*params.ApplicationGetResults, error)
+	MergeBindings(ctx context.Context, req params.ApplicationMergeBindingsArgs) error
 }
 
 // Bind is responsible for changing the bindings for an application.
@@ -132,7 +133,7 @@ func (c *bindCommand) Run(ctx *cmd.Context) error {
 	}
 
 	applicationClient := c.NewApplicationClient(apiRoot)
-	applicationInfo, err := applicationClient.Get(generation, c.ApplicationName)
+	applicationInfo, err := applicationClient.Get(ctx, generation, c.ApplicationName)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -157,7 +158,7 @@ func (c *bindCommand) Run(ctx *cmd.Context) error {
 	var bindingsChangelog []string
 	c.Bindings, bindingsChangelog = mergeBindings(curCharmEndpoints, curBindings, c.Bindings, appDefaultSpace)
 
-	err = applicationClient.MergeBindings(params.ApplicationMergeBindingsArgs{
+	err = applicationClient.MergeBindings(ctx, params.ApplicationMergeBindingsArgs{
 		Args: []params.ApplicationMergeBindings{
 			{
 				ApplicationTag: names.NewApplicationTag(c.ApplicationName).String(),

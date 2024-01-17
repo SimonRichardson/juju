@@ -4,6 +4,7 @@
 package application
 
 import (
+	"context"
 	"regexp"
 	"strings"
 
@@ -216,8 +217,8 @@ func (c *addUnitCommand) validateArgsByModelType() error {
 type applicationAddUnitAPI interface {
 	Close() error
 	ModelUUID() string
-	AddUnits(application.AddUnitsParams) ([]string, error)
-	ScaleApplication(application.ScaleApplicationParams) (params.ScaleApplicationResult, error)
+	AddUnits(context.Context, application.AddUnitsParams) ([]string, error)
+	ScaleApplication(context.Context, application.ScaleApplicationParams) (params.ScaleApplicationResult, error)
 }
 
 func (c *addUnitCommand) getAPI() (applicationAddUnitAPI, error) {
@@ -252,7 +253,7 @@ func (c *addUnitCommand) Run(ctx *cmd.Context) error {
 	}
 
 	if modelType == model.CAAS {
-		_, err = apiclient.ScaleApplication(application.ScaleApplicationParams{
+		_, err = apiclient.ScaleApplication(ctx, application.ScaleApplicationParams{
 			ApplicationName: c.ApplicationName,
 			ScaleChange:     c.NumUnits,
 		})
@@ -274,7 +275,7 @@ func (c *addUnitCommand) Run(ctx *cmd.Context) error {
 		}
 		c.Placement[i] = p
 	}
-	_, err = apiclient.AddUnits(application.AddUnitsParams{
+	_, err = apiclient.AddUnits(ctx, application.AddUnitsParams{
 		ApplicationName: c.ApplicationName,
 		NumUnits:        c.NumUnits,
 		Placement:       c.Placement,

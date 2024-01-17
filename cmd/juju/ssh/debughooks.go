@@ -4,6 +4,7 @@
 package ssh
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -149,7 +150,7 @@ func (c *debugHooksCommand) closeAPIs() {
 	}
 }
 
-func (c *debugHooksCommand) validateHooksOrActions() error {
+func (c *debugHooksCommand) validateHooksOrActions(ctx context.Context) error {
 	if len(c.hooks) == 0 {
 		return nil
 	}
@@ -172,12 +173,12 @@ func (c *debugHooksCommand) validateHooksOrActions() error {
 		return err
 	}
 
-	curl, _, err := c.applicationAPI.GetCharmURLOrigin("", appName)
+	curl, _, err := c.applicationAPI.GetCharmURLOrigin(ctx, "", appName)
 	if err != nil {
 		return err
 	}
 
-	charmInfo, err := c.charmAPI.CharmInfo(curl.String())
+	charmInfo, err := c.charmAPI.CharmInfo(ctx, curl.String())
 	if err != nil {
 		return err
 	}
@@ -241,14 +242,14 @@ func (c *debugHooksCommand) commonRun(
 	hooks []string,
 	debugAt string,
 ) (err error) {
-	err = c.validateHooksOrActions()
+	err = c.validateHooksOrActions(ctx)
 	if err != nil {
 		return err
 	}
 
 	// If the unit/leader syntax is used, we first need to resolve it into
 	// the unit name that corresponds to the current leader.
-	resolvedTargetName, err := c.provider.maybeResolveLeaderUnit(target)
+	resolvedTargetName, err := c.provider.maybeResolveLeaderUnit(ctx, target)
 	if err != nil {
 		return errors.Trace(err)
 	}

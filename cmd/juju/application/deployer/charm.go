@@ -74,7 +74,7 @@ func (d *deployCharm) deploy(
 	deployAPI DeployerAPI,
 ) (rErr error) {
 	id := d.id
-	charmInfo, err := deployAPI.CharmInfo(id.URL.String())
+	charmInfo, err := deployAPI.CharmInfo(ctx, id.URL.String())
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func (d *predeployedLocalCharm) PrepareAndDeploy(ctx *cmd.Context, deployAPI Dep
 		return errors.Trace(err)
 	}
 
-	charmInfo, err := deployAPI.CharmInfo(d.userCharmURL.String())
+	charmInfo, err := deployAPI.CharmInfo(ctx, d.userCharmURL.String())
 	if err != nil {
 		return errors.Trace(err)
 	}

@@ -4,6 +4,7 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -196,7 +197,7 @@ func (s *SSHMachineSuite) TestMaybePopulateTargetViaFieldForHostMachineTarget(c 
 		host: "10.0.0.1",
 	}
 
-	statusGetter := func(_ *client.StatusArgs) (*params.FullStatus, error) {
+	statusGetter := func(_ context.Context, _ *client.StatusArgs) (*params.FullStatus, error) {
 		return &params.FullStatus{
 			Machines: map[string]params.MachineStatus{
 				"0": {
@@ -208,7 +209,7 @@ func (s *SSHMachineSuite) TestMaybePopulateTargetViaFieldForHostMachineTarget(c 
 		}, nil
 	}
 
-	err := new(sshMachine).maybePopulateTargetViaField(target, statusGetter)
+	err := new(sshMachine).maybePopulateTargetViaField(context.Background(), target, statusGetter)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Assert(target.via, gc.IsNil, gc.Commentf("expected target.via not to be populated for a non-container target"))
@@ -219,7 +220,7 @@ func (s *SSHMachineSuite) TestMaybePopulateTargetViaFieldForContainerMachineTarg
 		host: "252.66.6.42",
 	}
 
-	statusGetter := func(_ *client.StatusArgs) (*params.FullStatus, error) {
+	statusGetter := func(_ context.Context, _ *client.StatusArgs) (*params.FullStatus, error) {
 		return &params.FullStatus{
 			Machines: map[string]params.MachineStatus{
 				"0": {
@@ -239,7 +240,7 @@ func (s *SSHMachineSuite) TestMaybePopulateTargetViaFieldForContainerMachineTarg
 		}, nil
 	}
 
-	err := new(sshMachine).maybePopulateTargetViaField(target, statusGetter)
+	err := new(sshMachine).maybePopulateTargetViaField(context.Background(), target, statusGetter)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Assert(target.via, gc.Not(gc.IsNil), gc.Commentf("expected target.via to be populated for container target"))
@@ -335,7 +336,7 @@ func (s *SSHMachineSuite) setupModel(
 		sshClient.EXPECT().PublicKeys(t).DoAndReturn(f).AnyTimes()
 	}
 
-	statusClient.EXPECT().Status(nil).DoAndReturn(func(_ *client.StatusArgs) (*params.FullStatus, error) {
+	statusClient.EXPECT().Status(gomock.Any(), nil).DoAndReturn(func(_ context.Context, _ *client.StatusArgs) (*params.FullStatus, error) {
 		machine := machineTarget(targets[0])
 		addr, err := getAddresses(machine)
 		if err != nil {

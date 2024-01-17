@@ -26,7 +26,8 @@ import (
 // ApplicationOps defines all the operations the application worker can perform.
 // This is exported for testing only.
 type ApplicationOps interface {
-	AppAlive(appName string, app caas.Application, password string, lastApplied *caas.ApplicationConfig,
+	AppAlive(ctx context.Context,
+		appName string, app caas.Application, password string, lastApplied *caas.ApplicationConfig,
 		facade CAASProvisionerFacade, clk clock.Clock, logger Logger) error
 
 	AppDying(appName string, app caas.Application, appLife life.Value,
@@ -57,12 +58,13 @@ type ApplicationOps interface {
 		facade CAASProvisionerFacade, unitFacade CAASUnitProvisionerFacade, logger Logger) error
 }
 
-type applicationOps struct {
-}
+type applicationOps struct{}
 
-func (applicationOps) AppAlive(appName string, app caas.Application, password string, lastApplied *caas.ApplicationConfig,
+func (applicationOps) AppAlive(
+	ctx context.Context,
+	appName string, app caas.Application, password string, lastApplied *caas.ApplicationConfig,
 	facade CAASProvisionerFacade, clk clock.Clock, logger Logger) error {
-	return appAlive(appName, app, password, lastApplied, facade, clk, logger)
+	return appAlive(ctx, appName, app, password, lastApplied, facade, clk, logger)
 }
 
 func (applicationOps) AppDying(appName string, app caas.Application, appLife life.Value,
@@ -117,7 +119,8 @@ type Tomb interface {
 
 // appAlive handles the life.Alive state for the CAAS application. It handles invoking the
 // CAAS broker to create the resources in the k8s cluster for this application.
-func appAlive(appName string, app caas.Application, password string, lastApplied *caas.ApplicationConfig,
+func appAlive(ctx context.Context,
+	appName string, app caas.Application, password string, lastApplied *caas.ApplicationConfig,
 	facade CAASProvisionerFacade, clk clock.Clock, logger Logger) error {
 	logger.Debugf("ensuring application %q exists", appName)
 
@@ -129,7 +132,7 @@ func appAlive(appName string, app caas.Application, password string, lastApplied
 		return errors.Errorf("missing charm url in provision info")
 	}
 
-	charmInfo, err := facade.CharmInfo(provisionInfo.CharmURL.String())
+	charmInfo, err := facade.CharmInfo(ctx, provisionInfo.CharmURL.String())
 	if err != nil {
 		return errors.Annotatef(err, "retrieving charm deployment info for %q", appName)
 	}

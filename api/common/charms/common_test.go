@@ -4,6 +4,8 @@
 package charms_test
 
 import (
+	"context"
+
 	"github.com/juju/charm/v12"
 	"github.com/juju/charm/v12/resource"
 	"github.com/juju/version/v2"
@@ -90,7 +92,7 @@ func (s *suite) TestCharmInfo(c *gc.C) {
 	mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "CharmInfo", args, info).SetArg(3, params).Return(nil)
 
 	client := apicommoncharms.NewCharmInfoClient(mockFacadeCaller)
-	got, err := client.CharmInfo(url)
+	got, err := client.CharmInfo(context.Background(), url)
 	c.Assert(err, gc.IsNil)
 
 	want := &apicommoncharms.CharmInfo{

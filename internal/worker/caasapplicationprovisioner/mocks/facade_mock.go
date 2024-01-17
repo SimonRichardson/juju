@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	charms "github.com/juju/juju/api/common/charms"
@@ -76,18 +77,18 @@ func (mr *MockCAASProvisionerFacadeMockRecorder) ApplicationOCIResources(arg0 an
 }
 
 // CharmInfo mocks base method.
-func (m *MockCAASProvisionerFacade) CharmInfo(arg0 string) (*charms.CharmInfo, error) {
+func (m *MockCAASProvisionerFacade) CharmInfo(arg0 context.Context, arg1 string) (*charms.CharmInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CharmInfo", arg0)
+	ret := m.ctrl.Call(m, "CharmInfo", arg0, arg1)
 	ret0, _ := ret[0].(*charms.CharmInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CharmInfo indicates an expected call of CharmInfo.
-func (mr *MockCAASProvisionerFacadeMockRecorder) CharmInfo(arg0 any) *gomock.Call {
+func (mr *MockCAASProvisionerFacadeMockRecorder) CharmInfo(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CharmInfo", reflect.TypeOf((*MockCAASProvisionerFacade)(nil).CharmInfo), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CharmInfo", reflect.TypeOf((*MockCAASProvisionerFacade)(nil).CharmInfo), arg0, arg1)
 }
 
 // ClearApplicationResources mocks base method.

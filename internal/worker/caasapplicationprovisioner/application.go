@@ -4,6 +4,7 @@
 package caasapplicationprovisioner
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -104,6 +105,9 @@ func (a *appWorker) Wait() error {
 }
 
 func (a *appWorker) loop() error {
+	ctx, cancel := a.scopedContext()
+	defer cancel()
+
 	// TODO(sidecar): support more than statefulset
 	app := a.broker.Application(a.name, caas.DeploymentStateful)
 
@@ -236,7 +240,7 @@ func (a *appWorker) loop() error {
 				appProvisionChanges = appProvisionWatcher.Changes()
 			}
 			if !a.statusOnly {
-				err = a.ops.AppAlive(a.name, app, a.password, &a.lastApplied, a.facade, a.clock, a.logger)
+				err = a.ops.AppAlive(ctx, a.name, app, a.password, &a.lastApplied, a.facade, a.clock, a.logger)
 				if errors.Is(err, errors.NotProvisioned) {
 					// State not ready for this application to be provisioned yet.
 					// Usually because the charm has not yet been downloaded.
@@ -423,4 +427,8 @@ func (a *appWorker) loop() error {
 			}
 		}
 	}
+}
+
+func (a *appWorker) scopedContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(a.catacomb.Context(context.Background()))
 }

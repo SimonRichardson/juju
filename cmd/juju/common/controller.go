@@ -4,6 +4,7 @@
 package common
 
 import (
+	"context"
 	stdcontext "context"
 	"fmt"
 	"io"
@@ -35,7 +36,7 @@ var (
 )
 
 type listBlocksAPI interface {
-	List() ([]params.Block, error)
+	List(context.Context) ([]params.Block, error)
 	Close() error
 }
 
@@ -55,10 +56,10 @@ func getBlockAPI(c *modelcmd.ModelCommandBase) (listBlocksAPI, error) {
 
 // tryAPI attempts to open the API and makes a trivial call
 // to check if the API is available yet.
-func tryAPI(c *modelcmd.ModelCommandBase) error {
+func tryAPI(ctx context.Context, c *modelcmd.ModelCommandBase) error {
 	client, err := blockAPI(c)
 	if err == nil {
-		_, err = client.List()
+		_, err = client.List(ctx)
 		closeErr := client.Close()
 		if closeErr != nil {
 			logger.Debugf("Error closing client: %v", closeErr)
@@ -107,7 +108,7 @@ func WaitForAgentInitialisation(
 				errors.Is(err, stdcontext.Canceled)
 		},
 		Func: func() error {
-			retryErr := tryAPI(c)
+			retryErr := tryAPI(ctx, c)
 			if retryErr == nil {
 				msg := fmt.Sprintf("\nBootstrap complete, controller %q is now available", controllerName)
 				if isCAASController {

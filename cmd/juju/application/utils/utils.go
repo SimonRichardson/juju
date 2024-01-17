@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -30,8 +31,8 @@ var logger = loggo.GetLogger("juju.cmd.juju.application.utils")
 
 // GetMetaResources retrieves metadata resources for the given
 // charm.URL.
-func GetMetaResources(charmURL *charm.URL, client CharmClient) (map[string]charmresource.Meta, error) {
-	charmInfo, err := client.CharmInfo(charmURL.String())
+func GetMetaResources(ctx context.Context, charmURL *charm.URL, client CharmClient) (map[string]charmresource.Meta, error) {
+	charmInfo, err := client.CharmInfo(ctx, charmURL.String())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -79,6 +80,7 @@ func flagWithMinus(name string) string {
 // GetUpgradeResources returns a map of resources which require
 // refresh.
 func GetUpgradeResources(
+	ctx context.Context,
 	newCharmID application.CharmID,
 	repositoryResourceLister CharmClient,
 	resourceLister ResourceLister,
@@ -89,11 +91,11 @@ func GetUpgradeResources(
 	if len(meta) == 0 {
 		return nil, nil
 	}
-	available, err := getAvailableRepositoryResources(newCharmID, repositoryResourceLister)
+	available, err := getAvailableRepositoryResources(ctx, newCharmID, repositoryResourceLister)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	current, err := getCurrentResources(applicationID, resourceLister)
+	current, err := getCurrentResources(ctx, applicationID, resourceLister)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -103,10 +105,11 @@ func GetUpgradeResources(
 // getCurrentResources gets the current resources for this charm in
 // state.
 func getCurrentResources(
+	ctx context.Context,
 	applicationID string,
 	resourceLister ResourceLister,
 ) (map[string]resources.Resource, error) {
-	svcs, err := resourceLister.ListResources([]string{applicationID})
+	svcs, err := resourceLister.ListResources(ctx, []string{applicationID})
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -115,12 +118,12 @@ func getCurrentResources(
 
 // getAvailableRepositoryResources gets the current resources for this
 // charm available in the repository.
-func getAvailableRepositoryResources(newCharmID application.CharmID, repositoryResourceLister CharmClient) (map[string]charmresource.Resource, error) {
+func getAvailableRepositoryResources(ctx context.Context, newCharmID application.CharmID, repositoryResourceLister CharmClient) (map[string]charmresource.Resource, error) {
 	if repositoryResourceLister == nil || !corecharm.CharmHub.Matches(newCharmID.Origin.Source.String()) {
 		// not required for local charms
 		return nil, nil
 	}
-	available, err := repositoryResourceLister.ListCharmResources(newCharmID.URL, newCharmID.Origin)
+	available, err := repositoryResourceLister.ListCharmResources(ctx, newCharmID.URL, newCharmID.Origin)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

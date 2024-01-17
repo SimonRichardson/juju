@@ -55,8 +55,8 @@ type ModelAPI interface {
 // CharmDeployAPI represents the methods of the API the deploy
 // command needs for charms.
 type CharmDeployAPI interface {
-	CharmInfo(string) (*apicharms.CharmInfo, error)
-	ListCharmResources(curl *charm.URL, origin commoncharm.Origin) ([]charmresource.Resource, error)
+	CharmInfo(context.Context, string) (*apicharms.CharmInfo, error)
+	ListCharmResources(ctx context.Context, curl *charm.URL, origin commoncharm.Origin) ([]charmresource.Resource, error)
 }
 
 // OfferAPI represents the methods of the API the deploy command needs

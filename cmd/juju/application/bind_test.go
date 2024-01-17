@@ -4,6 +4,7 @@
 package application
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/juju/cmd/v3"
@@ -154,12 +155,12 @@ type mockApplicationBindClient struct {
 	getResults *params.ApplicationGetResults
 }
 
-func (m *mockApplicationBindClient) Get(generation string, app string) (*params.ApplicationGetResults, error) {
+func (m *mockApplicationBindClient) Get(ctx context.Context, generation string, app string) (*params.ApplicationGetResults, error) {
 	m.MethodCall(m, "Get", generation, app)
 	return m.getResults, m.NextErr()
 }
 
-func (m *mockApplicationBindClient) MergeBindings(p params.ApplicationMergeBindingsArgs) error {
+func (m *mockApplicationBindClient) MergeBindings(ctx context.Context, p params.ApplicationMergeBindingsArgs) error {
 	m.MethodCall(m, "MergeBindings", p)
 	return m.NextErr()
 }

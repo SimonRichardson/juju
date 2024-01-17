@@ -4,6 +4,8 @@
 package utils_test
 
 import (
+	"context"
+
 	"github.com/juju/charm/v12"
 	charmresource "github.com/juju/charm/v12/resource"
 	"github.com/juju/gnuflag"
@@ -55,7 +57,7 @@ func (s *utilsResourceSuite) TestGetMetaResources(c *gc.C) {
 	curl := charm.MustParseURL("local:trusty/multi-series-1")
 	s.expectCharmInfo(curl.String())
 
-	obtained, err := utils.GetMetaResources(curl, s.charmClient)
+	obtained, err := utils.GetMetaResources(context.Background(), curl, s.charmClient)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(obtained, gc.DeepEquals, map[string]charmresource.Meta{
 		"test": {Name: "Testme"}})
@@ -123,7 +125,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesLocalCharmNewResources(c *gc
 
 func (s *utilsResourceSuite) TestGetUpgradeResourcesCHCharmNewEmptyRes(c *gc.C) {
 	defer s.setupMocks(c).Finish()
-	s.charmClient.EXPECT().ListCharmResources(gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(nil, nil)
+	s.charmClient.EXPECT().ListCharmResources(gomock.Any(), gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(nil, nil)
 
 	// switching to ch charm, new empty resources will be uploaded.
 	s.assertGetUpgradeResources(c, func(
@@ -161,7 +163,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesLocalCharmError(c *gc.C) {
 
 func (s *utilsResourceSuite) TestGetUpgradeResourcesNotOriginUpload(c *gc.C) {
 	defer s.setupMocks(c).Finish()
-	s.charmClient.EXPECT().ListCharmResources(gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(nil, nil)
+	s.charmClient.EXPECT().ListCharmResources(gomock.Any(), gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(nil, nil)
 
 	// switching to ch charm, empty resource will be upgraded if the existing resource origin was not OriginUpload.
 	s.assertGetUpgradeResources(c, func(
@@ -187,7 +189,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesNotOriginUpload(c *gc.C) {
 
 func (s *utilsResourceSuite) TestGetUpgradeResourcesOriginUpload(c *gc.C) {
 	defer s.setupMocks(c).Finish()
-	s.charmClient.EXPECT().ListCharmResources(gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(nil, nil)
+	s.charmClient.EXPECT().ListCharmResources(gomock.Any(), gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(nil, nil)
 
 	// switching to ch charm and empty resource will NOT be upgraded if the existing resource origin was OriginUpload.
 	s.assertGetUpgradeResources(c, func(
@@ -245,12 +247,12 @@ func (s *utilsResourceSuite) assertGetUpgradeResources(
 	}
 
 	expected, errString := getExpectedMeta(newCharmURL, cliResources, resourcesInController, resourcesInMetadata)
-	s.resourceFacade.EXPECT().ListResources([]string{"snappass-test"}).Return(resourcesInController, nil)
+	s.resourceFacade.EXPECT().ListResources(gomock.Any(), []string{"snappass-test"}).Return(resourcesInController, nil)
 	charmID := application.CharmID{
 		URL:    newCharmURL,
 		Origin: apicharm.Origin{Source: schemaToOriginSource(newCharmURL.Schema)},
 	}
-	filtered, err := utils.GetUpgradeResources(
+	filtered, err := utils.GetUpgradeResources(context.Background(),
 		charmID, s.charmClient, s.resourceFacade, "snappass-test", cliResources, resourcesInMetadata,
 	)
 	if len(errString) == 0 {
@@ -276,7 +278,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesRepositoryNoChange(c *gc.C) 
 
 	cliResources := map[string]string{}
 
-	filtered, err := utils.GetUpgradeResources(
+	filtered, err := utils.GetUpgradeResources(context.Background(),
 		repoCharmID(), s.charmClient, s.resourceFacade, "snappass-test", cliResources, repoResourcesInMetadata,
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -294,7 +296,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesRepositoryChange(c *gc.C) {
 
 	cliResources := map[string]string{}
 
-	filtered, err := utils.GetUpgradeResources(
+	filtered, err := utils.GetUpgradeResources(context.Background(),
 		repoCharmID(), s.charmClient, s.resourceFacade, "snappass-test", cliResources, repoResourcesInMetadata,
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -312,7 +314,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesRepositoryCLIRevision(c *gc.
 
 	cliResources := map[string]string{"test-file": "42"}
 
-	filtered, err := utils.GetUpgradeResources(
+	filtered, err := utils.GetUpgradeResources(context.Background(),
 		repoCharmID(), s.charmClient, s.resourceFacade, "snappass-test", cliResources, repoResourcesInMetadata,
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -330,7 +332,7 @@ func (s *utilsResourceSuite) TestGetUpgradeResourcesRepositoryCLIRevisionAlready
 
 	cliResources := map[string]string{"test-file": "42"}
 
-	filtered, err := utils.GetUpgradeResources(
+	filtered, err := utils.GetUpgradeResources(context.Background(),
 		repoCharmID(), s.charmClient, s.resourceFacade, "snappass-test", cliResources, repoResourcesInMetadata,
 	)
 	c.Assert(err, jc.ErrorIsNil)
@@ -367,7 +369,7 @@ func (s *utilsResourceSuite) expectListCharmResources(redis, snappass, testfile 
 	availableCharmResources := []charmresource.Resource{
 		r1, r2, r3,
 	}
-	s.charmClient.EXPECT().ListCharmResources(gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(availableCharmResources, nil)
+	s.charmClient.EXPECT().ListCharmResources(gomock.Any(), gomock.AssignableToTypeOf(&charm.URL{}), gomock.AssignableToTypeOf(apicharm.Origin{})).Return(availableCharmResources, nil)
 }
 
 func (s *utilsResourceSuite) expectListResources(redis, snappass, testfile int) {
@@ -390,7 +392,7 @@ func (s *utilsResourceSuite) expectListResources(redis, snappass, testfile int) 
 			},
 		},
 	}
-	s.resourceFacade.EXPECT().ListResources([]string{"snappass-test"}).Return(resourcesInController, nil)
+	s.resourceFacade.EXPECT().ListResources(gomock.Any(), []string{"snappass-test"}).Return(resourcesInController, nil)
 
 }
 
@@ -409,5 +411,5 @@ func (s *utilsResourceSuite) expectCharmInfo(str string) {
 			},
 		},
 	}
-	s.charmClient.EXPECT().CharmInfo(str).Return(charmInfo, nil)
+	s.charmClient.EXPECT().CharmInfo(gomock.Any(), str).Return(charmInfo, nil)
 }

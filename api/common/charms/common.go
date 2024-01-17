@@ -28,10 +28,10 @@ func NewCharmInfoClient(facade base.FacadeCaller) *CharmInfoClient {
 }
 
 // CharmInfo returns information about the requested charm.
-func (c *CharmInfoClient) CharmInfo(charmURL string) (*CharmInfo, error) {
+func (c *CharmInfoClient) CharmInfo(ctx context.Context, charmURL string) (*CharmInfo, error) {
 	args := params.CharmURL{URL: charmURL}
 	var info params.Charm
-	if err := c.facade.FacadeCall(context.TODO(), "CharmInfo", args, &info); err != nil {
+	if err := c.facade.FacadeCall(ctx, "CharmInfo", args, &info); err != nil {
 		return nil, errors.Trace(err)
 	}
 	return convertCharm(&info)

@@ -4,6 +4,8 @@
 package caasapplicationprovisioner_test
 
 import (
+	"context"
+
 	"github.com/juju/charm/v12"
 	"github.com/juju/clock/testclock"
 	"github.com/juju/errors"
@@ -528,14 +530,14 @@ func (s *OpsSuite) TestAppAlive(c *gc.C) {
 	}
 	gomock.InOrder(
 		facade.EXPECT().ProvisioningInfo("test").Return(pi, nil),
-		facade.EXPECT().CharmInfo("ch:my-app").Return(&charmInfo, nil),
+		facade.EXPECT().CharmInfo(gomock.Any(), "ch:my-app").Return(&charmInfo, nil),
 		app.EXPECT().Exists().Return(ds, nil),
 		app.EXPECT().Exists().Return(caas.DeploymentState{}, nil),
 		facade.EXPECT().ApplicationOCIResources("test").Return(oci, nil),
 		app.EXPECT().Ensure(ensureParams).Return(nil),
 	)
 
-	err := caasapplicationprovisioner.AppOps.AppAlive("test", app, password, &lastApplied, facade, clk, s.logger)
+	err := caasapplicationprovisioner.AppOps.AppAlive(context.Background(), "test", app, password, &lastApplied, facade, clk, s.logger)
 	c.Assert(err, jc.ErrorIsNil)
 }
 

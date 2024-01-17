@@ -52,7 +52,7 @@ type CAASProvisionerFacade interface {
 	WatchApplications() (watcher.StringsWatcher, error)
 	SetPassword(string, string) error
 	Life(string) (life.Value, error)
-	CharmInfo(string) (*charmscommon.CharmInfo, error)
+	CharmInfo(context.Context, string) (*charmscommon.CharmInfo, error)
 	ApplicationCharmInfo(string) (*charmscommon.CharmInfo, error)
 	SetOperatorStatus(appName string, status status.Status, message string, data map[string]interface{}) error
 	Units(appName string) ([]params.CAASUnit, error)

@@ -112,16 +112,16 @@ func (s *sshContainerSuite) TestResolveTargetForWorkloadPod(c *gc.C) {
 	defer ctrl.Finish()
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{},
 			}, nil),
 	)
-	target, err := s.sshC.ResolveTarget("mariadb-k8s/0")
+	target, err := s.sshC.ResolveTarget(context.Background(), "mariadb-k8s/0")
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(target.GetEntity(), gc.DeepEquals, "mariadb-k8s-0")
 }
@@ -131,7 +131,7 @@ func (s *sshContainerSuite) TestResolveTargetForController(c *gc.C) {
 	ctrl := s.setUpController(c, "")
 	defer ctrl.Finish()
 
-	target, err := s.sshC.ResolveTarget("0")
+	target, err := s.sshC.ResolveTarget(context.Background(), "0")
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(target.GetEntity(), gc.DeepEquals, "controller-0")
 }
@@ -141,7 +141,7 @@ func (s *sshContainerSuite) TestResolveTargetForControllerInvalidTarget(c *gc.C)
 	ctrl := s.setUpController(c, "")
 	defer ctrl.Finish()
 
-	_, err := s.sshC.ResolveTarget("1")
+	_, err := s.sshC.ResolveTarget(context.Background(), "1")
 	c.Assert(err, gc.ErrorMatches, `target "1" not found`)
 }
 
@@ -150,11 +150,11 @@ func (s *sshContainerSuite) TestResolveTargetForSidecarCharm(c *gc.C) {
 	defer ctrl.Finish()
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Manifest: &charm.Manifest{
 					Bases: []charm.Base{{
@@ -168,7 +168,7 @@ func (s *sshContainerSuite) TestResolveTargetForSidecarCharm(c *gc.C) {
 				Meta: &charm.Meta{},
 			}, nil),
 	)
-	target, err := s.sshC.ResolveTarget("mariadb-k8s/0")
+	target, err := s.sshC.ResolveTarget(context.Background(), "mariadb-k8s/0")
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(target.GetEntity(), gc.DeepEquals, "mariadb-k8s-0")
 }
@@ -178,11 +178,11 @@ func (s *sshContainerSuite) TestResolveCharmTargetForSidecarCharm(c *gc.C) {
 	defer ctrl.Finish()
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Manifest: &charm.Manifest{
 					Bases: []charm.Base{{
@@ -196,7 +196,7 @@ func (s *sshContainerSuite) TestResolveCharmTargetForSidecarCharm(c *gc.C) {
 				Meta: &charm.Meta{},
 			}, nil),
 	)
-	target, err := s.sshC.ResolveTarget("mariadb-k8s/0")
+	target, err := s.sshC.ResolveTarget(context.Background(), "mariadb-k8s/0")
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(target.GetEntity(), gc.DeepEquals, "mariadb-k8s-0")
 }
@@ -206,11 +206,11 @@ func (s *sshContainerSuite) TestResolveTargetForSidecarCharmWithContainer(c *gc.
 	defer ctrl.Finish()
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{
 					Containers: map[string]charm.Container{
@@ -228,7 +228,7 @@ func (s *sshContainerSuite) TestResolveTargetForSidecarCharmWithContainer(c *gc.
 				},
 			}, nil),
 	)
-	target, err := s.sshC.ResolveTarget("mariadb-k8s/0")
+	target, err := s.sshC.ResolveTarget(context.Background(), "mariadb-k8s/0")
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(target.GetEntity(), gc.DeepEquals, "mariadb-k8s-0")
 }
@@ -238,11 +238,11 @@ func (s *sshContainerSuite) TestResolveTargetForSidecarCharmWithContainerMissing
 	defer ctrl.Finish()
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{
 					Containers: map[string]charm.Container{
@@ -260,7 +260,7 @@ func (s *sshContainerSuite) TestResolveTargetForSidecarCharmWithContainerMissing
 				},
 			}, nil),
 	)
-	_, err := s.sshC.ResolveTarget("mariadb-k8s/0")
+	_, err := s.sshC.ResolveTarget(context.Background(), "mariadb-k8s/0")
 	c.Assert(err, gc.ErrorMatches, `container "bad-test-container" must be one of charm, test-container`)
 }
 
@@ -269,16 +269,16 @@ func (s *sshContainerSuite) TestResolveTargetForWorkloadPodNoProviderID(c *gc.C)
 	defer ctrl.Finish()
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{},
 			}, nil),
 	)
-	_, err := s.sshC.ResolveTarget("mariadb-k8s/0")
+	_, err := s.sshC.ResolveTarget(context.Background(), "mariadb-k8s/0")
 	c.Assert(err, gc.ErrorMatches, `container for unit "mariadb-k8s/0" is not ready yet`)
 }
 
@@ -482,11 +482,11 @@ func (s *sshContainerSuite) TestCopyFromWorkloadPod(c *gc.C) {
 	s.sshC.SetArgs([]string{"mariadb-k8s/0:/home/ubuntu/", "./file1"})
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{},
 			}, nil),
@@ -512,11 +512,11 @@ func (s *sshContainerSuite) TestCopyToWorkloadPod(c *gc.C) {
 	s.sshC.SetArgs([]string{"./file1", "mariadb-k8s/0:/home/ubuntu/"})
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{},
 			}, nil),
@@ -542,11 +542,11 @@ func (s *sshContainerSuite) TestCopyToWorkloadPodWithContainerSpecified(c *gc.C)
 	s.sshC.SetArgs([]string{"./file1", "mariadb-k8s/0:/home/ubuntu/"})
 
 	gomock.InOrder(
-		s.applicationAPI.EXPECT().UnitsInfo([]names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
+		s.applicationAPI.EXPECT().UnitsInfo(gomock.Any(), []names.UnitTag{names.NewUnitTag("mariadb-k8s/0")}).
 			Return([]application.UnitInfo{
 				{ProviderId: "mariadb-k8s-0", Charm: "test-charm-url"},
 			}, nil),
-		s.charmAPI.EXPECT().CharmInfo("test-charm-url").
+		s.charmAPI.EXPECT().CharmInfo(gomock.Any(), "test-charm-url").
 			Return(&charms.CharmInfo{
 				Meta: &charm.Meta{
 					Containers: map[string]charm.Container{
@@ -576,10 +576,10 @@ func (s *sshContainerSuite) TestNamespaceControllerModel(c *gc.C) {
 	mc.EXPECT().ModelIdentifier().Return("admin/controller", nil)
 	mc.EXPECT().NewControllerAPIRoot().Return(nil, nil)
 	mc.EXPECT().NewAPIRoot().Return(nil, nil)
-	s.controllerAPI.EXPECT().ControllerConfig().Return(
+	s.controllerAPI.EXPECT().ControllerConfig(gomock.Any()).Return(
 		controller.Config{"controller-name": "foobar"}, nil)
 
-	err := s.sshC.InitRun(mc)
+	err := s.sshC.InitRun(context.Background(), mc)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(s.sshC.Namespace(), gc.Equals, "controller-foobar")
 }

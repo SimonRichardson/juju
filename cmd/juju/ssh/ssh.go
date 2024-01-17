@@ -4,6 +4,7 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -234,13 +235,13 @@ type ModelCommand interface {
 
 // sshProvider is implemented by either a CaaS or IaaS model instance.
 type sshProvider interface {
-	initRun(ModelCommand) error
+	initRun(context.Context, ModelCommand) error
 	cleanupRun()
 	setLeaderAPI(leaderAPI LeaderAPI)
 	setHostChecker(checker jujussh.ReachableChecker)
-	resolveTarget(string) (*resolvedTarget, error)
-	maybePopulateTargetViaField(*resolvedTarget, func(*client.StatusArgs) (*params.FullStatus, error)) error
-	maybeResolveLeaderUnit(string) (string, error)
+	resolveTarget(context.Context, string) (*resolvedTarget, error)
+	maybePopulateTargetViaField(context.Context, *resolvedTarget, func(context.Context, *client.StatusArgs) (*params.FullStatus, error)) error
+	maybeResolveLeaderUnit(context.Context, string) (string, error)
 	ssh(ctx Context, enablePty bool, target *resolvedTarget) error
 	copy(Context) error
 
@@ -257,12 +258,12 @@ type sshProvider interface {
 // Run resolves the given target to a machine or unit, then opens
 // an SSH connection to this target.
 func (c *sshCommand) Run(ctx *cmd.Context) error {
-	if err := c.provider.initRun(&c.ModelCommandBase); err != nil {
+	if err := c.provider.initRun(ctx, &c.ModelCommandBase); err != nil {
 		return errors.Trace(err)
 	}
 	defer c.provider.cleanupRun()
 
-	target, err := c.provider.resolveTarget(c.provider.getTarget())
+	target, err := c.provider.resolveTarget(ctx, c.provider.getTarget())
 	if err != nil {
 		return err
 	}
@@ -272,7 +273,7 @@ func (c *sshCommand) Run(ctx *cmd.Context) error {
 		// we need to route the traffic via the machine that hosts it.
 		// This is required as the controller is unable to route fan
 		// traffic across subnets.
-		if err = c.provider.maybePopulateTargetViaField(target, c.statusClient.Status); err != nil {
+		if err = c.provider.maybePopulateTargetViaField(ctx, target, c.statusClient.Status); err != nil {
 			return errors.Trace(err)
 		}
 	}
@@ -328,7 +329,7 @@ func (b *autoBoolValue) IsBoolFlag() bool { return true }
 // LeaderAPI is implemented by types that can query for a Leader based on
 // application name.
 type LeaderAPI interface {
-	Leader(string) (string, error)
+	Leader(context.Context, string) (string, error)
 	Close() error
 }
 
@@ -337,7 +338,7 @@ type leaderResolver struct {
 	resolvedLeader string
 }
 
-func (c *leaderResolver) maybeResolveLeaderUnit(target string) (string, error) {
+func (c *leaderResolver) maybeResolveLeaderUnit(ctx context.Context, target string) (string, error) {
 	if !strings.HasSuffix(target, "/leader") {
 		return target, nil
 	}
@@ -350,7 +351,7 @@ func (c *leaderResolver) maybeResolveLeaderUnit(target string) (string, error) {
 	// Do not call leaderAPI.Close() here, it's used again
 	// upstream from here.
 	var err error
-	c.resolvedLeader, err = c.leaderAPI.Leader(app)
+	c.resolvedLeader, err = c.leaderAPI.Leader(ctx, app)
 	return c.resolvedLeader, errors.Trace(err)
 }
 

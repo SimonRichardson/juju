@@ -838,7 +838,7 @@ func (h *bundleHandler) addApplication(ctx context.Context, change *bundlechange
 		return errors.Trace(err)
 	}
 
-	charmInfo, err := h.deployAPI.CharmInfo(chID.URL.String())
+	charmInfo, err := h.deployAPI.CharmInfo(ctx, chID.URL.String())
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -1274,7 +1274,7 @@ func (h *bundleHandler) upgradeCharm(ctx context.Context, change *bundlechanges.
 }
 
 func (h *bundleHandler) upgradeCharmResources(ctx context.Context, chID application.CharmID, param bundlechanges.UpgradeCharmParams) (map[string]string, error) {
-	meta, err := utils.GetMetaResources(chID.URL, h.deployAPI)
+	meta, err := utils.GetMetaResources(ctx, chID.URL, h.deployAPI)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -1284,7 +1284,7 @@ func (h *bundleHandler) upgradeCharmResources(ctx context.Context, chID applicat
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	filtered, err := utils.GetUpgradeResources(chID, charms.NewClient(h.deployAPI), resourceLister, param.Application, resMap, meta)
+	filtered, err := utils.GetUpgradeResources(ctx, chID, charms.NewClient(h.deployAPI), resourceLister, param.Application, resMap, meta)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
