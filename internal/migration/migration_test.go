@@ -25,9 +25,11 @@ import (
 	"github.com/juju/juju/core/modelmigration"
 	"github.com/juju/juju/core/resources"
 	resourcetesting "github.com/juju/juju/core/resources/testing"
+	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/migration"
 	"github.com/juju/juju/internal/tools"
 	"github.com/juju/juju/state"
+	"github.com/juju/juju/state/stateenvirons"
 	jujutesting "github.com/juju/juju/testing"
 )
 
@@ -50,7 +52,10 @@ func (s *ImportSuite) TestBadBytes(c *gc.C) {
 	bytes := []byte("not a model")
 	scope := func(string) modelmigration.Scope { return modelmigration.NewScope(nil, nil) }
 	controller := &fakeImporter{}
-	importer := migration.NewModelImporter(controller, scope, s.modelManagerService, s.controllerConfigService, s.serviceFactoryGetter)
+	configSchemaSource := func(stateenvirons.CloudService) config.ConfigSchemaSourceGetter {
+		return state.NoopConfigSchemaSource
+	}
+	importer := migration.NewModelImporter(controller, scope, s.modelManagerService, s.controllerConfigService, s.serviceFactoryGetter, configSchemaSource)
 	model, st, err := importer.ImportModel(context.Background(), bytes)
 	c.Check(st, gc.IsNil)
 	c.Check(model, gc.IsNil)
@@ -120,7 +125,10 @@ func (s *ImportSuite) exportImport(c *gc.C, leaders map[string]string) {
 	m := &state.Model{}
 	controller := &fakeImporter{st: st, m: m}
 	scope := func(string) modelmigration.Scope { return modelmigration.NewScope(nil, nil) }
-	importer := migration.NewModelImporter(controller, scope, s.modelManagerService, s.controllerConfigService, s.serviceFactoryGetter)
+	configSchemaSource := func(stateenvirons.CloudService) config.ConfigSchemaSourceGetter {
+		return state.NoopConfigSchemaSource
+	}
+	importer := migration.NewModelImporter(controller, scope, s.modelManagerService, s.controllerConfigService, s.serviceFactoryGetter, configSchemaSource)
 	gotM, gotSt, err := importer.ImportModel(context.Background(), bytes)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(controller.model.Tag().Id(), gc.Equals, "bd3fae18-5ea1-4bc5-8837-45400cf1f8f6")
@@ -266,6 +274,7 @@ func (s *ImportSuite) setupMocks(c *gc.C) *gomock.Controller {
 	s.controllerConfigService.EXPECT().ControllerConfig(gomock.Any()).Return(jujutesting.FakeControllerConfig(), nil).AnyTimes()
 
 	s.serviceFactory = NewMockServiceFactory(ctrl)
+	s.serviceFactory.EXPECT().Cloud().Return(nil)
 	s.serviceFactory.EXPECT().Machine().Return(nil)
 	s.serviceFactory.EXPECT().Application().Return(nil)
 	s.serviceFactoryGetter = NewMockServiceFactoryGetter(ctrl)
@@ -281,7 +290,7 @@ type fakeImporter struct {
 	controllerConfig controller.Config
 }
 
-func (i *fakeImporter) Import(model description.Model, controllerConfig controller.Config, _ state.MachineService, _ state.ApplicationService) (*state.Model, *state.State, error) {
+func (i *fakeImporter) Import(model description.Model, controllerConfig controller.Config, _ state.MachineService, _ state.ApplicationService, _ config.ConfigSchemaSourceGetter) (*state.Model, *state.State, error) {
 	i.model = model
 	i.controllerConfig = controllerConfig
 	return i.m, i.st, nil

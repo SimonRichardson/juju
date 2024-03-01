@@ -36,6 +36,7 @@ import (
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
+	"github.com/juju/juju/state/stateenvirons"
 )
 
 type objectKey struct {
@@ -886,6 +887,7 @@ func (ctx *facadeContext) ModelImporter() facade.ModelImporter {
 		ctx.ServiceFactory().ModelManager(),
 		ctx.ServiceFactory().ControllerConfig(),
 		ctx.r.serviceFactoryGetter,
+		stateenvirons.ProviderConfigSchemaSource,
 	)
 }
 

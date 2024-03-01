@@ -34,11 +34,13 @@ import (
 	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/modelmigration"
 	applicationservice "github.com/juju/juju/domain/application/service"
+	cloudservice "github.com/juju/juju/domain/cloud/service"
 	"github.com/juju/juju/domain/credential"
 	"github.com/juju/juju/domain/credential/service"
 	machineservice "github.com/juju/juju/domain/machine/service"
 	servicefactorytesting "github.com/juju/juju/domain/servicefactory/testing"
 	"github.com/juju/juju/environs"
+	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/envcontext"
 	"github.com/juju/juju/environs/instances"
 	"github.com/juju/juju/internal/migration"
@@ -719,14 +721,19 @@ func (s *Suite) controllerVersion(c *gc.C) version.Number {
 func (s *Suite) expectImportModel(c *gc.C) {
 	s.serviceFactory.EXPECT().Machine().Return(&machineservice.Service{})
 	s.serviceFactory.EXPECT().Application().Return(&applicationservice.Service{})
+	s.serviceFactory.EXPECT().Cloud().Return(&cloudservice.WatchableService{})
 
 	s.modelManagerService.EXPECT().Create(gomock.Any(), gomock.Any())
 	s.serviceFactoryGetter.EXPECT().FactoryForModel(gomock.Any()).Return(s.serviceFactory)
 	s.modelImporter.EXPECT().ImportModel(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, bytes []byte) (*state.Model, *state.State, error) {
 		scope := func(string) modelmigration.Scope { return modelmigration.NewScope(nil, nil) }
 		controller := state.NewController(s.StatePool)
-		return migration.NewModelImporter(controller, scope, s.modelManagerService, s.controllerConfigService, s.serviceFactoryGetter).ImportModel(ctx, bytes)
+		return migration.NewModelImporter(controller, scope, s.modelManagerService, s.controllerConfigService, s.serviceFactoryGetter, cloudSchemaSource).ImportModel(ctx, bytes)
 	})
+}
+
+func cloudSchemaSource(stateenvirons.CloudService) config.ConfigSchemaSourceGetter {
+	return state.NoopConfigSchemaSource
 }
 
 type mockEnv struct {

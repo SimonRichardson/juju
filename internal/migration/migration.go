@@ -28,9 +28,11 @@ import (
 	"github.com/juju/juju/core/resources"
 	modelerrors "github.com/juju/juju/domain/model/errors"
 	migrations "github.com/juju/juju/domain/modelmigration"
+	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/servicefactory"
 	"github.com/juju/juju/internal/tools"
 	"github.com/juju/juju/state"
+	"github.com/juju/juju/state/stateenvirons"
 )
 
 var logger = loggo.GetLoggerWithTags("juju.migration", corelogger.MIGRATION)
@@ -100,17 +102,22 @@ func (e *ModelExporter) Export(ctx context.Context, model description.Model) (de
 // legacyStateImporter describes the method needed to import a model
 // into the database.
 type legacyStateImporter interface {
-	Import(description.Model, controller.Config, state.MachineService, state.ApplicationService) (*state.Model, *state.State, error)
+	Import(description.Model, controller.Config, state.MachineService, state.ApplicationService, config.ConfigSchemaSourceGetter) (*state.Model, *state.State, error)
 }
+
+// ConfigSchemaSourceProvider returns a config.ConfigSchemaSourceGetter based
+// on the given cloud service.
+type ConfigSchemaSourceProvider = func(stateenvirons.CloudService) config.ConfigSchemaSourceGetter
 
 // ModelImporter represents a model migration that implements Import.
 type ModelImporter struct {
 	// TODO(nvinuesa): This is being deprecated, only needed until the
 	// migration to dqlite is complete.
-	legacyStateImporter     legacyStateImporter
-	modelManagerService     ModelManagerService
-	controllerConfigService ControllerConfigService
-	serviceFactoryGetter    servicefactory.ServiceFactoryGetter
+	legacyStateImporter        legacyStateImporter
+	modelManagerService        ModelManagerService
+	controllerConfigService    ControllerConfigService
+	serviceFactoryGetter       servicefactory.ServiceFactoryGetter
+	configSchemaSourceProvider ConfigSchemaSourceProvider
 
 	scope modelmigration.ScopeForModel
 }
@@ -124,13 +131,15 @@ func NewModelImporter(
 	modelManagerService ModelManagerService,
 	controllerConfigService ControllerConfigService,
 	serviceFactoryGetter servicefactory.ServiceFactoryGetter,
+	configSchemaSourceProvider ConfigSchemaSourceProvider,
 ) *ModelImporter {
 	return &ModelImporter{
-		legacyStateImporter:     stateImporter,
-		scope:                   scope,
-		modelManagerService:     modelManagerService,
-		controllerConfigService: controllerConfigService,
-		serviceFactoryGetter:    serviceFactoryGetter,
+		legacyStateImporter:        stateImporter,
+		scope:                      scope,
+		modelManagerService:        modelManagerService,
+		controllerConfigService:    controllerConfigService,
+		serviceFactoryGetter:       serviceFactoryGetter,
+		configSchemaSourceProvider: configSchemaSourceProvider,
 	}
 }
 
@@ -157,7 +166,8 @@ func (i *ModelImporter) ImportModel(ctx context.Context, bytes []byte) (*state.M
 	}
 
 	serviceFactory := i.serviceFactoryGetter.FactoryForModel(model.Tag().Id())
-	dbModel, dbState, err := i.legacyStateImporter.Import(model, ctrlConfig, serviceFactory.Machine(), serviceFactory.Application())
+	configSchemaSource := i.configSchemaSourceProvider(serviceFactory.Cloud())
+	dbModel, dbState, err := i.legacyStateImporter.Import(model, ctrlConfig, serviceFactory.Machine(), serviceFactory.Application(), configSchemaSource)
 	if err != nil {
 		return nil, nil, errors.Trace(err)
 	}
