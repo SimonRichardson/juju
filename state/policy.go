@@ -10,7 +10,6 @@ import (
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/core/constraints"
-	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/envcontext"
 	"github.com/juju/juju/internal/storage"
 	"github.com/juju/juju/state/cloudimagemetadata"
@@ -30,9 +29,6 @@ type NewPolicyFunc func(*State) Policy
 // be ignored. Any other error will cause an error
 // in the use of the policy.
 type Policy interface {
-	// ConfigValidator returns a config.Validator or an error.
-	ConfigValidator() (config.Validator, error)
-
 	// ConstraintsValidator returns a constraints.Validator or an error.
 	ConstraintsValidator(envcontext.ProviderCallContext) (constraints.Validator, error)
 
@@ -116,25 +112,6 @@ func (st *State) validateConstraints(cons constraints.Value) ([]string, error) {
 		return nil, err
 	}
 	return validator.Validate(cons)
-}
-
-// validate calls the state's assigned policy, if non-nil, to obtain
-// a config.Validator, and calls Validate if a non-nil config.Validator is
-// returned.
-func (st *State) validate(cfg, old *config.Config) (valid *config.Config, err error) {
-	if st.policy == nil {
-		return cfg, nil
-	}
-	configValidator, err := st.policy.ConfigValidator()
-	if errors.Is(err, errors.NotImplemented) {
-		return cfg, nil
-	} else if err != nil {
-		return nil, err
-	}
-	if configValidator == nil {
-		return nil, errors.New("policy returned nil configValidator without an error")
-	}
-	return configValidator.Validate(cfg, old)
 }
 
 func (st *State) storageProviderRegistry() (storage.ProviderRegistry, error) {

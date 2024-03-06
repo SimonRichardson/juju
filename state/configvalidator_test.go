@@ -17,7 +17,7 @@ import (
 
 type ConfigValidatorSuite struct {
 	ConnSuite
-	configValidator mockConfigValidator
+	configValidator *mockConfigValidator
 }
 
 var _ = gc.Suite(&ConfigValidatorSuite{})
@@ -54,10 +54,8 @@ func (p *mockConfigValidator) Validate(cfg, old *config.Config) (valid *config.C
 
 func (s *ConfigValidatorSuite) SetUpTest(c *gc.C) {
 	s.ConnSuite.SetUpTest(c)
-	s.configValidator = mockConfigValidator{}
-	s.policy.GetConfigValidator = func() (config.Validator, error) {
-		return &s.configValidator, nil
-	}
+	s.configValidator = &mockConfigValidator{}
+
 }
 
 func (s *ConfigValidatorSuite) updateModelConfig(c *gc.C) error {
@@ -65,23 +63,12 @@ func (s *ConfigValidatorSuite) updateModelConfig(c *gc.C) error {
 		"authorized-keys": "different-keys",
 		"arbitrary-key":   "shazam!",
 	}
-	return s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, updateAttrs, nil)
+	return s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, s.configValidator, updateAttrs, nil)
 }
 
 func (s *ConfigValidatorSuite) TestConfigValidate(c *gc.C) {
 	err := s.updateModelConfig(c)
 	c.Assert(err, jc.ErrorIsNil)
-}
-
-func (s *ConfigValidatorSuite) TestUpdateModelConfigFailsOnConfigValidateError(c *gc.C) {
-	var configValidatorErr error
-	s.policy.GetConfigValidator = func() (config.Validator, error) {
-		configValidatorErr = errors.NotFoundf("")
-		return &s.configValidator, configValidatorErr
-	}
-
-	err := s.updateModelConfig(c)
-	c.Assert(err, gc.ErrorMatches, " not found")
 }
 
 func (s *ConfigValidatorSuite) TestUpdateModelConfigUpdatesState(c *gc.C) {

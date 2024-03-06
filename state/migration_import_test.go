@@ -3065,7 +3065,7 @@ func (s *MigrationImportSuite) TestSecrets(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(backendRefCount, gc.Equals, 1)
 
-	err = s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, map[string]interface{}{config.SecretBackendKey: "myvault"}, nil)
+	err = s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, state.NoopConfigValidator{}, map[string]interface{}{config.SecretBackendKey: "myvault"}, nil)
 	c.Assert(err, jc.ErrorIsNil)
 	mCfg, err := s.Model.ModelConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)

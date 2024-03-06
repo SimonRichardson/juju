@@ -137,9 +137,12 @@ func (s *VolumeStateSuite) TestAddApplicationDefaultPool(c *gc.C) {
 	})
 	_, err := pm.Create("default-block", provider.LoopProviderType, map[string]interface{}{})
 	c.Assert(err, jc.ErrorIsNil)
-	err = s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, map[string]interface{}{
-		"storage-default-block-source": "default-block",
-	}, nil)
+	err = s.Model.UpdateModelConfig(
+		state.NoopConfigSchemaSource,
+		state.NoopConfigValidator{},
+		map[string]interface{}{
+			"storage-default-block-source": "default-block",
+		}, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
 	ch := s.AddTestingCharm(c, "storage-block")

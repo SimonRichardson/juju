@@ -4138,7 +4138,7 @@ func (s *StateSuite) prepareAgentVersionTests(c *gc.C, st *state.State) (*config
 func (s *StateSuite) changeEnviron(c *gc.C, modelConfig *config.Config, name string, value interface{}) {
 	attrs := modelConfig.AllAttrs()
 	attrs[name] = value
-	c.Assert(s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, attrs, nil), gc.IsNil)
+	c.Assert(s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, state.NoopConfigValidator{}, attrs, nil), gc.IsNil)
 }
 
 func assertAgentVersion(c *gc.C, st *state.State, vers, stream string) {

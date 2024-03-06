@@ -166,7 +166,7 @@ func (model *Model) modelConfigValues(configSchemaGetter config.ConfigSchemaSour
 }
 
 // UpdateModelConfigDefaultValues updates the inherited settings used when creating a new model.
-func (st *State) UpdateModelConfigDefaultValues(updateAttrs map[string]interface{}, removeAttrs []string, regionSpec *environscloudspec.CloudRegionSpec) error {
+func (st *State) UpdateModelConfigDefaultValues(validator config.Validator, updateAttrs map[string]interface{}, removeAttrs []string, regionSpec *environscloudspec.CloudRegionSpec) error {
 	var key string
 
 	if regionSpec != nil {
@@ -213,7 +213,7 @@ func (st *State) UpdateModelConfigDefaultValues(updateAttrs map[string]interface
 	if err != nil {
 		return errors.Trace(err)
 	}
-	validCfg, err := st.buildAndValidateModelConfig(updateAttrs, removeAttrs, oldConfig)
+	validCfg, err := st.buildAndValidateModelConfig(validator, updateAttrs, removeAttrs, oldConfig)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -288,7 +288,7 @@ func checkControllerInheritedConfig(attrs attrValues) error {
 	return nil
 }
 
-func (st *State) buildAndValidateModelConfig(updateAttrs attrValues, removeAttrs []string, oldConfig *config.Config) (*config.Config, error) {
+func (st *State) buildAndValidateModelConfig(validator config.Validator, updateAttrs attrValues, removeAttrs []string, oldConfig *config.Config) (*config.Config, error) {
 	newConfig, err := oldConfig.Apply(updateAttrs)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -302,7 +302,7 @@ func (st *State) buildAndValidateModelConfig(updateAttrs attrValues, removeAttrs
 	if err := checkModelConfig(newConfig); err != nil {
 		return nil, errors.Trace(err)
 	}
-	return st.validate(newConfig, oldConfig)
+	return validator.Validate(newConfig, oldConfig)
 }
 
 type ValidateConfigFunc func(updateAttrs map[string]interface{}, removeAttrs []string, oldConfig *config.Config) error
@@ -310,7 +310,7 @@ type ValidateConfigFunc func(updateAttrs map[string]interface{}, removeAttrs []s
 // UpdateModelConfig adds, updates or removes attributes in the current
 // configuration of the model with the provided updateAttrs and
 // removeAttrs.
-func (m *Model) UpdateModelConfig(configSchemaGetter config.ConfigSchemaSourceGetter, updateAttrs map[string]interface{}, removeAttrs []string, additionalValidation ...ValidateConfigFunc) error {
+func (m *Model) UpdateModelConfig(configSchemaGetter config.ConfigSchemaSourceGetter, validator config.Validator, updateAttrs map[string]interface{}, removeAttrs []string, additionalValidation ...ValidateConfigFunc) error {
 	if len(updateAttrs)+len(removeAttrs) == 0 {
 		return nil
 	}
@@ -362,7 +362,7 @@ func (m *Model) UpdateModelConfig(configSchemaGetter config.ConfigSchemaSourceGe
 			return errors.Trace(err)
 		}
 	}
-	validCfg, err := st.buildAndValidateModelConfig(updateAttrs, removeAttrs, oldConfig)
+	validCfg, err := st.buildAndValidateModelConfig(validator, updateAttrs, removeAttrs, oldConfig)
 	if err != nil {
 		return errors.Trace(err)
 	}

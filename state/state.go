@@ -2630,3 +2630,9 @@ func (NoopInstancePrechecker) PrecheckInstance(envcontext.ProviderCallContext, e
 func NoopConfigSchemaSource(ctx context.Context, cloudName string) (environsconfig.ConfigSchemaSource, error) {
 	return nil, errors.NotImplementedf("config schema source")
 }
+
+type NoopConfigValidator struct{}
+
+func (NoopConfigValidator) Validate(cfg, old *environsconfig.Config) (*environsconfig.Config, error) {
+	return cfg, nil
+}

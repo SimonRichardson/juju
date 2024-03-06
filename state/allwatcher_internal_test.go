@@ -73,6 +73,12 @@ func testConfigSchemaSource(ctx context.Context, cloudName string) (environsconf
 	return nil, errors.NotImplementedf("config schema source")
 }
 
+type testConfigValidator struct{}
+
+func (testConfigValidator) Validate(cfg, old *environsconfig.Config) (*environsconfig.Config, error) {
+	return cfg, nil
+}
+
 type allWatcherBaseSuite struct {
 	internalStateSuite
 	currentTime time.Time
@@ -591,7 +597,7 @@ func setModelConfigAttr(c *gc.C, st *State, attr string, val interface{}) {
 	m, err := st.Model()
 	c.Assert(err, jc.ErrorIsNil)
 
-	err = m.UpdateModelConfig(testConfigSchemaSource, map[string]interface{}{attr: val}, nil)
+	err = m.UpdateModelConfig(testConfigSchemaSource, testConfigValidator{}, map[string]interface{}{attr: val}, nil)
 	c.Assert(err, jc.ErrorIsNil)
 }
 

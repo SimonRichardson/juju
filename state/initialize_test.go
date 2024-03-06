@@ -330,7 +330,7 @@ func (s *InitializeSuite) testBadModelConfig(c *gc.C, update map[string]interfac
 	m, err := s.State.Model()
 	c.Assert(err, jc.ErrorIsNil)
 
-	err = m.UpdateModelConfig(state.NoopConfigSchemaSource, update, remove)
+	err = m.UpdateModelConfig(state.NoopConfigSchemaSource, state.NoopConfigValidator{}, update, remove)
 	c.Assert(err, gc.ErrorMatches, expect)
 
 	// ModelConfig remains inviolate.

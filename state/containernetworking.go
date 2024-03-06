@@ -18,7 +18,7 @@ import (
 
 // AutoConfigureContainerNetworking tries to set up best container networking available
 // for the specific model if user hasn't set anything.
-func (m *Model) AutoConfigureContainerNetworking(environ environs.BootstrapEnviron, providerConfigSchemaGetter config.ConfigSchemaSourceGetter) error {
+func (m *Model) AutoConfigureContainerNetworking(environ environs.BootstrapEnviron, providerConfigSchemaGetter config.ConfigSchemaSourceGetter, validator config.Validator) error {
 	updateAttrs := make(map[string]interface{})
 	modelConfig, err := m.ModelConfig(stdcontext.Background())
 	if err != nil {
@@ -38,7 +38,7 @@ func (m *Model) AutoConfigureContainerNetworking(environ environs.BootstrapEnvir
 	} else {
 		updateAttrs["container-networking-method"] = "local"
 	}
-	err = m.UpdateModelConfig(providerConfigSchemaGetter, updateAttrs, nil)
+	err = m.UpdateModelConfig(providerConfigSchemaGetter, validator, updateAttrs, nil)
 	return err
 }
 

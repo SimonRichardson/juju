@@ -84,14 +84,14 @@ func (s *ModelConfigSuite) TestAdditionalValidation(c *gc.C) {
 		return nil
 	}
 
-	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, updateAttrs, nil, configValidator1)
+	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, updateAttrs, nil, configValidator1)
 	c.Assert(err, gc.ErrorMatches, "cannot change logging-config")
-	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, nil, removeAttrs, configValidator2)
+	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, nil, removeAttrs, configValidator2)
 	c.Assert(err, gc.ErrorMatches, "cannot remove some-attr")
-	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, updateAttrs, nil, configValidator3)
+	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, updateAttrs, nil, configValidator3)
 	c.Assert(err, jc.ErrorIsNil)
 	// First error is returned.
-	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, updateAttrs, nil, configValidator1, configValidator2)
+	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, updateAttrs, nil, configValidator1, configValidator2)
 	c.Assert(err, gc.ErrorMatches, "cannot change logging-config")
 }
 
@@ -102,7 +102,7 @@ func (s *ModelConfigSuite) TestModelConfig(c *gc.C) {
 	}
 	cfg, err := s.Model.ModelConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
-	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, attrs, nil)
+	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, attrs, nil)
 	c.Assert(err, jc.ErrorIsNil)
 	cfg, err = cfg.Apply(attrs)
 	c.Assert(err, jc.ErrorIsNil)
@@ -121,7 +121,7 @@ func (s *ModelConfigSuite) TestAgentVersion(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(ver, gc.DeepEquals, version.Number{Major: 2, Minor: 0, Patch: 0})
 
-	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, attrs, nil)
+	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, attrs, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
 	ver, err = s.Model.AgentVersion()
@@ -131,7 +131,7 @@ func (s *ModelConfigSuite) TestAgentVersion(c *gc.C) {
 
 func (s *ModelConfigSuite) TestUpdateModelConfigRejectsControllerConfig(c *gc.C) {
 	updateAttrs := map[string]interface{}{"api-port": 1234}
-	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, updateAttrs, nil)
+	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, updateAttrs, nil)
 	c.Assert(err, gc.ErrorMatches, `cannot set controller attribute "api-port" on a model`)
 }
 
@@ -139,7 +139,7 @@ func (s *ModelConfigSuite) TestUpdateModelConfigCoerce(c *gc.C) {
 	attrs := map[string]interface{}{
 		"resource-tags": map[string]string{"a": "b", "c": "d"},
 	}
-	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, attrs, nil)
+	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, attrs, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
 	modelSettings, err := s.State.ReadSettings(state.SettingsC, state.ModelGlobalKey)
@@ -165,13 +165,16 @@ func (s *ModelConfigSuite) TestUpdateModelConfigPreferredOverRemove(c *gc.C) {
 		"arbitrary-key":     "shazam!",
 		"providerAttrdummy": "beef", // provider
 	}
-	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, attrs, nil)
+	err := s.Model.UpdateModelConfig(s.configSchemaSourceGetter, state.NoopConfigValidator{}, attrs, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
-	err = s.Model.UpdateModelConfig(s.configSchemaSourceGetter, map[string]interface{}{
-		"apt-mirror":        "http://another-mirror",
-		"providerAttrdummy": "pork",
-	}, []string{"apt-mirror", "arbitrary-key"})
+	err = s.Model.UpdateModelConfig(
+		s.configSchemaSourceGetter,
+		state.NoopConfigValidator{},
+		map[string]interface{}{
+			"apt-mirror":        "http://another-mirror",
+			"providerAttrdummy": "pork",
+		}, []string{"apt-mirror", "arbitrary-key"})
 	c.Assert(err, jc.ErrorIsNil)
 	cfg, err := s.Model.ModelConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
@@ -213,7 +216,10 @@ func (s *ModelConfigSourceSuite) TestModelConfigWhenSetOverridesControllerValue(
 		"authorized-keys": "different-keys",
 		"apt-mirror":      "http://anothermirror",
 	}
-	err := s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, attrs, nil)
+	err := s.Model.UpdateModelConfig(
+		state.NoopConfigSchemaSource,
+		state.NoopConfigValidator{},
+		attrs, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
 	cfg, err := s.Model.ModelConfig(context.Background())
@@ -315,7 +321,10 @@ func (s *ModelConfigSourceSuite) TestModelConfigUpdateSource(c *gc.C) {
 		"http-proxy": "http://anotherproxy",
 		"apt-mirror": "http://mirror",
 	}
-	err := s.Model.UpdateModelConfig(state.NoopConfigSchemaSource, attrs, nil)
+	err := s.Model.UpdateModelConfig(
+		state.NoopConfigSchemaSource,
+		state.NoopConfigValidator{},
+		attrs, nil)
 	c.Assert(err, jc.ErrorIsNil)
 	modelCfg, err := s.Model.ModelConfig(context.Background())
 	c.Assert(err, jc.ErrorIsNil)
@@ -329,12 +338,16 @@ func (s *ModelConfigSourceSuite) TestUpdateModelConfigDefaultsWithValidationErro
 		"http-proxy":  "http://http-proxy",
 		"https-proxy": "https://https-proxy",
 	}
-	err := s.State.UpdateModelConfigDefaultValues(attrs, nil, nil)
+	err := s.State.UpdateModelConfigDefaultValues(
+		state.NoopConfigValidator{},
+		attrs, nil, nil)
 	c.Assert(err, jc.ErrorIsNil)
 
 	attrs = map[string]interface{}{
 		"test-mode": "baz",
 	}
-	err = s.State.UpdateModelConfigDefaultValues(attrs, []string{"http-proxy", "https-proxy"}, nil)
+	err = s.State.UpdateModelConfigDefaultValues(
+		state.NoopConfigValidator{},
+		attrs, []string{"http-proxy", "https-proxy"}, nil)
 	c.Assert(err, gc.ErrorMatches, `test-mode: expected bool, got string\("baz"\)`)
 }
