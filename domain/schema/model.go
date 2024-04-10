@@ -97,6 +97,84 @@ func ModelDDL() *schema.Schema {
 	return modelSchema
 }
 
+// ModelDestroyOperations returns the list of operations to destroy the model
+// schema. This must be in the right order to avoid foreign key constraints.
+func ModelDestroyOperations() []schema.Operation {
+	var ops []schema.Operation
+
+	ops = append(ops,
+		schema.TriggerOp("block_device", schema.All),
+		schema.TriggerOp("model_config", schema.All),
+		schema.TriggerOp("object_store_metadata_path", schema.All),
+		schema.TriggerOp("storage_attachment", schema.All),
+		schema.TriggerOp("storage_filesystem", schema.All),
+		schema.TriggerOp("storage_filesystem_attachment", schema.All),
+		schema.TriggerOp("storage_volume", schema.All),
+		schema.TriggerOp("storage_volume_attachment", schema.All),
+		schema.TriggerOp("storage_volume_attachment_plan", schema.All),
+		schema.TriggerOp("secret_auto_prune", schema.All),
+		schema.TriggerOp("secret_rotation_next_rotation_time", schema.All),
+		schema.TriggerOp("secret_revision_obsolete", schema.All),
+		schema.TriggerOp("secret_revision_expire_next_expire_time", schema.All),
+		schema.TriggerOp("secret_application_consumer_current_revision", schema.All),
+		schema.TriggerOp("secret_unit_consumer_current_revision", schema.All),
+		schema.TriggerOp("secret_remote_application_consumer_current_revision", schema.All),
+		schema.TriggerOp("secret_remote_unit_consumer_current_revision", schema.All),
+		schema.TriggerOp("model_immutable", schema.Update|schema.Delete),
+	)
+
+	ops = append(ops, changeStreamDestroyOperations()...)
+
+	return append(ops,
+		// Annotations
+		schema.TableOp("annotation_model"),
+		schema.TableOp("application"),
+		schema.TableOp("charm"),
+		schema.TableOp("machine"),
+		schema.TableOp("unit"),
+		schema.TableOp("storage_instance"),
+		schema.TableOp("storage_volume"),
+		schema.TableOp("storage_filesystem"),
+
+		// Subnet
+		schema.IndexOp("idx_subnet_association"),
+		schema.IndexOp("idx_provider_subnet_subnet_uuid"),
+		schema.IndexOp("idx_provider_network_id"),
+		schema.IndexOp("idx_provider_network_subnet_uuid"),
+		schema.IndexOp("idx_availability_zone_name"),
+
+		// Note: (stickupkid) - Do not change this order. To remove the
+		// subnet_association_type table, we need to remove everything in
+		// the correct order.
+		schema.TableOp("provider_subnet"),
+		schema.TableOp("provider_network_subnet"),
+		schema.TableOp("provider_network"),
+		schema.TableOp("availability_zone_subnet"),
+		schema.TableOp("availability_zone"),
+		schema.TableOp("subnet_association"),
+		schema.TableOp("subnet_type_association_type"),
+		schema.TableOp("subnet_association_type"),
+		schema.TableOp("subnet"),
+		schema.TableOp("subnet_type"),
+
+		// Space
+		schema.IndexOp("idx_spaces_uuid_name"),
+		schema.IndexOp("idx_provider_space_space_uuid"),
+		schema.TableOp("provider_space"),
+		schema.TableOp("space"),
+
+		// Model config
+		schema.TableOp("model_config"),
+
+		// Model
+		schema.IndexOp("idx_singleton_model"),
+		schema.TableOp("model"),
+
+		// Life
+		schema.TableOp("life"),
+	)
+}
+
 func annotationModelSchema() schema.Patch {
 	return schema.MakePatch(`
 CREATE TABLE annotation_model (

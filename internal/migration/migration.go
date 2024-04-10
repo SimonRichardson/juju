@@ -195,10 +195,10 @@ func (i *ModelImporter) ImportModel(ctx context.Context, bytes []byte) (*state.M
 	migrations.ImportOperations(coordinator, logger, registry)
 	if err := coordinator.Perform(ctx, i.scope(model.Tag().Id()), model); err != nil {
 		// The migration failed, to ensure that we have a clean working state
-		// we need to remove all the tables, constraints and triggers. Once
+		// we need to remove all the tables, views, indexes and triggers. Once
 		// dqlite allows the deletion of the database, this could be potentially
 		// removed.
-		if err := migration.DestroyModel(ctx); err != nil {
+		if err := migration.DestroyModelSchema(ctx); err != nil {
 			return nil, nil, errors.Annotatef(err, "unable to destroy model")
 		}
 

@@ -19,6 +19,7 @@ import (
 	modelservice "github.com/juju/juju/domain/model/service"
 	modelconfigservice "github.com/juju/juju/domain/modelconfig/service"
 	modeldefaultsservice "github.com/juju/juju/domain/modeldefaults/service"
+	modelmigrationservice "github.com/juju/juju/domain/modelmigration/service"
 	networkservice "github.com/juju/juju/domain/network/service"
 	objectstoreservice "github.com/juju/juju/domain/objectstore/service"
 	secretservice "github.com/juju/juju/domain/secret/service"
@@ -94,6 +95,9 @@ type ModelServiceFactory interface {
 	// the model service. As this is only for read-only model information, we
 	// can rename it to the more obscure version.
 	ModelInfo() *modelservice.ModelService
+	// ModelMigration returns the model migration service, this is used to help
+	// with the migration of the models.
+	ModelMigration() *modelmigrationservice.Service
 }
 
 // ServiceFactory provides access to the services required by the apiserver.

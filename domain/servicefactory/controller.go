@@ -37,9 +37,10 @@ import (
 
 // Logger defines the logging interface used by the services.
 type Logger interface {
-	Tracef(string, ...interface{})
-	Debugf(string, ...interface{})
-	Warningf(string, ...interface{})
+	Tracef(string, ...any)
+	Debugf(string, ...any)
+	Infof(string, ...any)
+	Warningf(string, ...any)
 	Child(string) Logger
 }
 

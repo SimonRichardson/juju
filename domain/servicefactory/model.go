@@ -144,14 +144,24 @@ func (s *ModelFactory) Secret(adminConfigGetter secretservice.BackendAdminConfig
 	)
 }
 
+// ModelInfo returns the model service for the model. The model info
+// contains read-only information about the model.
+// Note: This should be called model, but we have naming conflicts with
+// the model service. As this is only for read-only model information, we
+// can rename it to the more obscure version.
 func (s *ModelFactory) ModelInfo() *modelservice.ModelService {
 	return modelservice.NewModelService(
 		modelstate.NewModelState(changestream.NewTxnRunnerFactory(s.modelDB)),
 	)
 }
 
+// ModelMigration returns the model migration service, this is used to help
+// with the migration of the models.
 func (s *ModelFactory) ModelMigration() *modelmigrationservice.Service {
 	return modelmigrationservice.NewService(
-		modelmigrationstate.NewState(changestream.NewTxnRunnerFactory(s.modelDB)),
+		modelmigrationstate.NewState(
+			changestream.NewTxnRunnerFactory(s.modelDB),
+			s.logger.Child("modelmigration"),
+		),
 	)
 }

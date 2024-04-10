@@ -64,6 +64,14 @@ CREATE TABLE change_log_witness (
 );`)
 }
 
+func changeStreamDestroyOperations() []schema.Operation {
+	return []schema.Operation{
+		schema.TableOp("change_log"),
+		schema.TableOp("change_log_edit_type"),
+		schema.TableOp("change_log_namespace"),
+	}
+}
+
 // changeLogTriggersForTable is a helper function to generate the necessary
 // triggers for a table to have its CRUD operations tracked in the schema's
 // change_log table.
