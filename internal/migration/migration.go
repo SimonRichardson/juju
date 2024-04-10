@@ -170,9 +170,17 @@ func (i *ModelImporter) ImportModel(ctx context.Context, bytes []byte) (*state.M
 		return nil, nil, errors.Annotatef(err, "unable to get controller config")
 	}
 
-	// TODO (stickupkid): We don't need to get a whole service factory here, we
-	// only need the cloud type to get the config schema source.
 	serviceFactory := i.serviceFactoryGetter.FactoryForModel(model.Tag().Id())
+	migration := serviceFactory.ModelMigration()
+
+	// Ensure we have the model schema applied to the model. This guards
+	// against the case a model import failed, it cleared the tables and
+	// the model schema was not reapplied. We can't guarantee that the model
+	// will be reimported with the same schema, so we do it lazily here.
+	if err := migration.EnsureModelSchema(ctx); err != nil {
+		return nil, nil, errors.Annotatef(err, "unable to ensure model schema")
+	}
+
 	configSchemaSource := i.configSchemaSourceProvider(serviceFactory.Cloud())
 	dbModel, dbState, err := i.legacyStateImporter.Import(model, ctrlConfig, configSchemaSource)
 	if err != nil {
@@ -186,6 +194,14 @@ func (i *ModelImporter) ImportModel(ctx context.Context, bytes []byte) (*state.M
 	coordinator := modelmigration.NewCoordinator()
 	migrations.ImportOperations(coordinator, logger, registry)
 	if err := coordinator.Perform(ctx, i.scope(model.Tag().Id()), model); err != nil {
+		// The migration failed, to ensure that we have a clean working state
+		// we need to remove all the tables, constraints and triggers. Once
+		// dqlite allows the deletion of the database, this could be potentially
+		// removed.
+		if err := migration.DestroyModel(ctx); err != nil {
+			return nil, nil, errors.Annotatef(err, "unable to destroy model")
+		}
+
 		return nil, nil, errors.Trace(err)
 	}
 

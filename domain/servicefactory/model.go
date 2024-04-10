@@ -18,6 +18,8 @@ import (
 	modelstate "github.com/juju/juju/domain/model/state"
 	modelconfigservice "github.com/juju/juju/domain/modelconfig/service"
 	modelconfigstate "github.com/juju/juju/domain/modelconfig/state"
+	modelmigrationservice "github.com/juju/juju/domain/modelmigration/service"
+	modelmigrationstate "github.com/juju/juju/domain/modelmigration/state"
 	networkservice "github.com/juju/juju/domain/network/service"
 	networkstate "github.com/juju/juju/domain/network/state"
 	objectstoreservice "github.com/juju/juju/domain/objectstore/service"
@@ -145,5 +147,11 @@ func (s *ModelFactory) Secret(adminConfigGetter secretservice.BackendAdminConfig
 func (s *ModelFactory) ModelInfo() *modelservice.ModelService {
 	return modelservice.NewModelService(
 		modelstate.NewModelState(changestream.NewTxnRunnerFactory(s.modelDB)),
+	)
+}
+
+func (s *ModelFactory) ModelMigration() *modelmigrationservice.Service {
+	return modelmigrationservice.NewService(
+		modelmigrationstate.NewState(changestream.NewTxnRunnerFactory(s.modelDB)),
 	)
 }
