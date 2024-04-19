@@ -104,9 +104,6 @@ func (st *State) exportImpl(cfg ExportConfig, leaders map[string]string, store o
 	if err := export.readAllStatuses(); err != nil {
 		return nil, errors.Annotate(err, "reading statuses")
 	}
-	if err := export.readAllStatusHistory(); err != nil {
-		return nil, errors.Trace(err)
-	}
 	if err := export.readAllSettings(); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -2065,36 +2062,6 @@ func (e *exporter) readAllStatuses() error {
 		id := e.st.localID(docId)
 		e.status[id] = doc
 	}
-
-	return nil
-}
-
-func (e *exporter) readAllStatusHistory() error {
-	statuses, closer := e.st.db().GetCollection(statusesHistoryC)
-	defer closer()
-
-	count := 0
-	e.statusHistory = make(map[string][]historicalStatusDoc)
-	if e.cfg.SkipStatusHistory {
-		return nil
-	}
-	var doc historicalStatusDoc
-	// In tests, sorting by time can leave the results
-	// underconstrained - include document id for deterministic
-	// ordering in those cases.
-	iter := statuses.Find(nil).Sort("-updated", "-_id").Iter()
-	defer func() { _ = iter.Close() }()
-	for iter.Next(&doc) {
-		history := e.statusHistory[doc.GlobalKey]
-		e.statusHistory[doc.GlobalKey] = append(history, doc)
-		count++
-	}
-
-	if err := iter.Close(); err != nil {
-		return errors.Annotate(err, "failed to read status history collection")
-	}
-
-	e.logger.Debugf("read %d status history documents", count)
 
 	return nil
 }

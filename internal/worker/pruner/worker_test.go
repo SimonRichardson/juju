@@ -17,8 +17,8 @@ import (
 
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/environs/config"
+	"github.com/juju/juju/internal/worker/actionpruner"
 	"github.com/juju/juju/internal/worker/pruner"
-	"github.com/juju/juju/internal/worker/statushistorypruner"
 	coretesting "github.com/juju/juju/testing"
 )
 
@@ -33,8 +33,8 @@ type newPrunerFunc func(pruner.Config) (worker.Worker, error)
 func (s *PrunerSuite) setupPruner(c *gc.C, newPruner newPrunerFunc) (*fakeFacade, *testclock.Clock) {
 	facade := newFakeFacade()
 	attrs := coretesting.FakeConfig()
-	attrs["max-status-history-age"] = "1s"
-	attrs["max-status-history-size"] = "3M"
+	attrs["max-action-results-age"] = "1s"
+	attrs["max-action-results-size"] = "3M"
 	cfg, err := config.New(config.UseDefaults, attrs)
 	c.Assert(err, jc.ErrorIsNil)
 	facade.modelConfig = cfg
@@ -76,12 +76,12 @@ func (s *PrunerSuite) assertWorkerCallsPrune(c *gc.C, facade *fakeFacade, testCl
 }
 
 func (s *PrunerSuite) TestWorkerCallsPrune(c *gc.C) {
-	facade, clock := s.setupPruner(c, statushistorypruner.New)
+	facade, clock := s.setupPruner(c, actionpruner.New)
 	s.assertWorkerCallsPrune(c, facade, clock, 3)
 }
 
 func (s *PrunerSuite) TestWorkerWontCallPruneBeforeFiringTimer(c *gc.C) {
-	facade, _ := s.setupPruner(c, statushistorypruner.New)
+	facade, _ := s.setupPruner(c, actionpruner.New)
 
 	select {
 	case <-facade.pruned:
@@ -91,11 +91,11 @@ func (s *PrunerSuite) TestWorkerWontCallPruneBeforeFiringTimer(c *gc.C) {
 }
 
 func (s *PrunerSuite) TestModelConfigChange(c *gc.C) {
-	facade, clock := s.setupPruner(c, statushistorypruner.New)
+	facade, clock := s.setupPruner(c, actionpruner.New)
 	s.assertWorkerCallsPrune(c, facade, clock, 3)
 
 	var err error
-	facade.modelConfig, err = facade.modelConfig.Apply(map[string]interface{}{"max-status-history-size": "4M"})
+	facade.modelConfig, err = facade.modelConfig.Apply(map[string]interface{}{"max-action-results-size": "4M"})
 	c.Assert(err, jc.ErrorIsNil)
 	facade.modelChangesWatcher.changes <- struct{}{}
 

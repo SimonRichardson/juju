@@ -104,19 +104,6 @@ func (u *UnitAgent) SetStatus(unitAgentStatus status.StatusInfo) (err error) {
 	})
 }
 
-// StatusHistory returns a slice of at most filter.Size StatusInfo items
-// or items as old as filter.Date or items newer than now - filter.Delta time
-// representing past statuses for this agent.
-func (u *UnitAgent) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	args := &statusHistoryArgs{
-		db:        u.st.db(),
-		globalKey: u.globalKey(),
-		filter:    filter,
-		clock:     u.st.clock(),
-	}
-	return statusHistory(args)
-}
-
 // unitAgentGlobalKey returns the global database key for the named unit.
 func unitAgentGlobalKey(name string) string {
 	return unitAgentGlobalKeyPrefix + name

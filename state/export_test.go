@@ -12,7 +12,6 @@ import (
 
 	"github.com/juju/charm/v13"
 	"github.com/juju/clock"
-	"github.com/juju/clock/testclock"
 	"github.com/juju/description/v5"
 	"github.com/juju/errors"
 	"github.com/juju/mgo/v3"
@@ -31,9 +30,7 @@ import (
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/core/resources"
 	"github.com/juju/juju/core/secrets"
-	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/internal/mongo"
-	"github.com/juju/juju/internal/mongo/utils"
 	internalobjectstore "github.com/juju/juju/internal/objectstore"
 	objectstoretesting "github.com/juju/juju/internal/objectstore/testing"
 	"github.com/juju/juju/internal/uuid"
@@ -706,55 +703,6 @@ func RemoveUnitRelations(c *gc.C, rel *Relation) {
 	c.Assert(err, jc.ErrorIsNil)
 }
 
-// PrimeUnitStatusHistory will add count history elements, advancing the test clock by
-// one second for each entry.
-func PrimeUnitStatusHistory(
-	c *gc.C, clock testclock.AdvanceableClock,
-	unit *Unit, statusVal status.Status,
-	count, batchSize int,
-	nextData func(int) map[string]interface{},
-) {
-	globalKey := unit.globalKey()
-
-	history, closer := unit.st.db().GetCollection(statusesHistoryC)
-	defer closer()
-	historyW := history.Writeable()
-
-	var data map[string]interface{}
-	for i := 0; i < count; {
-		var docs []interface{}
-		for j := 0; j < batchSize && i < count; j++ {
-			clock.Advance(time.Second)
-			if nextData != nil {
-				data = utils.EscapeKeys(nextData(i))
-			}
-			docs = append(docs, &historicalStatusDoc{
-				Status:     statusVal,
-				StatusData: data,
-				Updated:    clock.Now().UnixNano(),
-				GlobalKey:  globalKey,
-			})
-			// Seems like you can't increment two values in one loop
-			i++
-		}
-		err := historyW.Insert(docs...)
-		c.Assert(err, jc.ErrorIsNil)
-	}
-	// Set the status for the unit itself.
-	doc := statusDoc{
-		Status:     statusVal,
-		StatusData: data,
-		Updated:    clock.Now().UnixNano(),
-	}
-
-	var buildTxn jujutxn.TransactionSource = func(int) ([]txn.Op, error) {
-		return statusSetOps(unit.st.db(), doc, globalKey)
-	}
-
-	err := unit.st.db().Run(buildTxn)
-	c.Assert(err, jc.ErrorIsNil)
-}
-
 // PrimeOperations generates operations and tasks to be pruned.
 // The method pads each entry with a 1MB string. This should allow us to infer the
 // approximate size of the entry and limit the number of entries that
@@ -964,16 +912,6 @@ func (st *State) ModelQueryForUser(user names.UserTag, isSuperuser bool) (mongo.
 
 func UnitsHaveChanged(m *Machine, unitNames []string) (bool, error) {
 	return m.unitsHaveChanged(unitNames)
-}
-
-func GetCloudContainerStatusHistory(st *State, name string, filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	args := &statusHistoryArgs{
-		db:        st.db(),
-		globalKey: globalCloudContainerKey(name),
-		filter:    filter,
-		clock:     st.clock(),
-	}
-	return statusHistory(args)
 }
 
 func NewInstanceCharmProfileDataCompatibilityWatcher(backend ModelBackendShim, memberId string) StringsWatcher {

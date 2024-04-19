@@ -6,7 +6,6 @@ package client_test
 import (
 	"time"
 
-	"github.com/juju/errors"
 	"github.com/juju/names/v5"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
@@ -267,92 +266,4 @@ func (s *statusHistoryTestSuite) TestStatusHistoryModelOnly(c *gc.C) {
 	c.Assert(h.Results, gc.HasLen, 1)
 	c.Assert(h.Results[0].Error, gc.IsNil)
 	checkStatusInfo(c, h.Results[0].History.Statuses, reverseStatusInfo(s.st.modelHistory))
-}
-
-type mockState struct {
-	client.Backend
-	appHistory   []status.StatusInfo
-	unitHistory  []status.StatusInfo
-	agentHistory []status.StatusInfo
-	modelHistory []status.StatusInfo
-}
-
-func (m *mockState) Model() (client.Model, error) {
-	return &mockModel{status: m.modelHistory}, nil
-}
-
-func (m *mockState) ModelUUID() string {
-	return "uuid"
-}
-
-func (m *mockState) ModelTag() names.ModelTag {
-	return names.NewModelTag("deadbeef-0bad-400d-8000-4b1d0d06f00d")
-}
-
-func (m *mockState) ControllerTag() names.ControllerTag {
-	return names.NewControllerTag("deadbeef-0bad-400d-8000-4b1d0d06f00d")
-}
-
-func (m *mockState) Unit(name string) (client.Unit, error) {
-	if name != "unit/0" {
-		return nil, errors.NotFoundf("%v", name)
-	}
-	return &mockUnit{
-		status: m.unitHistory,
-		agent:  &mockUnitAgent{m.agentHistory},
-	}, nil
-}
-
-func (m *mockState) Application(name string) (client.Application, error) {
-	if name != "app" {
-		return nil, errors.NotFoundf("%v", name)
-	}
-	return &mockApplication{
-		status: m.appHistory,
-	}, nil
-}
-
-type mockModel struct {
-	status statuses
-	client.Model
-}
-
-func (m mockModel) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	return m.status.StatusHistory(filter)
-}
-
-type mockApplication struct {
-	status statuses
-	client.Application
-}
-
-func (m *mockApplication) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	return m.status.StatusHistory(filter)
-}
-
-type mockUnit struct {
-	status statuses
-	agent  *mockUnitAgent
-	client.Unit
-}
-
-func (m *mockUnit) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	return m.status.StatusHistory(filter)
-}
-
-func (m *mockUnit) AgentHistory() status.StatusHistoryGetter {
-	return m.agent
-}
-
-type mockUnitAgent struct {
-	statuses
-}
-
-type statuses []status.StatusInfo
-
-func (s statuses) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	if filter.Size > len(s) {
-		filter.Size = len(s)
-	}
-	return s[:filter.Size], nil
 }

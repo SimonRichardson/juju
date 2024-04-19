@@ -322,7 +322,7 @@ func (ctlr *Controller) NewModel(configSchemaGetter config.ConfigSchemaSourceGet
 	}()
 	newSt.controllerModelTag = st.controllerModelTag
 
-	modelOps, modelStatusDoc, err := newSt.modelSetupOps(st.controllerTag.Id(), configSchemaGetter, args, nil)
+	modelOps, _, err := newSt.modelSetupOps(st.controllerTag.Id(), configSchemaGetter, args, nil)
 	if err != nil {
 		return nil, nil, errors.Annotate(err, "failed to create new model")
 	}
@@ -365,9 +365,6 @@ func (ctlr *Controller) NewModel(configSchemaGetter config.ConfigSchemaSourceGet
 	newModel, err := newSt.Model()
 	if err != nil {
 		return nil, nil, errors.Trace(err)
-	}
-	if args.MigrationMode != MigrationModeImporting {
-		_, _ = probablyUpdateStatusHistory(newSt.db(), newModel.Kind(), modelGlobalKey, modelGlobalKey, modelStatusDoc)
 	}
 
 	_, err = newSt.SetUserAccess(newModel.Owner(), newModel.ModelTag(), permission.AdminAccess)
@@ -592,19 +589,6 @@ func (m *Model) SetStatus(sInfo status.StatusInfo) error {
 		rawData:    sInfo.Data,
 		updated:    timeOrNow(sInfo.Since, m.st.clock()),
 	})
-}
-
-// StatusHistory returns a slice of at most filter.Size StatusInfo items
-// or items as old as filter.Date or items newer than now - filter.Delta time
-// representing past statuses for this application.
-func (m *Model) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	args := &statusHistoryArgs{
-		db:        m.st.db(),
-		globalKey: m.globalKey(),
-		filter:    filter,
-		clock:     m.st.clock(),
-	}
-	return statusHistory(args)
 }
 
 // Config returns the config for the model.

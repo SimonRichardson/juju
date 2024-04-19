@@ -158,7 +158,7 @@ func Initialize(args InitializeParams, providerConfigSchemaGetter config.ConfigS
 
 	logger.Infof("initializing controller model %s", modelTag.Id())
 
-	modelOps, modelStatusDoc, err := st.modelSetupOps(
+	modelOps, _, err := st.modelSetupOps(
 		args.ControllerConfig.ControllerUUID(),
 		providerConfigSchemaGetter,
 		args.ControllerModelArgs,
@@ -233,7 +233,6 @@ func Initialize(args InitializeParams, providerConfigSchemaGetter config.ConfigS
 	if err := st.db().RunTransaction(ops); err != nil {
 		return nil, errors.Trace(err)
 	}
-	_, _ = probablyUpdateStatusHistory(st.db(), modelTag.Kind(), modelGlobalKey, modelGlobalKey, modelStatusDoc)
 	return ctlr, nil
 }
 

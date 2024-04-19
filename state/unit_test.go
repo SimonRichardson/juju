@@ -1569,55 +1569,6 @@ func (s *UnitSuite) TestShortCircuitDestroyWithProvisionedMachine(c *gc.C) {
 	assertRemoved(c, s.State, s.unit)
 }
 
-func (s *UnitSuite) TestDestroyRemovesStatusHistory(c *gc.C) {
-	err := s.unit.AssignToNewMachine(defaultInstancePrechecker)
-	c.Assert(err, jc.ErrorIsNil)
-	now := coretesting.NonZeroTime()
-	for i := 0; i < 10; i++ {
-		info := status.StatusInfo{
-			Status:  status.Executing,
-			Message: fmt.Sprintf("status %d", i),
-			Since:   &now,
-		}
-		err := s.unit.SetAgentStatus(info)
-		c.Assert(err, jc.ErrorIsNil)
-		info.Status = status.Active
-		err = s.unit.SetStatus(info)
-		c.Assert(err, jc.ErrorIsNil)
-
-		err = s.unit.SetWorkloadVersion(fmt.Sprintf("v.%d", i))
-		c.Assert(err, jc.ErrorIsNil)
-	}
-
-	filter := status.StatusHistoryFilter{Size: 100}
-	agentInfo, err := s.unit.AgentHistory().StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(len(agentInfo), jc.GreaterThan, 9)
-
-	workloadInfo, err := s.unit.StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(len(workloadInfo), jc.GreaterThan, 9)
-
-	versionInfo, err := s.unit.WorkloadVersionHistory().StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(len(versionInfo), jc.GreaterThan, 9)
-
-	err = s.unit.Destroy(state.NewObjectStore(c, s.State.ModelUUID()))
-	c.Assert(err, jc.ErrorIsNil)
-
-	agentInfo, err = s.unit.AgentHistory().StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(agentInfo, gc.HasLen, 0)
-
-	workloadInfo, err = s.unit.StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(workloadInfo, gc.HasLen, 0)
-
-	versionInfo, err = s.unit.WorkloadVersionHistory().StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(versionInfo, gc.HasLen, 0)
-}
-
 func assertLife(c *gc.C, entity state.LifeRefresher, life state.Life) {
 	c.Assert(entity.Refresh(), gc.IsNil)
 	c.Assert(entity.Life(), gc.Equals, life)

@@ -35,7 +35,6 @@ type Backend interface {
 	AllIPAddresses() ([]*state.Address, error)
 	AllLinkLayerDevices() ([]*state.LinkLayerDevice, error)
 	AllRelations() ([]*state.Relation, error)
-	Application(string) (Application, error)
 	ControllerNodes() ([]state.ControllerNode, error)
 	ControllerTag() names.ControllerTag
 	ControllerTimestamp() (*time.Time, error)
@@ -69,7 +68,6 @@ type Model interface {
 	Owner() names.UserTag
 	AddUser(state.UserAccessSpec) (permission.UserAccess, error)
 	Users() ([]permission.UserAccess, error)
-	StatusHistory(status.StatusHistoryFilter) ([]status.StatusInfo, error)
 	LatestToolsVersion() version.Number
 	Status() (status.StatusInfo, error)
 }
@@ -80,18 +78,11 @@ type Pool interface {
 	SystemState() (*state.State, error)
 }
 
-// Application represents a state.Application.
-type Application interface {
-	StatusHistory(status.StatusHistoryFilter) ([]status.StatusInfo, error)
-}
-
 // Unit represents a state.Unit.
 type Unit interface {
-	status.StatusHistoryGetter
 	Life() state.Life
 	IsPrincipal() bool
 	PublicAddress() (network.SpaceAddress, error)
-	AgentHistory() status.StatusHistoryGetter
 }
 
 // TODO - CAAS(ericclaudejones): This should contain state alone, model will be
@@ -105,14 +96,6 @@ type stateShim struct {
 
 func (s stateShim) UpdateModelConfig(u map[string]interface{}, r []string, a ...state.ValidateConfigFunc) error {
 	return s.model.UpdateModelConfig(s.configSchemaSourceGetter, u, r, a...)
-}
-
-func (s *stateShim) Application(name string) (Application, error) {
-	a, err := s.State.Application(name)
-	if err != nil {
-		return nil, err
-	}
-	return a, nil
 }
 
 func (s *stateShim) Unit(name string) (Unit, error) {

@@ -470,18 +470,6 @@ func allCollections() CollectionSchema {
 				Key: []string{"model-uuid", "_id"},
 			}},
 		},
-		statusesHistoryC: {
-			rawAccess: true,
-			indexes: []mgo.Index{{
-				Key: []string{"model-uuid", "globalkey", "updated"},
-			}, {
-				// used for migration and model-specific pruning
-				Key: []string{"model-uuid", "-updated", "-_id"},
-			}, {
-				// used for global pruning (after size check)
-				Key: []string{"-updated"},
-			}},
-		},
 
 		// This collection holds information about cloud image metadata.
 		cloudimagemetadataC: {
@@ -657,7 +645,6 @@ const (
 	sshHostKeysC               = "sshhostkeys"
 	spacesC                    = "spaces"
 	statusesC                  = "statuses"
-	statusesHistoryC           = "statuseshistory"
 	storageAttachmentsC        = "storageattachments"
 	storageConstraintsC        = "storageconstraints"
 	deviceConstraintsC         = "deviceConstraints"
@@ -701,5 +688,4 @@ var watcherIgnoreList = []string{
 	bakeryStorageItemsC,
 	sequenceC,
 	refcountsC,
-	statusesHistoryC,
 }

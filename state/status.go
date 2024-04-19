@@ -5,12 +5,10 @@ package state
 
 import (
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
-	"github.com/juju/loggo/v2"
 	"github.com/juju/mgo/v3"
 	"github.com/juju/mgo/v3/bson"
 	"github.com/juju/mgo/v3/txn"
@@ -321,20 +319,6 @@ func setStatus(db Database, params setStatusParams) (err error) {
 		Updated:    params.updated.UnixNano(),
 	}
 
-	historyDoc := &doc
-	if params.historyOverwrite != nil {
-		historyDoc = params.historyOverwrite
-	}
-
-	newStatus, historyErr := probablyUpdateStatusHistory(db,
-		params.statusKind, params.statusId, params.globalKey, *historyDoc)
-	if params.historyOverwrite == nil && (!newStatus && historyErr == nil) {
-		// If this status is not new (i.e. it is exactly the same as
-		// our last status), there is no need to update the record.
-		// Update here will only reset the 'Since' field.
-		return nil
-	}
-
 	// Set the authoritative status document, or fail trying.
 	var buildTxn jujutxn.TransactionSource = func(int) ([]txn.Op, error) {
 		return statusSetOps(db, doc, params.globalKey)
@@ -401,130 +385,6 @@ type historicalStatusDoc struct {
 	Updated int64 `bson:"updated"`
 }
 
-type recordedHistoricalStatusDoc struct {
-	ID         bson.ObjectId          `bson:"_id"`
-	Status     status.Status          `bson:"status"`
-	StatusInfo string                 `bson:"statusinfo"`
-	StatusData map[string]interface{} `bson:"statusdata"`
-}
-
-// probablyUpdateStatusHistory inspects existing status-history
-// and determines if this status is new or the same as the last recorded.
-// If this is a new status, a new status history record will be added.
-// If this status is the same as the last status we've received,
-// we update that record to have a new timestamp.
-// Status messages are considered to be the same if they only differ in their timestamps.
-// The call returns true if a new status history record has been created.
-func probablyUpdateStatusHistory(db Database,
-	statusKind string, statusId string, globalKey string, doc statusDoc) (bool, error) {
-	historyDoc := &historicalStatusDoc{
-		Status:     doc.Status,
-		StatusInfo: doc.StatusInfo,
-		StatusData: doc.StatusData, // coming from a statusDoc, already escaped
-		Updated:    doc.Updated,
-		GlobalKey:  globalKey,
-	}
-
-	history, closer := db.GetCollection(statusesHistoryC)
-	defer closer()
-
-	exists, currentID := statusHistoryExists(db, historyDoc)
-	if exists {
-		// If the status values have not changed since the last run,
-		// update history record with this timestamp
-		// to keep correct track of when SetStatus ran.
-		historyW := history.Writeable()
-		err := historyW.Update(
-			bson.D{{"_id", currentID}},
-			bson.D{{"$set", bson.D{{"updated", doc.Updated}}}})
-		if err != nil {
-			logger.Errorf("failed to update status history: %v", err)
-			return false, err
-		}
-		return false, nil
-	}
-
-	historyW := history.Writeable()
-	err := historyW.Insert(historyDoc)
-	if err != nil {
-		logger.Errorf("failed to write status history: %v", err)
-		return false, err
-	}
-	return true, nil
-}
-
-func statusHistoryExists(db Database, historyDoc *historicalStatusDoc) (bool, bson.ObjectId) {
-	// Find the current value to see if it is worthwhile adding the new
-	// status value.
-	history, closer := db.GetCollection(statusesHistoryC)
-	defer closer()
-
-	var latest []recordedHistoricalStatusDoc
-	query := history.Find(bson.D{{globalKeyField, historyDoc.GlobalKey}})
-	query = query.Sort("-updated").Limit(1)
-	err := query.All(&latest)
-	if err == nil && len(latest) == 1 {
-		current := latest[0]
-		// Short circuit the writing to the DB if the status, message,
-		// and data match.
-		dataSame := func(left, right map[string]interface{}) bool {
-			// If they are both empty, then it is the same.
-			if len(left) == 0 && len(right) == 0 {
-				return true
-			}
-			// If either are now empty, they aren't the same.
-			if len(left) == 0 || len(right) == 0 {
-				return false
-			}
-			// Failing that, use reflect.
-			return reflect.DeepEqual(left, right)
-		}
-		// Check the data last as the short circuit evaluation may mean
-		// we rarely need to drop down into the reflect library.
-		if current.Status == historyDoc.Status &&
-			current.StatusInfo == historyDoc.StatusInfo &&
-			dataSame(current.StatusData, historyDoc.StatusData) {
-			return true, current.ID
-		}
-	}
-	return false, ""
-}
-
-// eraseStatusHistory removes all status history documents for
-// the given global key. The documents are removed in batches
-// to avoid locking the status history collection for extended
-// periods of time, preventing status history being recorded
-// for other entities.
-func eraseStatusHistory(stop <-chan struct{}, mb modelBackend, globalKey string) error {
-	// TODO(axw) restructure status history so we have one
-	// document per global key, and sub-documents per status
-	// recording. This method would then become a single
-	// Remove operation.
-
-	history, closer := mb.db().GetCollection(statusesHistoryC)
-	defer closer()
-
-	iter := history.Find(bson.D{{
-		globalKeyField, globalKey,
-	}}).Select(bson.M{"_id": 1}).Iter()
-	defer iter.Close()
-
-	logFormat := "deleted %d status history documents for " + fmt.Sprintf("%q", globalKey)
-	deleted, err := deleteInBatches(
-		stop,
-		history.Writeable().Underlying(), nil, "", iter,
-		logFormat, loggo.DEBUG,
-		noEarlyFinish,
-	)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if deleted > 0 {
-		logger.Debugf(logFormat, deleted)
-	}
-	return nil
-}
-
 // statusHistoryArgs hold the arguments to call statusHistory.
 type statusHistoryArgs struct {
 	db        Database
@@ -569,38 +429,4 @@ func fetchNStatusResults(col mongo.Collection, clock clock.Clock,
 	}
 	return docs, nil
 
-}
-
-func statusHistory(args *statusHistoryArgs) ([]status.StatusInfo, error) {
-	if err := args.filter.Validate(); err != nil {
-		return nil, errors.Annotate(err, "validating arguments")
-	}
-	statusHistory, closer := args.db.GetCollection(statusesHistoryC)
-	defer closer()
-
-	var results []status.StatusInfo
-	docs, err := fetchNStatusResults(statusHistory, args.clock, args.globalKey, args.filter)
-	partial := []status.StatusInfo{}
-	if err != nil {
-		return []status.StatusInfo{}, errors.Trace(err)
-	}
-	for _, doc := range docs {
-		partial = append(partial, status.StatusInfo{
-			Status:  doc.Status,
-			Message: doc.StatusInfo,
-			Data:    utils.UnescapeKeys(doc.StatusData),
-			Since:   unixNanoToTime(doc.Updated),
-		})
-	}
-	results = partial
-	return results, nil
-}
-
-// PruneStatusHistory prunes the status history collection.
-func PruneStatusHistory(stop <-chan struct{}, st *State, maxHistoryTime time.Duration, maxHistoryMB int) error {
-	coll, closer := st.db().GetRawCollection(statusesHistoryC)
-	defer closer()
-
-	err := pruneCollection(stop, st, maxHistoryTime, maxHistoryMB, coll, "updated", nil, NanoSeconds)
-	return errors.Trace(err)
 }

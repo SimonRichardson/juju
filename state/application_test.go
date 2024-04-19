@@ -2870,24 +2870,6 @@ func (s *ApplicationSuite) TestDestroySimple(c *gc.C) {
 	c.Assert(err, jc.ErrorIs, errors.NotFound)
 }
 
-func (s *ApplicationSuite) TestDestroyRemovesStatusHistory(c *gc.C) {
-	err := s.mysql.SetStatus(status.StatusInfo{
-		Status: status.Active,
-	})
-	c.Assert(err, jc.ErrorIsNil)
-	filter := status.StatusHistoryFilter{Size: 100}
-	agentInfo, err := s.mysql.StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(len(agentInfo), gc.Equals, 2)
-
-	err = s.mysql.Destroy(state.NewObjectStore(c, s.State.ModelUUID()))
-	c.Assert(err, jc.ErrorIsNil)
-
-	agentInfo, err = s.mysql.StatusHistory(filter)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(agentInfo, gc.HasLen, 0)
-}
-
 func (s *ApplicationSuite) TestDestroyStillHasUnits(c *gc.C) {
 	objectStore := state.NewObjectStore(c, s.State.ModelUUID())
 
@@ -4765,39 +4747,16 @@ func (s *CAASApplicationSuite) assertUpdateCAASUnits(c *gc.C, aliveApp bool) {
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(statusInfo.Status, gc.Equals, status.Running)
 	c.Assert(statusInfo.Message, gc.Equals, "existing container running")
-	unitHistory, err := u.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(unitHistory, gc.HasLen, 2)
-	// Creating a new unit may cause the history entries to be written with
-	// the same timestamp due to the precision used by the db.
-	if unitHistory[0].Status == status.Running {
-		c.Assert(unitHistory[0].Status, gc.Equals, status.Running)
-		c.Assert(unitHistory[0].Message, gc.Equals, "existing container running")
-		c.Assert(unitHistory[1].Status, gc.Equals, status.Waiting)
-	} else {
-		c.Assert(unitHistory[1].Status, gc.Equals, status.Running)
-		c.Assert(unitHistory[1].Message, gc.Equals, "existing container running")
-		c.Assert(unitHistory[0].Status, gc.Equals, status.Waiting)
-		c.Assert(unitHistory[0].Since.Unix(), gc.Equals, history[1].Since.Unix())
-	}
 
 	u, ok = unitsById["never-cloud-container"]
 	c.Assert(ok, jc.IsTrue)
 	info, ok = containerInfoById["never-cloud-container"]
 	c.Assert(ok, jc.IsTrue)
-	unitHistory, err = u.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(unitHistory[0].Status, gc.Equals, status.Waiting)
-	c.Assert(unitHistory[0].Message, gc.Equals, status.MessageInstallingAgent)
 
 	u, ok = unitsById["add-never-cloud-container"]
 	c.Assert(ok, jc.IsTrue)
 	info, ok = containerInfoById["add-never-cloud-container"]
 	c.Assert(ok, jc.IsTrue)
-	unitHistory, err = u.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(unitHistory[0].Status, gc.Equals, status.Waiting)
-	c.Assert(unitHistory[0].Message, gc.Equals, status.MessageInstallingAgent)
 
 	u, ok = unitsById["new-unit-uuid"]
 	c.Assert(ok, jc.IsTrue)
@@ -4838,29 +4797,6 @@ func (s *CAASApplicationSuite) assertUpdateCAASUnits(c *gc.C, aliveApp bool) {
 		c.Assert(history[0].Status, gc.Equals, status.Allocating)
 		c.Assert(history[0].Since.Unix(), gc.Equals, history[1].Since.Unix())
 	}
-	// container status history must have overridden the unit status.
-	unitHistory, err = u.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(unitHistory, gc.HasLen, 2)
-	// Creating a new unit may cause the history entries to be written with
-	// the same timestamp due to the precision used by the db.
-	if unitHistory[0].Status == status.Running {
-		c.Assert(unitHistory[0].Status, gc.Equals, status.Running)
-		c.Assert(unitHistory[0].Message, gc.Equals, "new container running")
-		c.Assert(unitHistory[1].Status, gc.Equals, status.Waiting)
-	} else {
-		c.Assert(unitHistory[1].Status, gc.Equals, status.Running)
-		c.Assert(unitHistory[1].Message, gc.Equals, "new container running")
-		c.Assert(unitHistory[0].Status, gc.Equals, status.Waiting)
-		c.Assert(unitHistory[0].Since.Unix(), gc.Equals, history[1].Since.Unix())
-	}
-
-	// check cloud container status history is stored.
-	containerStatusHistory, err := state.GetCloudContainerStatusHistory(s.caasSt, u.Name(), status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(containerStatusHistory, gc.HasLen, 1)
-	c.Assert(containerStatusHistory[0].Status, gc.Equals, status.Running)
-	c.Assert(containerStatusHistory[0].Message, gc.Equals, "new container running")
 
 	err = removedUnit.Refresh()
 	c.Assert(err, jc.ErrorIs, errors.NotFound)
@@ -5039,58 +4975,6 @@ func (s *CAASApplicationSuite) TestWatchCloudService(c *gc.C) {
 	w = cloudSvc.Watch()
 	defer workertest.CleanKill(c, w)
 	testing.NewNotifyWatcherC(c, w).AssertOneChange()
-}
-
-func (s *CAASApplicationSuite) TestRewriteStatusHistory(c *gc.C) {
-	st := s.Factory.MakeModel(c, &factory.ModelParams{
-		Name: "caas-model",
-		Type: state.ModelTypeCAAS,
-	})
-	defer st.Close()
-	f := factory.NewFactory(st, s.StatePool, coretesting.FakeControllerConfig())
-	ch := f.MakeCharm(c, &factory.CharmParams{Name: "gitlab-k8s", Series: "focal"})
-	app := f.MakeApplication(c, &factory.ApplicationParams{Name: "gitlab", Charm: ch})
-
-	history, err := app.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(history, gc.HasLen, 1)
-	c.Assert(history[0].Status, gc.Equals, status.Unset)
-	c.Assert(history[0].Message, gc.Equals, "")
-
-	// Must overwrite the history
-	err = app.SetOperatorStatus(status.StatusInfo{
-		Status:  status.Allocating,
-		Message: "operator message",
-	})
-	c.Assert(err, jc.ErrorIsNil)
-	history, err = app.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(history, gc.HasLen, 2)
-	c.Assert(history[0].Status, gc.Equals, status.Allocating)
-	c.Assert(history[0].Message, gc.Equals, "operator message")
-	c.Assert(history[1].Status, gc.Equals, status.Unset)
-	c.Assert(history[1].Message, gc.Equals, "")
-
-	err = app.SetOperatorStatus(status.StatusInfo{
-		Status:  status.Running,
-		Message: "operator running",
-	})
-	c.Assert(err, jc.ErrorIsNil)
-	err = app.SetStatus(status.StatusInfo{
-		Status:  status.Active,
-		Message: "app active",
-	})
-	c.Assert(err, jc.ErrorIsNil)
-	history, err = app.StatusHistory(status.StatusHistoryFilter{Size: 10})
-	c.Log(history)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(history, gc.HasLen, 3)
-	c.Assert(history[0].Status, gc.Equals, status.Active)
-	c.Assert(history[0].Message, gc.Equals, "app active")
-	c.Assert(history[1].Status, gc.Equals, status.Allocating)
-	c.Assert(history[1].Message, gc.Equals, "operator message")
-	c.Assert(history[2].Status, gc.Equals, status.Unset)
-	c.Assert(history[2].Message, gc.Equals, "")
 }
 
 func (s *CAASApplicationSuite) TestClearResources(c *gc.C) {

@@ -135,16 +135,6 @@ func (st *State) suspendCredentialModels(tag names.CloudCredentialTag, reason st
 	logger.Warningf("suspending these models:\n%s\n because their credential has become invalid:\n%s",
 		strings.Join(infos, " - "),
 		reason)
-	sts := ModelStatusInvalidCredential(reason)
-	doc := statusDoc{
-		Status:     sts.Status,
-		StatusInfo: sts.Message,
-		StatusData: sts.Data,
-		Updated:    timeOrNow(nil, st.clock()).UnixNano(),
-	}
-	for _, m := range models {
-		st.maybeSetModelStatusHistoryDoc(m.UUID, doc)
-	}
 	return nil
 }
 
@@ -182,53 +172,11 @@ func (st *State) model(uuid string) (*Model, func() error, error) {
 	return m, closer, nil
 }
 
-func (st *State) maybeSetModelStatusHistoryDoc(modelUUID string, doc statusDoc) {
-	one, closer, err := st.model(modelUUID)
-	defer func() { _ = closer() }()
-	if err != nil {
-		logger.Warningf("model %v error: %v", modelUUID, err)
-		return
-	}
-
-	if _, err = probablyUpdateStatusHistory(one.st.db(), one.Kind(), one.globalKey(), one.globalKey(), doc); err != nil {
-		logger.Warningf("%v", err)
-	}
-}
-
-func (m *Model) maybeRevertModelStatus() error {
-	// I don't know where you've been before you got here - get a clean slate.
-	err := m.Refresh()
-	if err != nil {
-		logger.Warningf("could not refresh model %v to revert its status: %v", m.UUID(), err)
-	}
-	modelStatus, err := m.Status()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if modelStatus.Status != status.Suspended {
-		doc := statusDoc{
-			Status:     modelStatus.Status,
-			StatusInfo: modelStatus.Message,
-			Updated:    timeOrNow(nil, m.st.clock()).UnixNano(),
-		}
-
-		if _, err = probablyUpdateStatusHistory(m.st.db(), m.Kind(), m.globalKey(), m.globalKey(), doc); err != nil {
-			return errors.Trace(err)
-		}
-	}
-	return nil
-}
-
 // SetCloudCredential sets new cloud credential for this model.
 // Returned bool indicates if model credential was set.
 func (m *Model) SetCloudCredential(tag names.CloudCredentialTag) (bool, error) {
 	// If model is suspended, after this call, it may be reverted since,
 	// if updated, model credential will be set to a valid credential.
-	modelStatus, err := m.Status()
-	if err != nil {
-		return false, errors.Annotatef(err, "getting model status %q", m.UUID())
-	}
-	revert := modelStatus.Status == status.Suspended
 	updating := true
 	buildTxn := func(attempt int) ([]txn.Op, error) {
 		if attempt > 0 {
@@ -252,11 +200,6 @@ func (m *Model) SetCloudCredential(tag names.CloudCredentialTag) (bool, error) {
 	}
 	if err := m.st.db().Run(buildTxn); err != nil {
 		return false, errors.Trace(err)
-	}
-	if updating && revert {
-		if err := m.maybeRevertModelStatus(); err != nil {
-			logger.Warningf("could not revert status for model %v: %v", m.UUID(), err)
-		}
 	}
 	return updating, m.Refresh()
 }
@@ -302,9 +245,6 @@ func (st *State) CloudCredentialUpdated(tag names.CloudCredentialTag) error {
 	for m, closer := range revert {
 		if err := m.st.updateModelCredentialInvalid(m.UUID(), "", false); err != nil {
 			return errors.Trace(err)
-		}
-		if err := m.maybeRevertModelStatus(); err != nil {
-			logger.Warningf("could not revert status for model %v: %v", m.UUID(), err)
 		}
 		_ = closer()
 	}

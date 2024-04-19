@@ -219,14 +219,6 @@ const (
 	// is stored against the model.
 	ExtraInfoKey = "extra-info"
 
-	// MaxStatusHistoryAge is the maximum age of status history values
-	// to keep when pruning, eg "72h"
-	MaxStatusHistoryAge = "max-status-history-age"
-
-	// MaxStatusHistorySize is the maximum size the status history
-	// collection can grow to before it is pruned, eg "5M"
-	MaxStatusHistorySize = "max-status-history-size"
-
 	// MaxActionResultsAge is the maximum age of actions to keep when pruning, eg
 	// "72h"
 	MaxActionResultsAge = "max-action-results-age"
@@ -492,12 +484,6 @@ func New(withDefaults Defaulting, attrs map[string]any) (*Config, error) {
 }
 
 const (
-	// DefaultStatusHistoryAge is the default value for MaxStatusHistoryAge.
-	DefaultStatusHistoryAge = "336h" // 2 weeks
-
-	// DefaultStatusHistorySize is the default value for MaxStatusHistorySize.
-	DefaultStatusHistorySize = "5G"
-
 	// DefaultUpdateStatusHookInterval is the default value for
 	// UpdateStatusHookInterval
 	DefaultUpdateStatusHookInterval = "5m"
@@ -601,9 +587,7 @@ var defaultConfigValues = map[string]any{
 	SnapStoreAssertionsKey: "",
 	SnapStoreProxyURLKey:   "",
 
-	// Status history settings
-	MaxStatusHistoryAge:  DefaultStatusHistoryAge,
-	MaxStatusHistorySize: DefaultStatusHistorySize,
+	// Pruner settings
 	MaxActionResultsAge:  DefaultActionResultsAge,
 	MaxActionResultsSize: DefaultActionResultsSize,
 
@@ -714,18 +698,6 @@ func Validate(cfg, old *Config) error {
 	// Ensure the resource tags have the expected k=v format.
 	if _, err := cfg.resourceTags(); err != nil {
 		return errors.Annotate(err, "validating resource tags")
-	}
-
-	if v, ok := cfg.defined[MaxStatusHistoryAge].(string); ok {
-		if _, err := time.ParseDuration(v); err != nil {
-			return errors.Annotate(err, "invalid max status history age in model configuration")
-		}
-	}
-
-	if v, ok := cfg.defined[MaxStatusHistorySize].(string); ok {
-		if _, err := utils.ParseSize(v); err != nil {
-			return errors.Annotate(err, "invalid max status history size in model configuration")
-		}
 	}
 
 	if v, ok := cfg.defined[MaxActionResultsAge].(string); ok {
@@ -1629,22 +1601,6 @@ func (c *Config) resourceTags() (map[string]string, error) {
 	return v, nil
 }
 
-// MaxStatusHistoryAge is the maximum age of status history entries
-// before being pruned.
-func (c *Config) MaxStatusHistoryAge() time.Duration {
-	// Value has already been validated.
-	val, _ := time.ParseDuration(c.mustString(MaxStatusHistoryAge))
-	return val
-}
-
-// MaxStatusHistorySizeMB is the maximum size in MiB which the status history
-// collection can grow to before being pruned.
-func (c *Config) MaxStatusHistorySizeMB() uint {
-	// Value has already been validated.
-	val, _ := utils.ParseSize(c.mustString(MaxStatusHistorySize))
-	return uint(val)
-}
-
 func (c *Config) MaxActionResultsAge() time.Duration {
 	// Value has already been validated.
 	val, _ := time.ParseDuration(c.mustString(MaxActionResultsAge))
@@ -1830,8 +1786,6 @@ var alwaysOptional = schema.Defaults{
 	TransmitVendorMetricsKey:        schema.Omit,
 	NetBondReconfigureDelayKey:      schema.Omit,
 	ContainerNetworkingMethod:       schema.Omit,
-	MaxStatusHistoryAge:             schema.Omit,
-	MaxStatusHistorySize:            schema.Omit,
 	MaxActionResultsAge:             schema.Omit,
 	MaxActionResultsSize:            schema.Omit,
 	UpdateStatusHookInterval:        schema.Omit,
@@ -1991,4 +1945,17 @@ func developerConfigValue(name string) bool {
 		}
 	}
 	return false
+}
+
+// DeprecatedConfigFields returns a list of configuration fields that are
+// deprecated and should not be used.
+func DeprecatedConfigFields() []string {
+	return []string{
+		// MaxStatusHistoryAge is the maximum age of status history values
+		// to keep when pruning, eg "72h"
+		"max-status-history-age",
+		// MaxStatusHistorySize is the maximum size the status history
+		// collection can grow to before it is pruned, eg "5M"
+		"max-status-history-size",
+	}
 }

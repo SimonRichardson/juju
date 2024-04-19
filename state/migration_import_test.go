@@ -52,19 +52,6 @@ type MigrationImportSuite struct {
 
 var _ = gc.Suite(&MigrationImportSuite{})
 
-func (s *MigrationImportSuite) checkStatusHistory(c *gc.C, exported, imported status.StatusHistoryGetter, size int) {
-	exportedHistory, err := exported.StatusHistory(status.StatusHistoryFilter{Size: size})
-	c.Assert(err, jc.ErrorIsNil)
-	importedHistory, err := imported.StatusHistory(status.StatusHistoryFilter{Size: size})
-	c.Assert(err, jc.ErrorIsNil)
-	for i := 0; i < size; i++ {
-		c.Check(importedHistory[i].Status, gc.Equals, exportedHistory[i].Status)
-		c.Check(importedHistory[i].Message, gc.Equals, exportedHistory[i].Message)
-		c.Check(importedHistory[i].Data, jc.DeepEquals, exportedHistory[i].Data)
-		c.Check(importedHistory[i].Since, jc.DeepEquals, exportedHistory[i].Since)
-	}
-}
-
 func (s *MigrationImportSuite) TestExisting(c *gc.C) {
 	out, err := s.State.Export(map[string]string{}, state.NewObjectStore(c, s.State.ModelUUID()))
 	c.Assert(err, jc.ErrorIsNil)
@@ -166,12 +153,6 @@ func (s *MigrationImportSuite) TestNewModel(c *gc.C) {
 	c.Check(err, jc.ErrorIsNil)
 	c.Check(statusInfo.Status, gc.Equals, status.Busy)
 	c.Check(statusInfo.Message, gc.Equals, "importing")
-	// One for original "available", one for "busy (importing)"
-	history, err := newModel.StatusHistory(status.StatusHistoryFilter{Size: 5})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Check(history, gc.HasLen, 2)
-	c.Check(history[0].Status, gc.Equals, status.Busy)
-	c.Check(history[1].Status, gc.Equals, status.Available)
 
 	originalConfig, err := original.Config()
 	c.Assert(err, jc.ErrorIsNil)
@@ -364,8 +345,6 @@ func (s *MigrationImportSuite) TestMachines(c *gc.C) {
 	c.Assert(parentId, gc.Equals, parent.Id())
 	c.Assert(isContainer, jc.IsTrue)
 
-	s.checkStatusHistory(c, machine1, parent, 5)
-
 	newCons, err := parent.Constraints()
 	c.Assert(err, jc.ErrorIsNil)
 	// Can't test the constraints directly, so go through the string repr.
@@ -496,7 +475,7 @@ func (s *MigrationImportSuite) setupSourceApplications(
 
 func (s *MigrationImportSuite) assertImportedApplication(
 	c *gc.C, application *state.Application, pwd string, cons constraints.Value,
-	exported *state.Application, newModel *state.Model, newSt *state.State, checkStatusHistory bool,
+	exported *state.Application, newModel *state.Model, newSt *state.State,
 ) {
 	importedApplications, err := newSt.AllApplications()
 	c.Assert(err, jc.ErrorIsNil)
@@ -530,10 +509,6 @@ func (s *MigrationImportSuite) assertImportedApplication(
 	importedLeaderSettings, err := imported.LeaderSettings()
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(importedLeaderSettings, jc.DeepEquals, exportedLeaderSettings)
-
-	if checkStatusHistory {
-		s.checkStatusHistory(c, application, imported, 5)
-	}
 
 	newCons, err := imported.Constraints()
 	c.Assert(err, jc.ErrorIsNil)
@@ -577,7 +552,7 @@ func (s *MigrationImportSuite) TestApplications(c *gc.C) {
 		URL:      testCharm.URL(),
 		Revision: strconv.Itoa(testCharm.Revision()),
 	})
-	s.assertImportedApplication(c, application, pwd, cons, exported, newModel, newSt, true)
+	s.assertImportedApplication(c, application, pwd, cons, exported, newModel, newSt)
 }
 
 func (s *MigrationImportSuite) TestApplicationsUpdateSeriesNotPlatform(c *gc.C) {
@@ -706,7 +681,7 @@ func (s *MigrationImportSuite) TestApplicationStatus(c *gc.C) {
 		URL:      testCharm.URL(),
 		Revision: strconv.Itoa(testCharm.Revision()),
 	})
-	s.assertImportedApplication(c, application, pwd, cons, exported, newModel, newSt, false)
+	s.assertImportedApplication(c, application, pwd, cons, exported, newModel, newSt)
 	newApp, err := newSt.Application(application.Name())
 	c.Assert(err, jc.ErrorIsNil)
 	// Has unset application status.
@@ -744,7 +719,7 @@ func (s *MigrationImportSuite) TestCAASApplications(c *gc.C) {
 		URL:      charm.URL(),
 		Revision: strconv.Itoa(charm.Revision()),
 	})
-	s.assertImportedApplication(c, application, pwd, cons, exported, newModel, newSt, true)
+	s.assertImportedApplication(c, application, pwd, cons, exported, newModel, newSt)
 	newApp, err := newSt.Application(application.Name())
 	c.Assert(err, jc.ErrorIsNil)
 	cloudService, err := newApp.ServiceInfo()
@@ -1160,10 +1135,6 @@ func (s *MigrationImportSuite) assertUnitsMigrated(c *gc.C, st *state.State, con
 		addr.SpaceID = "0"
 		c.Assert(containerInfo.Address(), jc.DeepEquals, &addr)
 	}
-
-	s.checkStatusHistory(c, exported, imported, 5)
-	s.checkStatusHistory(c, exported.Agent(), imported.Agent(), 5)
-	s.checkStatusHistory(c, exported.WorkloadVersionHistory(), imported.WorkloadVersionHistory(), 1)
 
 	unitState, err := imported.State()
 	c.Assert(err, jc.ErrorIsNil)

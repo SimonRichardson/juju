@@ -1449,8 +1449,6 @@ func (st *State) AddApplication(prechecker environs.InstancePrechecker, args Add
 		}
 		return ops, nil
 	}
-	// At the last moment before inserting the application, prime status history.
-	_, _ = probablyUpdateStatusHistory(st.db(), app.Kind(), app.Name(), app.globalKey(), statusDoc)
 
 	if err = st.db().Run(buildTxn); err == nil {
 		// Refresh to pick the txn-revno.

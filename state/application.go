@@ -418,12 +418,6 @@ func (op *DestroyApplicationOperation) Build(attempt int) ([]txn.Op, error) {
 // Done is part of the ModelOperation interface.
 func (op *DestroyApplicationOperation) Done(err error) error {
 	if err == nil {
-		if err := op.eraseHistory(); err != nil {
-			if !op.Force {
-				logger.Errorf("cannot delete history for application %q: %v", op.app, err)
-			}
-			op.AddError(errors.Errorf("force erase application %q history proceeded despite encountering ERROR %v", op.app, err))
-		}
 		// Only delete secrets after application is removed.
 		if !op.Removed {
 			return nil
@@ -454,17 +448,6 @@ func (op *DestroyApplicationOperation) Done(err error) error {
 	}
 
 	return errors.Annotatef(err, "cannot destroy application %q", op.app)
-}
-
-func (op *DestroyApplicationOperation) eraseHistory() error {
-	var stop <-chan struct{} // stop not used here yet.
-	if err := eraseStatusHistory(stop, op.app.st, op.app.globalKey()); err != nil {
-		one := errors.Annotate(err, "application")
-		if op.FatalError(one) {
-			return one
-		}
-	}
-	return nil
 }
 
 func (op *DestroyApplicationOperation) deleteSecrets() error {
@@ -2523,16 +2506,6 @@ func (a *Application) addUnitOpsWithCons(args applicationAddUnitOpsArgs) (string
 	} else {
 		ops = append(ops, createConstraintsOp(agentGlobalKey, args.cons))
 	}
-
-	u := newUnit(a.st, m.Type(), udoc)
-	uAgent := newUnitAgent(a.st, unitTag, "")
-	// At the last moment we still have the statusDocs in scope, set the initial
-	// history entries. This is risky, and may lead to extra entries, but that's
-	// an intrinsic problem with mixing txn and non-txn ops -- we can't sync
-	// them cleanly.
-	_, _ = probablyUpdateStatusHistory(a.st.db(), u.Kind(), name, globalKey, *unitStatusDoc)
-	_, _ = probablyUpdateStatusHistory(a.st.db(), u.unitWorkloadVersionKind(), name, globalWorkloadVersionKey(name), *workloadVersionDoc)
-	_, _ = probablyUpdateStatusHistory(a.st.db(), uAgent.Kind(), name, agentGlobalKey, agentStatusDoc)
 	return name, ops, nil
 }
 
@@ -3528,41 +3501,12 @@ func (a *Application) SetOperatorStatus(sInfo status.StatusInfo) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	appStatus, err := a.Status()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	historyDoc, err := caasHistoryRewriteDoc(appStatus, sInfo, status.ApplicationDisplayStatus, a.st.clock())
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if historyDoc != nil {
-		// rewriting application status history
-		_, err = probablyUpdateStatusHistory(a.st.db(),
-			a.Kind(), a.Name(), a.globalKey(), *historyDoc)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	}
 	return nil
 }
 
 // OperatorStatus returns the operator status for an application.
 func (a *Application) OperatorStatus() (status.StatusInfo, error) {
 	return getStatus(a.st.db(), applicationGlobalOperatorKey(a.Name()), "application operator")
-}
-
-// StatusHistory returns a slice of at most filter.Size StatusInfo items
-// or items as old as filter.Date or items newer than now - filter.Delta time
-// representing past statuses for this application.
-func (a *Application) StatusHistory(filter status.StatusHistoryFilter) ([]status.StatusInfo, error) {
-	args := &statusHistoryArgs{
-		db:        a.st.db(),
-		globalKey: a.globalKey(),
-		filter:    filter,
-		clock:     a.st.clock(),
-	}
-	return statusHistory(args)
 }
 
 // UnitStatuses returns a map of unit names to their Status results (workload
@@ -3866,19 +3810,6 @@ func (op *AddUnitOperation) Done(err error) error {
 		}
 	}
 	if op.props.CloudContainerStatus != nil {
-		doc := statusDoc{
-			Status:     op.props.CloudContainerStatus.Status,
-			StatusInfo: op.props.CloudContainerStatus.Message,
-			StatusData: mgoutils.EscapeKeys(op.props.CloudContainerStatus.Data),
-			Updated:    timeOrNow(op.props.CloudContainerStatus.Since, u.st.clock()).UnixNano(),
-		}
-		_, err := probablyUpdateStatusHistory(
-			op.application.st.db(), u.cloudContainerKind(), op.unitName,
-			globalCloudContainerKey(op.unitName), doc)
-		if err != nil {
-			return errors.Trace(err)
-		}
-
 		// Ensure unit history is updated correctly
 		unitStatus, err := getStatus(op.application.st.db(), unitGlobalKey(op.unitName), "unit")
 		if err != nil {

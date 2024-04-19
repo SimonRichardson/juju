@@ -231,7 +231,6 @@ func (s *ModelCredentialSuite) TestInvalidateModelCredentialTouchesAllCredential
 	// 4. check all models are suspended
 	for _, uuid := range modelUUIDs {
 		assertModelStatus(c, s.StatePool, uuid, status.Suspended)
-		assertModelHistories(c, s.StatePool, uuid, status.Suspended, status.Available)
 	}
 }
 
@@ -256,85 +255,4 @@ func (s *ModelCredentialSuite) TestCloudCredentialUpdatedTouchesCredentialModels
 	err := s.State.CloudCredentialUpdated(tag)
 	c.Assert(err, jc.ErrorIsNil)
 	assertModelStatus(c, s.StatePool, testModelUUID, status.Available)
-}
-
-func (s *ModelCredentialSuite) TestSetCredentialRevertsModelStatus(c *gc.C) {
-	// 1. create a credential
-	cloudName, credentialOwner, credentialTag := assertCredentialCreated(c, s.ConnSuite)
-
-	// 2. create some models to use it
-	validModelStatuses := []status.Status{
-		status.Available,
-		status.Busy,
-		status.Destroying,
-		status.Error,
-	}
-	desiredNumber := len(validModelStatuses)
-
-	modelUUIDs := make([]string, desiredNumber)
-	for i := 0; i < desiredNumber; i++ {
-		modelUUIDs[i] = assertModelCreated(c, s.ConnSuite, cloudName, credentialTag, credentialOwner.Tag(), fmt.Sprintf("model-for-cloud%v", i))
-		oneModelState, helper, err := s.StatePool.GetModel(modelUUIDs[i])
-		c.Assert(err, jc.ErrorIsNil)
-		defer helper.Release()
-		if validModelStatuses[i] != status.Available {
-			// any model would be in 'available' status on setup.
-			err = oneModelState.SetStatus(status.StatusInfo{Status: validModelStatuses[i]})
-			c.Assert(err, jc.ErrorIsNil)
-			c.Assert(oneModelState.Refresh(), jc.ErrorIsNil)
-		}
-		if i == desiredNumber-1 {
-			// 3. invalidate credential on last model
-			c.Assert(oneModelState.State().InvalidateModelCredential("testing"), jc.ErrorIsNil)
-		}
-	}
-
-	// 4. check model is suspended
-	for i := 0; i < desiredNumber; i++ {
-		assertModelStatus(c, s.StatePool, modelUUIDs[i], status.Suspended)
-		if validModelStatuses[i] == status.Available {
-			assertModelHistories(c, s.StatePool, modelUUIDs[i], status.Suspended, status.Available)
-		} else {
-			assertModelHistories(c, s.StatePool, modelUUIDs[i], status.Suspended, validModelStatuses[i], status.Available)
-		}
-	}
-
-	// 5. create another credential on the same cloud
-	owner := s.Factory.MakeUser(c, &factory.UserParams{
-		Password: "secret",
-		Name:     "uncle",
-	})
-	anotherCredentialTag := names.NewCloudCredentialTag(fmt.Sprintf("%v/%v/%v", cloudName, owner.Name(), "barfoo"))
-
-	for i := 0; i < desiredNumber; i++ {
-		oneModelState, helper, err := s.StatePool.GetModel(modelUUIDs[i])
-		c.Assert(err, jc.ErrorIsNil)
-		defer helper.Release()
-
-		isSet, err := oneModelState.SetCloudCredential(anotherCredentialTag)
-		c.Assert(err, jc.ErrorIsNil)
-		c.Assert(isSet, jc.IsTrue)
-
-		// 5. Check model status is reverted
-		if validModelStatuses[i] == status.Available {
-			assertModelStatus(c, s.StatePool, modelUUIDs[i], status.Available)
-			assertModelHistories(c, s.StatePool, modelUUIDs[i], status.Available, status.Suspended, status.Available)
-		} else {
-			assertModelStatus(c, s.StatePool, modelUUIDs[i], validModelStatuses[i])
-			assertModelHistories(c, s.StatePool, modelUUIDs[i], validModelStatuses[i], status.Suspended, validModelStatuses[i], status.Available)
-		}
-	}
-}
-
-func assertModelHistories(c *gc.C, pool *state.StatePool, testModelUUID string, expected ...status.Status) []status.StatusInfo {
-	aModel, helper, err := pool.GetModel(testModelUUID)
-	c.Assert(err, jc.ErrorIsNil)
-	defer helper.Release()
-	statusHistories, err := aModel.StatusHistory(status.StatusHistoryFilter{Size: 100})
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(statusHistories, gc.HasLen, len(expected))
-	for i, one := range expected {
-		c.Assert(statusHistories[i].Status, gc.Equals, one)
-	}
-	return statusHistories
 }

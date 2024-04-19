@@ -58,7 +58,6 @@ import (
 	"github.com/juju/juju/internal/worker/secretsdrainworker"
 	"github.com/juju/juju/internal/worker/secretspruner"
 	"github.com/juju/juju/internal/worker/singular"
-	"github.com/juju/juju/internal/worker/statushistorypruner"
 	"github.com/juju/juju/internal/worker/storageprovisioner"
 	"github.com/juju/juju/internal/worker/undertaker"
 	"github.com/juju/juju/internal/worker/unitassigner"
@@ -295,14 +294,6 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			APICallerName: apiCallerName,
 			Clock:         config.Clock,
 			Logger:        config.LoggingContext.GetLogger("juju.worker.cleaner"),
-		})),
-		statusHistoryPrunerName: ifNotMigrating(pruner.Manifold(pruner.ManifoldConfig{
-			APICallerName: apiCallerName,
-			Clock:         config.Clock,
-			NewWorker:     statushistorypruner.New,
-			NewClient:     statushistorypruner.NewClient,
-			PruneInterval: config.StatusHistoryPrunerInterval,
-			Logger:        config.LoggingContext.GetLogger("juju.worker.pruner.statushistory"),
 		})),
 		actionPrunerName: ifNotMigrating(pruner.Manifold(pruner.ManifoldConfig{
 			APICallerName: apiCallerName,
