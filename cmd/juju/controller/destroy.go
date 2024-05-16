@@ -248,7 +248,7 @@ func (c *destroyCommand) Run(ctx *cmd.Context) error {
 		return errors.Annotate(err, "getting controller environ")
 	}
 
-	ctx.Warningf(destroySysMsg, controllerName)
+	ctx.Warningf(ctx, destroySysMsg, controllerName)
 	updateStatus := newTimedStatusUpdater(ctx, api, controllerEnviron.Config().UUID(), clock.WallClock)
 	modelStatus := updateStatus(0)
 
@@ -277,7 +277,7 @@ func (c *destroyCommand) Run(ctx *cmd.Context) error {
 
 	for {
 		// Attempt to destroy the controller.
-		ctx.Infof("Destroying controller")
+		ctx.Infof(ctx, "Destroying controller")
 		var hasHostedModels bool
 		var hasPersistentStorage bool
 		var destroyStorage *bool
@@ -352,15 +352,15 @@ func (c *destroyCommand) Run(ctx *cmd.Context) error {
 		// there may be some being destroyed already. We need to wait for them.
 		// Check for both undead models and live machines, as machines may be
 		// in the controller model.
-		ctx.Infof("Waiting for model resources to be reclaimed")
+		ctx.Infof(ctx, "Waiting for model resources to be reclaimed")
 		// wait for 2 seconds to let empty hosted models changed from alive to dying.
 		for ; hasUnreclaimedResources(modelStatus); modelStatus = updateStatus(2 * time.Second) {
-			ctx.Infof(fmtCtrStatus(modelStatus.Controller))
+			ctx.Infof(ctx, fmtCtrStatus(modelStatus.Controller))
 			for _, model := range modelStatus.Models {
 				ctx.Verbosef(fmtModelStatus(model))
 			}
 		}
-		ctx.Infof("All models reclaimed, cleaning up controller machines")
+		ctx.Infof(ctx, "All models reclaimed, cleaning up controller machines")
 		callCtx := envcontext.WithoutCredentialInvalidator(ctx)
 		return c.environsDestroy(controllerName, controllerEnviron, callCtx, store)
 	}
@@ -470,7 +470,7 @@ func (c *destroyCommand) ensureUserFriendlyErrorLog(destroyErr error, ctx *cmd.C
 		return nil
 	}
 	if params.IsCodeOperationBlocked(destroyErr) {
-		logger.Errorf(destroyControllerBlockedMsg)
+		logger.Errorf(ctx, destroyControllerBlockedMsg)
 		if api != nil {
 			models, err := api.ListBlockedModels()
 			out := &bytes.Buffer{}
@@ -483,10 +483,10 @@ func (c *destroyCommand) ensureUserFriendlyErrorLog(destroyErr error, ctx *cmd.C
 				err = block.FormatTabularBlockedModels(out, info)
 			}
 			if err != nil {
-				logger.Errorf("Unable to list models: %s", err)
+				logger.Errorf(ctx, "Unable to list models: %s", err)
 				return cmd.ErrSilent
 			}
-			ctx.Infof(out.String())
+			ctx.Infof(ctx, out.String())
 		}
 		return cmd.ErrSilent
 	}
@@ -494,7 +494,7 @@ func (c *destroyCommand) ensureUserFriendlyErrorLog(destroyErr error, ctx *cmd.C
 	if err != nil {
 		return errors.Trace(err)
 	}
-	logger.Errorf(stdFailureMsg, controllerName)
+	logger.Errorf(ctx, stdFailureMsg, controllerName)
 	return destroyErr
 }
 

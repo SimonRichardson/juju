@@ -89,7 +89,7 @@ func (staged StagedResource) Activate(incrementCharmModifiedVersion IncrementCha
 		if staged.stored.PendingID == "" {
 			hasNewBytes, err := staged.hasNewBytes()
 			if err != nil {
-				logger.Errorf("can't read existing resource during activate: %v", errors.Details(err))
+				logger.Errorf(ctx, "can't read existing resource during activate: %v", errors.Details(err))
 				return nil, errors.Trace(err)
 			}
 			if hasNewBytes && incrementCharmModifiedVersion == IncrementCharmModifiedVersion {

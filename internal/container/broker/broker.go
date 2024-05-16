@@ -43,14 +43,14 @@ var resolvConfFiles = []string{"/etc/resolv.conf", "/etc/systemd/resolved.conf",
 func prepareContainerInterfaceInfo(
 	api APICalls, machineID string, log corelogger.Logger,
 ) (corenetwork.InterfaceInfos, error) {
-	log.Debugf("using multi-bridge networking for container %q", machineID)
+	log.Debugf(ctx, "using multi-bridge networking for container %q", machineID)
 
 	containerTag := names.NewMachineTag(machineID)
 	preparedInfo, err := api.PrepareContainerInterfaceInfo(containerTag)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	log.Tracef("PrepareContainerInterfaceInfo returned %+v", preparedInfo)
+	log.Tracef(ctx, "PrepareContainerInterfaceInfo returned %+v", preparedInfo)
 
 	return preparedInfo, nil
 }
@@ -75,7 +75,7 @@ func finishNetworkConfig(interfaces corenetwork.InterfaceInfos) (corenetwork.Int
 	}
 
 	if !haveNameservers || !haveSearchDomains {
-		warnMissing := func(s string) { logger.Warningf("no %s supplied by provider, using host's %s.", s, s) }
+		warnMissing := func(s string) { logger.Warningf(ctx, "no %s supplied by provider, using host's %s.", s, s) }
 		if !haveNameservers {
 			warnMissing("name servers")
 		}
@@ -83,7 +83,7 @@ func finishNetworkConfig(interfaces corenetwork.InterfaceInfos) (corenetwork.Int
 			warnMissing("search domains")
 		}
 
-		logger.Warningf("incomplete DNS config found, discovering host's DNS config")
+		logger.Warningf(ctx, "incomplete DNS config found, discovering host's DNS config")
 		dnsConfig, err := findDNSServerConfig()
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -93,7 +93,7 @@ func finishNetworkConfig(interfaces corenetwork.InterfaceInfos) (corenetwork.Int
 		// results always contains at least one element.
 		results[0].DNSServers = dnsConfig.Nameservers
 		results[0].DNSSearchDomains = dnsConfig.SearchDomains
-		logger.Debugf(
+		logger.Debugf(ctx,
 			"setting DNS servers %+v and domains %+v on container interface %q",
 			results[0].DNSServers, results[0].DNSSearchDomains, results[0].InterfaceName,
 		)
@@ -117,12 +117,12 @@ func findDNSServerConfig() (*corenetwork.DNSConfig, error) {
 		// access the dnsConfig.Nameservers. So instead, just continue and
 		// exhaust the resolvConfFiles slice.
 		if dnsConfig == nil {
-			logger.Tracef("The DNS configuration from %s returned no dnsConfig", dnsConfigFile)
+			logger.Tracef(ctx, "The DNS configuration from %s returned no dnsConfig", dnsConfigFile)
 			continue
 		}
 		for _, nameServer := range dnsConfig.Nameservers {
 			if nameServer.Scope != corenetwork.ScopeMachineLocal {
-				logger.Debugf("The DNS configuration from %s has been selected for use", dnsConfigFile)
+				logger.Debugf(ctx, "The DNS configuration from %s has been selected for use", dnsConfigFile)
 				return dnsConfig, nil
 			}
 		}
@@ -139,17 +139,17 @@ func releaseContainerAddresses(
 	containerTag, err := namespace.MachineTag(string(instanceID))
 	if err != nil {
 		// Not a reason to cause StopInstances to fail though..
-		log.Warningf("unexpected container tag %q: %v", instanceID, err)
+		log.Warningf(ctx, "unexpected container tag %q: %v", instanceID, err)
 		return
 	}
 	err = api.ReleaseContainerAddresses(containerTag)
 	switch {
 	case err == nil:
-		log.Infof("released all addresses for container %q", containerTag.Id())
+		log.Infof(ctx, "released all addresses for container %q", containerTag.Id())
 	case errors.Is(err, errors.NotSupported):
-		log.Warningf("not releasing all addresses for container %q: %v", containerTag.Id(), err)
+		log.Warningf(ctx, "not releasing all addresses for container %q: %v", containerTag.Id(), err)
 	default:
-		log.Warningf(
+		log.Warningf(ctx,
 			"unexpected error trying to release container %q addresses: %v",
 			containerTag.Id(), err,
 		)

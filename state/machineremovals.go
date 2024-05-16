@@ -183,7 +183,7 @@ func (st *State) completeMachineRemovalsOps(ids []string) ([]txn.Op, error) {
 	// retries.
 	if len(machinesToRemove) < len(ids) {
 		missingMachines := collectMissingMachineIds(ids, machinesToRemove)
-		logger.Debugf("skipping nonexistent machine%s: %s",
+		logger.Debugf(ctx, "skipping nonexistent machine%s: %s",
 			plural(len(missingMachines)),
 			strings.Join(missingMachines, ", "),
 		)

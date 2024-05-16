@@ -95,7 +95,7 @@ func (m *Machine) CreateUpgradeSeriesLock(unitNames []string, toBase Base) error
 	err := m.st.db().Run(buildTxn)
 	if err != nil {
 		err = onAbort(err, stateerrors.ErrDead)
-		logger.Errorf("cannot prepare series upgrade for machine %q: %v", m, err)
+		logger.Errorf(ctx, "cannot prepare series upgrade for machine %q: %v", m, err)
 		return err
 	}
 	return nil

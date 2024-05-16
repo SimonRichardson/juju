@@ -105,7 +105,7 @@ func (c *poolListCommand) Run(ctx *cmd.Context) (err error) {
 		return err
 	}
 	if len(result) == 0 {
-		ctx.Infof("No storage pools to display.")
+		ctx.Infof(ctx, "No storage pools to display.")
 		return nil
 	}
 	output := formatPoolInfo(result)

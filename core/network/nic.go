@@ -223,7 +223,7 @@ func (i *InterfaceInfo) Validate() error {
 	if !IsValidLinkLayerDeviceName(i.InterfaceName) {
 		// TODO (manadart 2020-07-07): This preserves prior behaviour.
 		// If we are waving invalid names through, I'm not sure of the value.
-		logger.Warningf("link-layer device %q has an invalid name, %q", i.MACAddress, i.InterfaceName)
+		logger.Warningf(ctx, "link-layer device %q has an invalid name, %q", i.MACAddress, i.InterfaceName)
 	}
 
 	if !IsValidLinkLayerDeviceType(string(i.InterfaceType)) {

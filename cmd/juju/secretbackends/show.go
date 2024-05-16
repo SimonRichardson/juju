@@ -101,7 +101,7 @@ func (c *showSecretBackendCommand) Run(ctxt *cmd.Context) error {
 	}
 	details := gatherSecretBackendInfo(result)
 	if len(details) == 0 {
-		ctxt.Infof("no secret backends have been added to this controller\n")
+		ctxt.Infof(ctx, "no secret backends have been added to this controller\n")
 		return nil
 	}
 	return c.out.Write(ctxt, details)

@@ -84,7 +84,7 @@ func removeEntities(ctx *context, tags []names.Tag) error {
 	if len(tags) == 0 {
 		return nil
 	}
-	ctx.config.Logger.Debugf("removing entities: %v", tags)
+	ctx.config.Logger.Debugf(ctx, "removing entities: %v", tags)
 	errorResults, err := ctx.config.Life.Remove(tags)
 	if err != nil {
 		return errors.Annotate(err, "removing storage entities")

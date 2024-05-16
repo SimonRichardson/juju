@@ -145,18 +145,18 @@ func (c *updateCloudCommand) Run(ctxt *cmd.Context) error {
 	var returnErr error
 	processErr := func(err error, successMsg string) {
 		if err != nil {
-			ctxt.Infof("%v", err)
+			ctxt.Infof(ctx, "%v", err)
 			returnErr = cmd.ErrSilent
 			return
 		}
-		ctxt.Infof(successMsg)
+		ctxt.Infof(ctx, successMsg)
 	}
 	if c.isPublicCloud(c.Cloud) {
-		ctxt.Infof("To ensure this client's copy or any controller copies of public cloud information is up to date with the latest region information, use `juju update-public-clouds`.")
+		ctxt.Infof(ctx, "To ensure this client's copy or any controller copies of public cloud information is up to date with the latest region information, use `juju update-public-clouds`.")
 	}
 	if c.Client {
 		if c.CloudFile == "" {
-			ctxt.Infof("To update cloud %q on this client, a cloud definition file is required.", c.Cloud)
+			ctxt.Infof(ctx, "To update cloud %q on this client, a cloud definition file is required.", c.Cloud)
 			returnErr = cmd.ErrSilent
 		} else {
 			err := addLocalCloud(c.cloudMetadataStore, *newCloud)

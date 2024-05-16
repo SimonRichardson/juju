@@ -82,14 +82,14 @@ func (w *Watcher) Next(ctx context.Context) ([]multiwatcher.Delta, error) {
 		select {
 		case err, open := <-w.err:
 			if open {
-				w.logger.Tracef("hit an error: %v", err)
+				w.logger.Tracef(ctx, "hit an error: %v", err)
 				close(w.err)
 				return nil, errors.Trace(err)
 			}
-			w.logger.Tracef("err channel closed")
+			w.logger.Tracef(ctx, "err channel closed")
 			return nil, errors.Trace(multiwatcher.NewErrStopped())
 		case <-w.control.Dying():
-			w.logger.Tracef("worker dying")
+			w.logger.Tracef(ctx, "worker dying")
 			err := w.control.Err()
 			if err == nil {
 				err = multiwatcher.ErrStoppedf("shared state watcher")
@@ -101,14 +101,14 @@ func (w *Watcher) Next(ctx context.Context) ([]multiwatcher.Delta, error) {
 		select {
 		case err, open := <-w.err:
 			if open {
-				w.logger.Tracef("hit an error: %v", err)
+				w.logger.Tracef(ctx, "hit an error: %v", err)
 				close(w.err)
 				return nil, errors.Trace(err)
 			}
-			w.logger.Tracef("err channel closed")
+			w.logger.Tracef(ctx, "err channel closed")
 			return nil, errors.Trace(multiwatcher.NewErrStopped())
 		case <-w.control.Dying():
-			w.logger.Tracef("worker dying")
+			w.logger.Tracef(ctx, "worker dying")
 			err := w.control.Err()
 			if err == nil {
 				err = multiwatcher.ErrStoppedf("shared state watcher")
@@ -123,14 +123,14 @@ func (w *Watcher) Next(ctx context.Context) ([]multiwatcher.Delta, error) {
 		}
 
 		changes = req.changes
-		w.logger.Tracef("received %d changes", len(changes))
+		w.logger.Tracef(ctx, "received %d changes", len(changes))
 		if w.filter != nil {
 			changes = w.filter(changes)
 			if len(changes) == 0 {
-				w.logger.Tracef("filtered out all changes, looping")
+				w.logger.Tracef(ctx, "filtered out all changes, looping")
 			}
 		}
 	}
-	w.logger.Tracef("returning %d changes", len(changes))
+	w.logger.Tracef(ctx, "returning %d changes", len(changes))
 	return changes, nil
 }

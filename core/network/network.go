@@ -133,7 +133,7 @@ func SubnetsForAddresses(addrs []string) []string {
 			continue
 		}
 
-		logger.Warningf("unable to determine egress subnet for %q", a)
+		logger.Warningf(ctx, "unable to determine egress subnet for %q", a)
 	}
 	return subs
 }

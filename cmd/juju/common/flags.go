@@ -134,7 +134,7 @@ func (f *ConfigFlag) String() string {
 // alias for a constraint that might go away sometime.
 func WarnConstraintAliases(ctx *cmd.Context, aliases map[string]string) {
 	for alias, canonical := range aliases {
-		ctx.Infof("Warning: constraint %q is deprecated in favor of %q.\n", alias, canonical)
+		ctx.Infof(ctx, "Warning: constraint %q is deprecated in favor of %q.\n", alias, canonical)
 	}
 }
 
@@ -148,7 +148,7 @@ func ParseConstraints(ctx *cmd.Context, cons string) (constraints.Value, error) 
 	// we always do these, even on errors, so that the error messages have
 	// context.
 	for alias, canonical := range aliases {
-		ctx.Infof("Warning: constraint %q is deprecated in favor of %q.\n", alias, canonical)
+		ctx.Infof(ctx, "Warning: constraint %q is deprecated in favor of %q.\n", alias, canonical)
 	}
 	if err != nil {
 		return constraints.Value{}, err

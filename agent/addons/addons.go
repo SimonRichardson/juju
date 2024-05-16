@@ -60,7 +60,7 @@ type IntrospectionConfig struct {
 // life to that of the engine that is returned.
 func StartIntrospection(cfg IntrospectionConfig) error {
 	if runtime.GOOS != "linux" {
-		cfg.Logger.Debugf("introspection worker not supported on %q", runtime.GOOS)
+		cfg.Logger.Debugf(ctx, "introspection worker not supported on %q", runtime.GOOS)
 		return nil
 	}
 
@@ -83,10 +83,10 @@ func StartIntrospection(cfg IntrospectionConfig) error {
 	}
 	go func() {
 		_ = cfg.Engine.Wait()
-		cfg.Logger.Debugf("engine stopped, stopping introspection")
+		cfg.Logger.Debugf(ctx, "engine stopped, stopping introspection")
 		w.Kill()
 		_ = w.Wait()
-		cfg.Logger.Debugf("introspection stopped")
+		cfg.Logger.Debugf(ctx, "introspection stopped")
 	}()
 
 	return nil

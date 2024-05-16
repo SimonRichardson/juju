@@ -139,7 +139,7 @@ func (c *RemoveCommand) Run(ctx *cmd.Context) error {
 			return errors.Errorf("Cannot remove space %q\n\n%s\n\nUse --force to remove space\n", c.name, strings.Join(errorList, "\n"))
 		}
 
-		ctx.Infof("removed space %q", c.name)
+		ctx.Infof(ctx, "removed space %q", c.name)
 		return nil
 	})
 }

@@ -153,7 +153,7 @@ func (s *bufferedLogWriterSuite) TestInstallBufferedLogWriter(c *gc.C) {
 	logger := loggo.GetLogger("bufferedLogWriter-test")
 
 	for i := 0; i < 5; i++ {
-		logger.Infof("%d", i)
+		logger.Infof(ctx, "%d", i)
 	}
 
 	logsCh := bufferedLogger.Logs()

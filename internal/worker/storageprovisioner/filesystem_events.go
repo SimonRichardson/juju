@@ -24,7 +24,7 @@ func filesystemsChanged(ctx *context, changes []string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	ctx.config.Logger.Debugf("filesystems alive: %v, dying: %v, dead: %v", alive, dying, dead)
+	ctx.config.Logger.Debugf(ctx, "filesystems alive: %v, dying: %v, dead: %v", alive, dying, dead)
 	if len(alive)+len(dying)+len(dead) == 0 {
 		return nil
 	}
@@ -73,11 +73,11 @@ func filesystemAttachmentsChanged(ctx *context, watcherIds []watcher.MachineStor
 	if err != nil {
 		return errors.Trace(err)
 	}
-	ctx.config.Logger.Debugf("filesystem attachment alive: %v, dying: %v, dead: %v", alive, dying, dead)
+	ctx.config.Logger.Debugf(ctx, "filesystem attachment alive: %v, dying: %v, dead: %v", alive, dying, dead)
 	if len(dead) != 0 {
 		// We should not see dead filesystem attachments;
 		// attachments go directly from Dying to removed.
-		ctx.config.Logger.Warningf("unexpected dead filesystem attachments: %v", dead)
+		ctx.config.Logger.Warningf(ctx, "unexpected dead filesystem attachments: %v", dead)
 	}
 	// Clean up any attachments which have been removed.
 	for _, id := range gone {
@@ -211,7 +211,7 @@ func processDeadFilesystems(ctx *context, tags []names.FilesystemTag, filesystem
 	for i, result := range filesystemResults {
 		tag := tags[i]
 		if result.Error == nil {
-			ctx.config.Logger.Debugf("filesystem %s is provisioned, queuing for deprovisioning", tag.Id())
+			ctx.config.Logger.Debugf(ctx, "filesystem %s is provisioned, queuing for deprovisioning", tag.Id())
 			filesystem, err := filesystemFromParams(result.Result)
 			if err != nil {
 				return errors.Annotate(err, "getting filesystem info")
@@ -221,7 +221,7 @@ func processDeadFilesystems(ctx *context, tags []names.FilesystemTag, filesystem
 			continue
 		}
 		if params.IsCodeNotProvisioned(result.Error) {
-			ctx.config.Logger.Debugf("filesystem %s is not provisioned, queuing for removal", tag.Id())
+			ctx.config.Logger.Debugf(ctx, "filesystem %s is not provisioned, queuing for removal", tag.Id())
 			remove = append(remove, tag)
 			continue
 		}
@@ -290,7 +290,7 @@ func processAliveFilesystems(ctx *context, tags []names.FilesystemTag, filesyste
 		tag := tags[i]
 		if result.Error == nil {
 			// Filesystem is already provisioned: skip.
-			ctx.config.Logger.Debugf("filesystem %q is already provisioned, nothing to do", tag.Id())
+			ctx.config.Logger.Debugf(ctx, "filesystem %q is already provisioned, nothing to do", tag.Id())
 			filesystem, err := filesystemFromParams(result.Result)
 			if err != nil {
 				return errors.Annotate(err, "getting filesystem info")
@@ -324,7 +324,7 @@ func processAliveFilesystems(ctx *context, tags []names.FilesystemTag, filesyste
 	}
 	for _, params := range params {
 		if ctx.isApplicationKind() {
-			ctx.config.Logger.Debugf("not queuing filesystem for %v unit", ctx.config.Scope.Id())
+			ctx.config.Logger.Debugf(ctx, "not queuing filesystem for %v unit", ctx.config.Scope.Id())
 			continue
 		}
 		updatePendingFilesystem(ctx, params)
@@ -359,7 +359,7 @@ func processAliveFilesystemAttachments(
 				pending = append(pending, ids[i])
 				action = "will reattach"
 			}
-			ctx.config.Logger.Debugf(
+			ctx.config.Logger.Debugf(ctx,
 				"%s is already attached to %s, %s",
 				ids[i].AttachmentTag, ids[i].MachineTag, action,
 			)
@@ -384,7 +384,7 @@ func processAliveFilesystemAttachments(
 	}
 	for i, params := range params {
 		if params.Machine != nil && params.Machine.Kind() != names.MachineTagKind {
-			ctx.config.Logger.Debugf("not queuing filesystem attachment for non-machine %v", params.Machine)
+			ctx.config.Logger.Debugf(ctx, "not queuing filesystem attachment for non-machine %v", params.Machine)
 			continue
 		}
 		updatePendingFilesystemAttachment(ctx, pending[i], params)

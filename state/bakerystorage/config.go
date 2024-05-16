@@ -150,7 +150,7 @@ func (b *bakeryConfig) deserialiseKey(data, label string) (*bakery.KeyPair, erro
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	logger.Debugf("using %s: %s", label, keyPair.Public.String())
+	logger.Debugf(ctx, "using %s: %s", label, keyPair.Public.String())
 	return &keyPair, nil
 }
 

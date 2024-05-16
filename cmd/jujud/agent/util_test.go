@@ -119,7 +119,7 @@ func (s *commonMachineSuite) TearDownTest(c *gc.C) {
 			Clock:    clock.WallClock,
 			Attempts: 5,
 			NotifyFunc: func(lastError error, attempt int) {
-				logger.Infof("retrying MgoServer.Reset() after attempt %d: %v", attempt, lastError)
+				logger.Infof(ctx, "retrying MgoServer.Reset() after attempt %d: %v", attempt, lastError)
 			},
 		})
 		c.Assert(err, jc.ErrorIsNil)

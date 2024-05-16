@@ -24,7 +24,7 @@ type introspectionHandler struct {
 func (h introspectionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.checkAuth(r); err != nil {
 		if err := sendError(w, err); err != nil {
-			logger.Debugf("%v", err)
+			logger.Debugf(ctx, "%v", err)
 		}
 		return
 	}

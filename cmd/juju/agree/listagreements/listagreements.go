@@ -97,7 +97,7 @@ func (c *listAgreementsCommand) Run(ctx *cmd.Context) error {
 		return errors.Annotate(err, "failed to list user agreements")
 	}
 	if len(agreements) == 0 {
-		ctx.Infof("No agreements to display.")
+		ctx.Infof(ctx, "No agreements to display.")
 		return nil
 	}
 	err = c.out.Write(ctx, agreements)

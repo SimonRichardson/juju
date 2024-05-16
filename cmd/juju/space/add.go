@@ -81,7 +81,7 @@ func (c *AddCommand) Run(ctx *cmd.Context) error {
 		err := api.AddSpace(c.Name, subnetIds, true)
 		if err != nil {
 			if errors.Is(err, errors.NotSupported) {
-				ctx.Infof("cannot add space %q: %v", c.Name, err)
+				ctx.Infof(ctx, "cannot add space %q: %v", c.Name, err)
 			}
 			if params.IsCodeUnauthorized(err) {
 				common.PermissionsMessage(ctx.Stderr, "add a space")
@@ -89,7 +89,7 @@ func (c *AddCommand) Run(ctx *cmd.Context) error {
 			return block.ProcessBlockedError(errors.Annotatef(err, "cannot add space %q", c.Name), block.BlockChange)
 		}
 
-		ctx.Infof("added space %q with %s", c.Name, msgSuffix)
+		ctx.Infof(ctx, "added space %q with %s", c.Name, msgSuffix)
 		return nil
 	})
 }

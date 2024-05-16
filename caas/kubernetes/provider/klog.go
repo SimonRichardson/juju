@@ -54,7 +54,7 @@ func (k *klogAdapter) Info(level int, msg string, keysAndValues ...any) {
 		return
 	}
 
-	k.Logger.Infof(msg, keysAndValues...)
+	k.Logger.Infof(ctx, msg, keysAndValues...)
 }
 
 // V see https://pkg.go.dev/github.com/go-logr/logr#Logger

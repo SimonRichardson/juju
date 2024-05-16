@@ -362,7 +362,7 @@ func (api *APIBase) Deploy(ctx context.Context, args params.ApplicationsDeploy) 
 			resources := api.backend.Resources(api.store)
 			err = resources.RemovePendingAppResources(arg.ApplicationName, arg.Resources)
 			if err != nil {
-				api.logger.Errorf("couldn't remove pending resources for %q", arg.ApplicationName)
+				api.logger.Errorf(ctx, "couldn't remove pending resources for %q", arg.ApplicationName)
 			}
 		}
 	}
@@ -1075,7 +1075,7 @@ func (api *APIBase) setCharmWithAgentValidation(
 	oneApplication := params.Application
 	currentCharm, _, err := oneApplication.Charm()
 	if err != nil {
-		api.logger.Debugf("Unable to locate current charm: %v", err)
+		api.logger.Debugf(ctx, "Unable to locate current charm: %v", err)
 	}
 	newOrigin, err := convertCharmOrigin(params.CharmOrigin)
 	if err != nil {
@@ -1174,7 +1174,7 @@ func (api *APIBase) applicationSetCharm(
 			return errors.Trace(err)
 		}
 
-		api.logger.Warningf("proceeding with upgrade of application %q even though the charm feature requirements could not be met as --force was specified", params.AppName)
+		api.logger.Warningf(ctx, "proceeding with upgrade of application %q even though the charm feature requirements could not be met as --force was specified", params.AppName)
 	}
 
 	//
@@ -1615,7 +1615,7 @@ func (api *APIBase) DestroyUnit(ctx context.Context, args params.DestroyUnitsPar
 			return nil, errors.Trace(err)
 		}
 		if len(op.Errors) != 0 {
-			api.logger.Warningf("operational errors destroying unit %v: %v", unit.Name(), op.Errors)
+			api.logger.Warningf(ctx, "operational errors destroying unit %v: %v", unit.Name(), op.Errors)
 		}
 		return &info, nil
 	}
@@ -1721,7 +1721,7 @@ func (api *APIBase) DestroyApplication(ctx context.Context, args params.DestroyA
 			return nil, err
 		}
 		if len(op.Errors) != 0 {
-			api.logger.Warningf("operational errors destroying application %v: %v", tag.Id(), op.Errors)
+			api.logger.Warningf(ctx, "operational errors destroying application %v: %v", tag.Id(), op.Errors)
 		}
 		return &info, nil
 	}
@@ -1769,7 +1769,7 @@ func (api *APIBase) DestroyConsumedApplications(ctx context.Context, args params
 		}
 		err = api.backend.ApplyOperation(op)
 		if op.Errors != nil && len(op.Errors) > 0 {
-			api.logger.Warningf("operational error encountered destroying consumed application %v: %v", appTag.Id(), op.Errors)
+			api.logger.Warningf(ctx, "operational error encountered destroying consumed application %v: %v", appTag.Id(), op.Errors)
 		}
 		if err != nil {
 			results[i].Error = apiservererrors.ServerError(err)
@@ -1906,7 +1906,7 @@ func (api *APIBase) AddRelation(ctx context.Context, args params.AddRelation) (_
 	defer func() {
 		if err != nil && rel != nil {
 			if err := rel.Destroy(api.store); err != nil {
-				api.logger.Errorf("cannot destroy aborted relation %q: %v", rel.Tag().Id(), err)
+				api.logger.Errorf(ctx, "cannot destroy aborted relation %q: %v", rel.Tag().Id(), err)
 			}
 		}
 	}()
@@ -1994,7 +1994,7 @@ func (api *APIBase) DestroyRelation(ctx context.Context, args params.DestroyRela
 	force := args.Force != nil && *args.Force
 	errs, err := rel.DestroyWithForce(force, common.MaxWait(args.MaxWait))
 	if len(errs) != 0 {
-		api.logger.Warningf("operational errors destroying relation %v: %v", rel.Tag().Id(), errs)
+		api.logger.Warningf(ctx, "operational errors destroying relation %v: %v", rel.Tag().Id(), errs)
 	}
 	return err
 }
@@ -2145,7 +2145,7 @@ func (api *APIBase) saveRemoteApplication(
 		// If the same application was previously terminated due to the offer being removed,
 		// first ensure we delete it from this consuming model before adding again.
 		// TODO(wallyworld) - this operation should be in a single txn.
-		api.logger.Debugf("removing terminated remote app %q before adding a replacement", applicationName)
+		api.logger.Debugf(ctx, "removing terminated remote app %q before adding a replacement", applicationName)
 		op := remoteApp.DestroyOperation(true)
 		if err := api.backend.ApplyOperation(op); err != nil {
 			return nil, errors.Annotatef(err, "removing terminated saas application %q", applicationName)

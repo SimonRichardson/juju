@@ -62,7 +62,7 @@ func newTimedStatusUpdater(ctx *cmd.Context, api destroyControllerAPI, controlle
 		// loop will stop and we'll go directly to destroying the model.
 		envStatus, err := newData(api, controllerModelUUID)
 		if err != nil {
-			ctx.Infof("Unable to get the controller summary from the API: %s.", err)
+			ctx.Infof(ctx, "Unable to get the controller summary from the API: %s.", err)
 		}
 
 		return envStatus

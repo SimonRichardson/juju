@@ -198,7 +198,7 @@ func (c *dashboardCommand) Run(ctx *cmd.Context) error {
 	for {
 		select {
 		case waitSig := <-c.signalCh:
-			ctx.Infof("Received signal %s, stopping dashboard proxy connection", waitSig)
+			ctx.Infof(ctx, "Received signal %s, stopping dashboard proxy connection", waitSig)
 			cancelOnce.Do(cancel)
 		case err, ok := <-finishCh:
 			if ok && err != nil {
@@ -275,17 +275,17 @@ func (c *dashboardCommand) openBrowser(ctx *cmd.Context, label, rawURL string) e
 		if err != nil {
 			return errors.Trace(err)
 		}
-		ctx.Infof("%s for controller %q is enabled at:\n  %s", label, controllerName, u.String())
+		ctx.Infof(ctx, "%s for controller %q is enabled at:\n  %s", label, controllerName, u.String())
 		return nil
 	}
 	err = webbrowserOpen(u)
 	if err == nil {
-		ctx.Infof("Opening the Juju Dashboard in your browser.")
-		ctx.Infof("If it does not open, open this URL:\n%s", u)
+		ctx.Infof(ctx, "Opening the Juju Dashboard in your browser.")
+		ctx.Infof(ctx, "If it does not open, open this URL:\n%s", u)
 		return nil
 	}
 	if err == webbrowser.ErrNoBrowser {
-		ctx.Infof("Open this URL in your browser:\n%s", u)
+		ctx.Infof(ctx, "Open this URL in your browser:\n%s", u)
 		return nil
 	}
 	return errors.Annotate(err, "cannot open web browser")
@@ -306,7 +306,7 @@ func (c *dashboardCommand) showCredentials(ctx *cmd.Context) error {
 		// TODO(wallyworld) - fix this
 		password = "<unknown> (password has been changed by the user)"
 	}
-	ctx.Infof("Your login credential is:\n  username: %s\n  password: %s", accountDetails.User, password)
+	ctx.Infof(ctx, "Your login credential is:\n  username: %s\n  password: %s", accountDetails.User, password)
 	return nil
 }
 

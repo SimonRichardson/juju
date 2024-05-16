@@ -269,7 +269,7 @@ func (c *removeUnitCommand) removeUnits(ctx *cmd.Context, client RemoveApplicati
 	if needsConfirmation {
 		err := c.performDryRun(ctx, client)
 		if err == errDryRunNotSupportedByController {
-			ctx.Warningf(removeUnitMsgNoDryRun, strings.Join(c.EntityNames, ", "))
+			ctx.Warningf(ctx, removeUnitMsgNoDryRun, strings.Join(c.EntityNames, ", "))
 		} else if err != nil {
 			return err
 		}
@@ -312,7 +312,7 @@ func (c *removeUnitCommand) performDryRun(ctx *cmd.Context, client RemoveApplica
 	if err := c.logErrors(ctx, results); err != nil {
 		return err
 	}
-	ctx.Warningf(removeUnitMsgPrefix)
+	ctx.Warningf(ctx, removeUnitMsgPrefix)
 	_ = c.logResults(ctx, results)
 	return nil
 }
@@ -365,7 +365,7 @@ func (c *removeUnitCommand) logRemovedUnit(ctx *cmd.Context, name string, info *
 	for _, entity := range info.DestroyedStorage {
 		storageTag, err := names.ParseStorageTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will remove %s\n", names.ReadableString(storageTag))
@@ -373,7 +373,7 @@ func (c *removeUnitCommand) logRemovedUnit(ctx *cmd.Context, name string, info *
 	for _, entity := range info.DetachedStorage {
 		storageTag, err := names.ParseStorageTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will detach %s\n", names.ReadableString(storageTag))
@@ -392,6 +392,6 @@ func (c *removeUnitCommand) removeCaasUnits(ctx *cmd.Context, client RemoveAppli
 	if err != nil {
 		return block.ProcessBlockedError(err, block.BlockRemove)
 	}
-	ctx.Infof("scaling down to %d units", result.Info.Scale)
+	ctx.Infof(ctx, "scaling down to %d units", result.Info.Scale)
 	return nil
 }

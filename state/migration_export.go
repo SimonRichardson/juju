@@ -353,7 +353,7 @@ func (e *exporter) machines() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("found %d machines", len(machines))
+	e.logger.Debugf(ctx, "found %d machines", len(machines))
 
 	instances, err := e.loadMachineInstanceData()
 	if err != nil {
@@ -371,7 +371,7 @@ func (e *exporter) machines() error {
 	machineMap := make(map[string]description.Machine)
 
 	for _, machine := range machines {
-		e.logger.Debugf("export machine %s", machine.Id())
+		e.logger.Debugf(ctx, "export machine %s", machine.Id())
 
 		var exParent description.Machine
 		if parentId := container.ParentId(machine.Id()); parentId != "" {
@@ -403,7 +403,7 @@ func (e *exporter) loadOpenedPortRangesForMachine() (map[string]*machinePortRang
 		openedPortsByMachine[mpr.MachineID()] = mpr
 	}
 
-	e.logger.Debugf("found %d openedPorts docs", len(openedPortsByMachine))
+	e.logger.Debugf(ctx, "found %d openedPorts docs", len(openedPortsByMachine))
 	return openedPortsByMachine, nil
 }
 
@@ -418,7 +418,7 @@ func (e *exporter) loadOpenedPortRangesForApplication() (map[string]*application
 		openedPortsByApplication[mpr.ApplicationName()] = mpr
 	}
 
-	e.logger.Debugf("found %d openedPorts docs", len(openedPortsByApplication))
+	e.logger.Debugf(ctx, "found %d openedPorts docs", len(openedPortsByApplication))
 	return openedPortsByApplication, nil
 }
 
@@ -431,7 +431,7 @@ func (e *exporter) loadMachineInstanceData() (map[string]instanceData, error) {
 	if err := instanceDataCollection.Find(nil).All(&instData); err != nil {
 		return nil, errors.Annotate(err, "instance data")
 	}
-	e.logger.Debugf("found %d instanceData", len(instData))
+	e.logger.Debugf(ctx, "found %d instanceData", len(instData))
 	for _, data := range instData {
 		instances[data.MachineId] = data
 	}
@@ -641,7 +641,7 @@ func (e *exporter) applications(leaders map[string]string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("found %d applications", len(applications))
+	e.logger.Debugf(ctx, "found %d applications", len(applications))
 
 	e.units, err = e.readAllUnits()
 	if err != nil {
@@ -723,7 +723,7 @@ func (e *exporter) readAllStorageConstraints() error {
 	if err := iter.Close(); err != nil {
 		return errors.Annotate(err, "failed to read storage constraints")
 	}
-	e.logger.Debugf("read %d storage constraint documents", len(storageConstraints))
+	e.logger.Debugf(ctx, "read %d storage constraint documents", len(storageConstraints))
 	e.modelStorageConstraints = storageConstraints
 	return nil
 }
@@ -1177,7 +1177,7 @@ func (e *exporter) relations() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d relations", len(rels))
+	e.logger.Debugf(ctx, "read %d relations", len(rels))
 
 	relationScopes := set.NewStrings()
 	if !e.cfg.SkipRelationData {
@@ -1302,7 +1302,7 @@ func (e *exporter) relationUnit(
 }
 
 func (e *exporter) remoteEntities() error {
-	e.logger.Debugf("reading remote entities")
+	e.logger.Debugf(ctx, "reading remote entities")
 	migration := &ExportStateMigration{
 		src: e.st,
 		dst: e.model,
@@ -1343,7 +1343,7 @@ func (e *exporter) offerConnections() error {
 		return nil
 	}
 
-	e.logger.Debugf("reading offer connections")
+	e.logger.Debugf(ctx, "reading offer connections")
 	migration := &ExportStateMigration{
 		src: e.st,
 		dst: e.model,
@@ -1376,7 +1376,7 @@ func (s remoteEntitiesShim) AllRemoteEntities() ([]migrations.MigrationRemoteEnt
 }
 
 func (e *exporter) relationNetworks() error {
-	e.logger.Debugf("reading relation networks")
+	e.logger.Debugf(ctx, "reading relation networks")
 	migration := &ExportStateMigration{
 		src: e.st,
 		dst: e.model,
@@ -1415,7 +1415,7 @@ func (e *exporter) linklayerdevices() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d ip devices", len(linklayerdevices))
+	e.logger.Debugf(ctx, "read %d ip devices", len(linklayerdevices))
 	for _, device := range linklayerdevices {
 		e.model.AddLinkLayerDevice(description.LinkLayerDeviceArgs{
 			ProviderID:      string(device.ProviderID()),
@@ -1441,7 +1441,7 @@ func (e *exporter) ipAddresses() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d ip addresses", len(ipaddresses))
+	e.logger.Debugf(ctx, "read %d ip addresses", len(ipaddresses))
 	for _, addr := range ipaddresses {
 		e.model.AddIPAddress(description.IPAddressArgs{
 			ProviderID:        string(addr.ProviderID()),
@@ -1495,7 +1495,7 @@ func (e *exporter) cloudimagemetadata() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d cloudimagemetadata", len(cloudimagemetadata))
+	e.logger.Debugf(ctx, "read %d cloudimagemetadata", len(cloudimagemetadata))
 	for _, metadata := range cloudimagemetadata {
 		e.model.AddCloudImageMetadata(description.CloudImageMetadataArgs{
 			Stream:          metadata.Stream,
@@ -1528,7 +1528,7 @@ func (e *exporter) actions() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d actions", len(actions))
+	e.logger.Debugf(ctx, "read %d actions", len(actions))
 	for _, a := range actions {
 		results, message := a.Results()
 		arg := description.ActionArgs{
@@ -1570,7 +1570,7 @@ func (e *exporter) operations() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d operations", len(operations))
+	e.logger.Debugf(ctx, "read %d operations", len(operations))
 	for _, op := range operations {
 		opDetails, ok := op.(*operation)
 		if !ok {
@@ -1631,7 +1631,7 @@ func (e *exporter) secrets() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d secrets", len(allSecrets))
+	e.logger.Debugf(ctx, "read %d secrets", len(allSecrets))
 	allRevisions, err := store.allSecretRevisions()
 	if err != nil {
 		return errors.Trace(err)
@@ -1752,7 +1752,7 @@ func (e *exporter) remoteSecrets() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	e.logger.Debugf("read %d remote secret consumers", len(allConsumers))
+	e.logger.Debugf(ctx, "read %d remote secret consumers", len(allConsumers))
 	for _, info := range allConsumers {
 		consumer, err := names.ParseTag(info.ConsumerTag)
 		if err != nil {
@@ -1785,7 +1785,7 @@ func (e *exporter) readAllRelationScopes() (set.Strings, error) {
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot get all relation scopes")
 	}
-	e.logger.Debugf("found %d relationScope docs", len(docs))
+	e.logger.Debugf(ctx, "found %d relationScope docs", len(docs))
 
 	result := set.NewStrings()
 	for _, doc := range docs {
@@ -1803,7 +1803,7 @@ func (e *exporter) readAllUnits() (map[string][]*Unit, error) {
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot get all units")
 	}
-	e.logger.Debugf("found %d unit docs", len(docs))
+	e.logger.Debugf(ctx, "found %d unit docs", len(docs))
 	result := make(map[string][]*Unit)
 	for _, doc := range docs {
 		units := result[doc.Application]
@@ -1821,7 +1821,7 @@ func (e *exporter) readAllEndpointBindings() (map[string]bindingsMap, error) {
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot get all application endpoint bindings")
 	}
-	e.logger.Debugf("found %d application endpoint binding docs", len(docs))
+	e.logger.Debugf(ctx, "found %d application endpoint binding docs", len(docs))
 	result := make(map[string]bindingsMap)
 	for _, doc := range docs {
 		result[e.st.localID(doc.DocID)] = doc.Bindings
@@ -1838,7 +1838,7 @@ func (e *exporter) readAllCloudServices() (map[string]*cloudServiceDoc, error) {
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot get all cloud service docs")
 	}
-	e.logger.Debugf("found %d cloud service docs", len(docs))
+	e.logger.Debugf(ctx, "found %d cloud service docs", len(docs))
 	result := make(map[string]*cloudServiceDoc)
 	for _, v := range docs {
 		doc := v
@@ -1863,7 +1863,7 @@ func (e *exporter) readAllCloudContainers() (map[string]*cloudContainerDoc, erro
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot get all cloud container docs")
 	}
-	e.logger.Debugf("found %d cloud container docs", len(docs))
+	e.logger.Debugf(ctx, "found %d cloud container docs", len(docs))
 	result := make(map[string]*cloudContainerDoc)
 	for _, v := range docs {
 		doc := v
@@ -1912,7 +1912,7 @@ func (e *exporter) readAllConstraints() error {
 		return errors.Annotate(err, "failed to read constraints collection")
 	}
 
-	e.logger.Debugf("read %d constraints docs", len(docs))
+	e.logger.Debugf(ctx, "read %d constraints docs", len(docs))
 	e.constraints = make(map[string]bson.M)
 	for _, doc := range docs {
 		docId, ok := doc["_id"].(string)
@@ -1921,7 +1921,7 @@ func (e *exporter) readAllConstraints() error {
 		}
 		id := e.st.localID(docId)
 		e.constraints[id] = doc
-		e.logger.Debugf("doc[%q] = %#v", id, doc)
+		e.logger.Debugf(ctx, "doc[%q] = %#v", id, doc)
 	}
 	return nil
 }
@@ -1951,7 +1951,7 @@ func (e *exporter) getCharmOrigin(doc applicationDoc, defaultArch string) (descr
 	// when deploying.
 	pArch := origin.Platform.Architecture
 	if pArch == "" {
-		e.logger.Debugf("using default architecture (%q) for doc[%q]", defaultArch, doc.DocID)
+		e.logger.Debugf(ctx, "using default architecture (%q) for doc[%q]", defaultArch, doc.DocID)
 		pArch = defaultArch
 	}
 	platform := corecharm.Platform{
@@ -2001,7 +2001,7 @@ func (e *exporter) readAllStatuses() error {
 		return errors.Annotate(err, "failed to read status collection")
 	}
 
-	e.logger.Debugf("read %d status documents", len(docs))
+	e.logger.Debugf(ctx, "read %d status documents", len(docs))
 	e.status = make(map[string]bson.M)
 	for _, doc := range docs {
 		docId, ok := doc["_id"].(string)
@@ -2040,7 +2040,7 @@ func (e *exporter) readAllStatusHistory() error {
 		return errors.Annotate(err, "failed to read status history collection")
 	}
 
-	e.logger.Debugf("read %d status history documents", count)
+	e.logger.Debugf(ctx, "read %d status history documents", count)
 
 	return nil
 }
@@ -2082,7 +2082,7 @@ func (e *exporter) statusArgs(globalKey string) (description.StatusArgs, error) 
 
 func (e *exporter) statusHistoryArgs(globalKey string) []description.StatusArgs {
 	history := e.statusHistory[globalKey]
-	e.logger.Tracef("found %d status history docs for %s", len(history), globalKey)
+	e.logger.Tracef(ctx, "found %d status history docs for %s", len(history), globalKey)
 	if len(history) > maxStatusHistoryEntries {
 		history = history[:maxStatusHistoryEntries]
 	}
@@ -2103,7 +2103,7 @@ func (e *exporter) constraintsArgs(globalKey string) (description.ConstraintsArg
 	doc, found := e.constraints[globalKey]
 	if !found {
 		// No constraints for this key.
-		e.logger.Tracef("no constraints found for key %q", globalKey)
+		e.logger.Tracef(ctx, "no constraints found for key %q", globalKey)
 		return description.ConstraintsArgs{}, nil
 	}
 	// We capture any type error using a closure to avoid having to return
@@ -2216,7 +2216,7 @@ func (e *exporter) checkUnexportedValues() error {
 }
 
 func (e *exporter) remoteApplications() error {
-	e.logger.Debugf("read remote applications")
+	e.logger.Debugf(ctx, "read remote applications")
 	migration := &ExportStateMigration{
 		src:      e.st,
 		dst:      e.model,
@@ -2342,9 +2342,9 @@ func (e *exporter) addVolume(vol *volume, volAttachments []volumeAttachmentDoc, 
 			return errors.Trace(err)
 		}
 	}
-	logger.Debugf("addVolume: %#v", vol.doc)
+	logger.Debugf(ctx, "addVolume: %#v", vol.doc)
 	if info, err := vol.Info(); err == nil {
-		logger.Debugf("  info %#v", info)
+		logger.Debugf(ctx, "  info %#v", info)
 		args.Provisioned = true
 		args.Size = info.Size
 		args.Pool = info.Pool
@@ -2354,7 +2354,7 @@ func (e *exporter) addVolume(vol *volume, volAttachments []volumeAttachmentDoc, 
 		args.Persistent = info.Persistent
 	} else {
 		params, _ := vol.Params()
-		logger.Debugf("  params %#v", params)
+		logger.Debugf(ctx, "  params %#v", params)
 		args.Size = params.Size
 		args.Pool = params.Pool
 	}
@@ -2374,12 +2374,12 @@ func (e *exporter) addVolume(vol *volume, volAttachments []volumeAttachmentDoc, 
 	}
 	for _, doc := range volAttachments {
 		va := volumeAttachment{doc}
-		logger.Debugf("  attachment %#v", doc)
+		logger.Debugf(ctx, "  attachment %#v", doc)
 		args := description.VolumeAttachmentArgs{
 			Host: va.Host(),
 		}
 		if info, err := va.Info(); err == nil {
-			logger.Debugf("    info %#v", info)
+			logger.Debugf(ctx, "    info %#v", info)
 			args.Provisioned = true
 			args.ReadOnly = info.ReadOnly
 			args.DeviceName = info.DeviceName
@@ -2391,7 +2391,7 @@ func (e *exporter) addVolume(vol *volume, volAttachments []volumeAttachmentDoc, 
 			}
 		} else {
 			params, _ := va.Params()
-			logger.Debugf("    params %#v", params)
+			logger.Debugf(ctx, "    params %#v", params)
 			args.ReadOnly = params.ReadOnly
 		}
 		exVolume.AddAttachment(args)
@@ -2399,19 +2399,19 @@ func (e *exporter) addVolume(vol *volume, volAttachments []volumeAttachmentDoc, 
 
 	for _, doc := range attachmentPlans {
 		va := volumeAttachmentPlan{doc}
-		logger.Debugf("  attachment plan %#v", doc)
+		logger.Debugf(ctx, "  attachment plan %#v", doc)
 		args := description.VolumeAttachmentPlanArgs{
 			Machine: va.Machine(),
 		}
 		if info, err := va.PlanInfo(); err == nil {
-			logger.Debugf("    plan info %#v", info)
+			logger.Debugf(ctx, "    plan info %#v", info)
 			args.DeviceType = string(info.DeviceType)
 			args.DeviceAttributes = info.DeviceAttributes
 		} else if !errors.Is(err, errors.NotFound) {
 			return errors.Trace(err)
 		}
 		if info, err := va.BlockDeviceInfo(); err == nil {
-			logger.Debugf("    block device info %#v", info)
+			logger.Debugf(ctx, "    block device info %#v", info)
 			args.DeviceName = info.DeviceName
 			args.DeviceLinks = info.DeviceLinks
 			args.Label = info.Label
@@ -2447,7 +2447,7 @@ func (e *exporter) readVolumeAttachments() (map[string][]volumeAttachmentDoc, er
 	if err := iter.Close(); err != nil {
 		return nil, errors.Annotate(err, "failed to read volumes attachments")
 	}
-	e.logger.Debugf("read %d volume attachment documents", count)
+	e.logger.Debugf(ctx, "read %d volume attachment documents", count)
 	return result, nil
 }
 
@@ -2467,7 +2467,7 @@ func (e *exporter) readVolumeAttachmentPlans() (map[string][]volumeAttachmentPla
 	if err := iter.Close(); err != nil {
 		return nil, errors.Annotate(err, "failed to read volume attachment plans")
 	}
-	e.logger.Debugf("read %d volume attachment plan documents", count)
+	e.logger.Debugf(ctx, "read %d volume attachment plan documents", count)
 	return result, nil
 }
 
@@ -2504,16 +2504,16 @@ func (e *exporter) addFilesystem(fs *filesystem, fsAttachments []filesystemAttac
 		Storage: storage,
 		Volume:  volume,
 	}
-	logger.Debugf("addFilesystem: %#v", fs.doc)
+	logger.Debugf(ctx, "addFilesystem: %#v", fs.doc)
 	if info, err := fs.Info(); err == nil {
-		logger.Debugf("  info %#v", info)
+		logger.Debugf(ctx, "  info %#v", info)
 		args.Provisioned = true
 		args.Size = info.Size
 		args.Pool = info.Pool
 		args.FilesystemID = info.FilesystemId
 	} else {
 		params, _ := fs.Params()
-		logger.Debugf("  params %#v", params)
+		logger.Debugf(ctx, "  params %#v", params)
 		args.Size = params.Size
 		args.Pool = params.Pool
 	}
@@ -2533,18 +2533,18 @@ func (e *exporter) addFilesystem(fs *filesystem, fsAttachments []filesystemAttac
 	}
 	for _, doc := range fsAttachments {
 		va := filesystemAttachment{doc}
-		logger.Debugf("  attachment %#v", doc)
+		logger.Debugf(ctx, "  attachment %#v", doc)
 		args := description.FilesystemAttachmentArgs{
 			Host: va.Host(),
 		}
 		if info, err := va.Info(); err == nil {
-			logger.Debugf("    info %#v", info)
+			logger.Debugf(ctx, "    info %#v", info)
 			args.Provisioned = true
 			args.ReadOnly = info.ReadOnly
 			args.MountPoint = info.MountPoint
 		} else {
 			params, _ := va.Params()
-			logger.Debugf("    params %#v", params)
+			logger.Debugf(ctx, "    params %#v", params)
 			args.ReadOnly = params.ReadOnly
 			args.MountPoint = params.Location
 		}
@@ -2569,7 +2569,7 @@ func (e *exporter) readFilesystemAttachments() (map[string][]filesystemAttachmen
 	if err := iter.Close(); err != nil {
 		return nil, errors.Annotate(err, "failed to read filesystem attachments")
 	}
-	e.logger.Debugf("read %d filesystem attachment documents", count)
+	e.logger.Debugf(ctx, "read %d filesystem attachment documents", count)
 	return result, nil
 }
 
@@ -2635,7 +2635,7 @@ func (e *exporter) readStorageAttachments() (map[string][]names.UnitTag, error) 
 	if err := iter.Close(); err != nil {
 		return nil, errors.Annotate(err, "failed to read storage attachments")
 	}
-	e.logger.Debugf("read %d storage attachment documents", count)
+	e.logger.Debugf(ctx, "read %d storage attachment documents", count)
 	return result, nil
 }
 

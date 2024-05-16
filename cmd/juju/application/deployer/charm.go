@@ -119,7 +119,7 @@ func (d *deployCharm) deploy(
 	}
 
 	if len(charmInfo.Meta.Terms) > 0 {
-		ctx.Infof("Deployment under prior agreement to terms: %s",
+		ctx.Infof(ctx, "Deployment under prior agreement to terms: %s",
 			strings.Join(charmInfo.Meta.Terms, " "))
 	}
 
@@ -143,7 +143,7 @@ func (d *deployCharm) deploy(
 		appConfig = nil
 	}
 
-	ctx.Infof(d.formatDeployingText(applicationName, charmName))
+	ctx.Infof(ctx, d.formatDeployingText(applicationName, charmName))
 	args := applicationapi.DeployArgs{
 		CharmID:          id,
 		CharmOrigin:      id.Origin,
@@ -232,7 +232,7 @@ func (d *predeployedLocalCharm) PrepareAndDeploy(ctx *cmd.Context, deployAPI Dep
 	userCharmURL := d.userCharmURL
 	ctx.Verbosef("Preparing to deploy local charm %q again", userCharmURL.Name)
 	if d.dryRun {
-		ctx.Infof("ignoring dry-run flag for local charms")
+		ctx.Infof(ctx, "ignoring dry-run flag for local charms")
 	}
 
 	if err := d.validateCharmFlags(); err != nil {
@@ -243,7 +243,7 @@ func (d *predeployedLocalCharm) PrepareAndDeploy(ctx *cmd.Context, deployAPI Dep
 	if err != nil {
 		return errors.Trace(err)
 	}
-	ctx.Infof(formatLocatedText(d.userCharmURL, commoncharm.Origin{}))
+	ctx.Infof(ctx, formatLocatedText(d.userCharmURL, commoncharm.Origin{}))
 	if err := checkCharmFormat(d.model, charmInfo); err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (l *localCharm) String() string {
 func (l *localCharm) PrepareAndDeploy(ctx *cmd.Context, deployAPI DeployerAPI, _ Resolver) error {
 	ctx.Verbosef("Preparing to deploy local charm: %q ", l.curl.Name)
 	if l.dryRun {
-		ctx.Infof("ignoring dry-run flag for local charms")
+		ctx.Infof(ctx, "ignoring dry-run flag for local charms")
 	}
 	if err := l.validateCharmFlags(); err != nil {
 		return errors.Trace(err)
@@ -300,7 +300,7 @@ func (l *localCharm) PrepareAndDeploy(ctx *cmd.Context, deployAPI DeployerAPI, _
 		return errors.Trace(err)
 	}
 
-	ctx.Infof(formatLocatedText(curl, origin))
+	ctx.Infof(ctx, formatLocatedText(curl, origin))
 	l.id = application.CharmID{
 		URL:    curl.String(),
 		Origin: origin,
@@ -401,7 +401,7 @@ func (c *repositoryCharm) PrepareAndDeploy(ctx *cmd.Context, deployAPI DeployerA
 			info.Name, uploadErr)
 	}
 
-	ctx.Infof(formatDeployedText(c.dryRun, charmName, info))
+	ctx.Infof(ctx, formatDeployedText(c.dryRun, charmName, info))
 	return nil
 }
 

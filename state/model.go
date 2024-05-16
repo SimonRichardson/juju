@@ -388,7 +388,7 @@ func (ctlr *Controller) NewModel(configSchemaGetter config.ConfigSchemaSourceGet
 	//	attr := transform.Map(pool.Attrs, func(k, v string) (string, any) { return k, v })
 	//	err = storageService.CreateStoragePool(context.Background(), pool.Name, storage.ProviderType(pool.Provider), attr)
 	//	if err != nil {
-	//		logger.Criticalf("saving storage pool %q: %v", pool.Name, err)
+	//		logger.Criticalf(ctx, "saving storage pool %q: %v", pool.Name, err)
 	//		//			return nil, nil, errors.Annotatef(err, "saving storage pool %q", pool.Name)
 	//	}
 	//}
@@ -986,7 +986,7 @@ func (m *Model) destroyOps(
 		if !force {
 			return nil, errors.Annotatef(err, "getting model %v entity refs", m.UUID())
 		}
-		logger.Warningf("getting model %v entity refs: %v", m.UUID(), err)
+		logger.Warningf(ctx, "getting model %v entity refs: %v", m.UUID(), err)
 	}
 	isEmpty := true
 	nextLife := Dying

@@ -105,7 +105,7 @@ func (a *safeModeAgentCommand) Init(args []string) error {
 	}
 	config := a.currentConfig.CurrentConfig()
 	if err := os.MkdirAll(config.LogDir(), 0644); err != nil {
-		logger.Warningf("cannot create log dir: %v", err)
+		logger.Warningf(ctx, "cannot create log dir: %v", err)
 	}
 	a.isCaas = config.Value(agent.ProviderType) == k8sconstants.CAASProviderType
 
@@ -291,10 +291,10 @@ func (a *SafeModeMachineAgent) Run(ctx *cmd.Context) (err error) {
 	err = a.runner.Wait()
 	switch errors.Cause(err) {
 	case jworker.ErrRebootMachine:
-		logger.Infof("Caught reboot error")
+		logger.Infof(ctx, "Caught reboot error")
 		err = a.executeRebootOrShutdown(params.ShouldReboot)
 	case jworker.ErrShutdownMachine:
-		logger.Infof("Caught shutdown error")
+		logger.Infof(ctx, "Caught shutdown error")
 		err = a.executeRebootOrShutdown(params.ShouldShutdown)
 	}
 	return cmdutil.AgentDone(logger, err)
@@ -341,7 +341,7 @@ func (a *SafeModeMachineAgent) makeEngineCreator(
 		}
 		if err := dependency.Install(eng, manifolds); err != nil {
 			if err := worker.Stop(eng); err != nil {
-				logger.Errorf("while stopping engine with bad manifolds: %v", err)
+				logger.Errorf(ctx, "while stopping engine with bad manifolds: %v", err)
 			}
 			return nil, err
 		}
@@ -356,10 +356,10 @@ func (a *SafeModeMachineAgent) executeRebootOrShutdown(action params.RebootActio
 		return errors.Trace(err)
 	}
 
-	logger.Infof("Reboot: Executing reboot")
+	logger.Infof(ctx, "Reboot: Executing reboot")
 	err = finalize.ExecuteReboot(action)
 	if err != nil {
-		logger.Infof("Reboot: Error executing reboot: %v", err)
+		logger.Infof(ctx, "Reboot: Error executing reboot: %v", err)
 		return errors.Trace(err)
 	}
 	// We return ErrRebootMachine so the agent will simply exit without error

@@ -530,7 +530,7 @@ func (c *AddCAASCommand) Run(ctx *cmd.Context) (err error) {
 		if len(newCloud.CACertificates) > 0 && newCloud.CACertificates[0] != "" {
 			return errors.NotValidf("cloud with both skip-TLS-verify=true and CA certificates")
 		}
-		logger.Warningf("k8s cloud %v is configured to skip server certificate validity checks", newCloud.Name)
+		logger.Warningf(ctx, "k8s cloud %v is configured to skip server certificate validity checks", newCloud.Name)
 	}
 	newCredential, err = ensureCredentialUID(credentialName, credentialUID, newCredential)
 	if err != nil {
@@ -754,12 +754,12 @@ func getCloudAndRegionFromOptions(cloudOption, regionOption string) (string, str
 
 // tryEnsureCloudType try to find cloud type if the cloudNameOrType is cloud name.
 func (c *AddCAASCommand) tryEnsureCloudTypeForHostRegion(cloudOption, regionOption string) (string, error) {
-	logger.Debugf("cloud option %q region option %q", cloudOption, regionOption)
+	logger.Debugf(ctx, "cloud option %q region option %q", cloudOption, regionOption)
 	cloudNameOrType, region, err := getCloudAndRegionFromOptions(cloudOption, regionOption)
 	if err != nil {
 		return "", errors.Annotate(err, "parsing cloud region")
 	}
-	logger.Debugf("cloud %q region %q", cloudNameOrType, region)
+	logger.Debugf(ctx, "cloud %q region %q", cloudNameOrType, region)
 
 	clouds, err := c.getAllCloudDetails(c.Store)
 	if err != nil {
@@ -821,19 +821,19 @@ func (c *AddCAASCommand) validateCloudRegion(ctx *cmd.Context, cloudRegion strin
 				return details.CloudType, nil
 			}
 			if region == "" && details.DefaultRegion != "" {
-				logger.Debugf("cloud region not provided by user, using client default %q", details.DefaultRegion)
+				logger.Debugf(ctx, "cloud region not provided by user, using client default %q", details.DefaultRegion)
 				region = details.DefaultRegion
 			}
 			for k := range details.RegionsMap {
 				if k == region {
-					logger.Debugf("cloud region %q is valid", cloudRegion)
+					logger.Debugf(ctx, "cloud region %q is valid", cloudRegion)
 					return jujucloud.BuildHostCloudRegion(details.CloudType, region), nil
 				}
 				regionListMsg += fmt.Sprintf("\t%q\n", k)
 			}
 		}
 	}
-	ctx.Infof("Supported regions for cloud %q: \n%s", cloudType, regionListMsg)
+	ctx.Infof(ctx, "Supported regions for cloud %q: \n%s", cloudType, regionListMsg)
 	return "", errors.NotValidf("cloud region %q", cloudRegion)
 }
 
@@ -862,7 +862,7 @@ func (c *AddCAASCommand) getClusterMetadataFunc(ctx *cmd.Context) provider.GetCl
 			case <-time.After(1 * time.Second):
 				fmt.Fprintf(ctx.Stdout, ".")
 			case <-interrupted:
-				ctx.Infof("ctrl+c detected, aborting...")
+				ctx.Infof(ctx, "ctrl+c detected, aborting...")
 				return nil, nil
 			case <-time.After(timeout):
 				return nil, errors.Timeoutf("timeout after %v", timeout)

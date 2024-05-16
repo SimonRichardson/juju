@@ -59,7 +59,7 @@ ON CONFLICT (name) DO UPDATE SET value = excluded.value,
 		return errors.Trace(err)
 	}
 
-	s.logger.Debugf("set flag %q to %v", flag, value)
+	s.logger.Debugf(ctx, "set flag %q to %v", flag, value)
 
 	return nil
 }

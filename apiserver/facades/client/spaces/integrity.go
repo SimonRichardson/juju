@@ -251,7 +251,7 @@ func (n *affectedNetworks) ensureNegativeConstraintIntegrity(appName string, spa
 		if !n.force {
 			return errors.New(msg)
 		}
-		n.logger.Warningf(msg)
+		n.logger.Warningf(ctx, msg)
 	}
 
 	return nil
@@ -290,7 +290,7 @@ func (n *affectedNetworks) ensurePositiveConstraintIntegrity(appName string, spa
 			if !n.force {
 				return errors.New(msg)
 			}
-			n.logger.Warningf(msg)
+			n.logger.Warningf(ctx, msg)
 		}
 	}
 
@@ -353,7 +353,7 @@ func (n *affectedNetworks) ensureApplicationBindingsIntegrity(appName string, ap
 			if !n.force {
 				return errors.New(msg)
 			}
-			n.logger.Warningf(msg)
+			n.logger.Warningf(ctx, msg)
 		}
 	}
 

@@ -32,11 +32,11 @@ func New(repoDetails docker.ImageRepoDetails) (Registry, error) {
 	for _, providerNewer := range internal.Providers() {
 		p, err := providerNewer(repoDetails, DefaultTransport)
 		if err != nil {
-			logger.Tracef("error matching registry client %#v for %s: %s", p, repoDetails, err.Error())
+			logger.Tracef(ctx, "error matching registry client %#v for %s: %s", p, repoDetails, err.Error())
 			continue
 		}
 		if p.Match() {
-			logger.Tracef("found registry client %#v for %s", p, repoDetails)
+			logger.Tracef(ctx, "found registry client %#v for %s", p, repoDetails)
 			provider = p
 			break
 		}

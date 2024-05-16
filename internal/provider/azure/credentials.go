@@ -111,7 +111,7 @@ func (c environProviderCredentials) DetectCredentials(cloudName string) (*cloud.
 	// Attempt to get accounts from az.
 	accounts, err := c.azureCLI.ListAccounts()
 	if err != nil {
-		logger.Debugf("error getting accounts from az: %s", err)
+		logger.Debugf(ctx, "error getting accounts from az: %s", err)
 		return nil, errors.NotFoundf("credentials")
 	}
 	if len(accounts) < 1 {
@@ -119,7 +119,7 @@ func (c environProviderCredentials) DetectCredentials(cloudName string) (*cloud.
 	}
 	clouds, err := c.azureCLI.ListClouds()
 	if err != nil {
-		logger.Debugf("error getting clouds from az: %s", err)
+		logger.Debugf(ctx, "error getting clouds from az: %s", err)
 		return nil, errors.NotFoundf("credentials")
 	}
 	cloudMap := make(map[string]azurecli.Cloud, len(clouds))
@@ -135,7 +135,7 @@ func (c environProviderCredentials) DetectCredentials(cloudName string) (*cloud.
 		}
 		cred, err := c.accountCredential(acc)
 		if err != nil {
-			logger.Debugf("cannot get credential for %s: %s", acc.Name, err)
+			logger.Debugf(ctx, "cannot get credential for %s: %s", acc.Name, err)
 			continue
 		}
 		cred.Label = fmt.Sprintf("%s subscription %s", cloudInfo.Name, acc.Name)

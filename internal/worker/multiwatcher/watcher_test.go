@@ -273,7 +273,7 @@ func (w *watcher) loop() {
 		}
 		select {
 		case w.next <- deltas:
-			w.logger.Tracef("sent %d deltas down next", len(deltas))
+			w.logger.Tracef(ctx, "sent %d deltas down next", len(deltas))
 		case <-time.After(testing.LongWait):
 			w.c.Fatalf("no one listening")
 		}

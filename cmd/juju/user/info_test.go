@@ -45,7 +45,7 @@ func (*fakeUserInfoAPI) Close() error {
 }
 
 func (*fakeUserInfoAPI) UserInfo(usernames []string, all usermanager.IncludeDisabled) ([]params.UserInfo, error) {
-	logger.Infof("fakeUserInfoAPI.UserInfo(%v, %v)", usernames, all)
+	logger.Infof(ctx, "fakeUserInfoAPI.UserInfo(%v, %v)", usernames, all)
 	info := params.UserInfo{
 		DateCreated:    dateCreated,
 		LastConnection: &lastConnection,

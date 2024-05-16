@@ -64,7 +64,7 @@ func convertConstraints(cons constraints.Value) gomaasapi.AllocateMachineArgs {
 		}
 	}
 	if cons.CpuPower != nil {
-		logger.Warningf("ignoring unsupported constraint 'cpu-power'")
+		logger.Warningf(ctx, "ignoring unsupported constraint 'cpu-power'")
 	}
 	return params
 }

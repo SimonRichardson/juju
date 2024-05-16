@@ -193,7 +193,7 @@ func NewLogFile(logDir string, maxSize, maxBackups int) AuditLog {
 	if err := paths.PrimeLogFile(logPath); err != nil {
 		// This isn't a fatal error so log and continue if priming
 		// fails.
-		logger.Errorf("Unable to prime %s (proceeding anyway): %v", logPath, err)
+		logger.Errorf(ctx, "Unable to prime %s (proceeding anyway): %v", logPath, err)
 	}
 
 	ljLogger := &lumberjack.Logger{
@@ -202,7 +202,7 @@ func NewLogFile(logDir string, maxSize, maxBackups int) AuditLog {
 		MaxBackups: maxBackups,
 		Compress:   true,
 	}
-	logger.Debugf("created rotating log file %q with max size %d MB and max backups %d",
+	logger.Debugf(ctx, "created rotating log file %q with max size %d MB and max backups %d",
 		ljLogger.Filename, ljLogger.MaxSize, ljLogger.MaxBackups)
 	return &auditLogFile{
 		fileLogger: ljLogger,

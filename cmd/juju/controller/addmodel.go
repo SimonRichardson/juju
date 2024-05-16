@@ -205,8 +205,8 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 	if c.CloudRegion != "" {
 		cloudTag, cloud, cloudRegion, err = c.getCloudRegion(cloudClient)
 		if err != nil {
-			logger.Errorf("%v", err)
-			ctx.Infof("Use 'juju clouds' to see a list of all available clouds or 'juju add-cloud' to a add one.")
+			logger.Errorf(ctx, "%v", err)
+			ctx.Infof(ctx, "Use 'juju clouds' to see a list of all available clouds or 'juju add-cloud' to a add one.")
 			return cmd.ErrSilent
 		}
 	} else {
@@ -224,10 +224,10 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 		modelOwner:  modelOwner,
 	})
 	if err != nil {
-		logger.Errorf("%v", err)
-		ctx.Infof("Use \n* 'juju add-credential -c' to upload a credential to a controller or\n" +
-			"* 'juju autoload-credentials' to add credentials from local files or\n" +
-			"* 'juju add-model --credential' to use a local credential.\n" +
+		logger.Errorf(ctx, "%v", err)
+		ctx.Infof(ctx, "Use \n* 'juju add-credential -c' to upload a credential to a controller or\n"+
+			"* 'juju autoload-credentials' to add credentials from local files or\n"+
+			"* 'juju add-model --credential' to use a local credential.\n"+
 			"Use 'juju credentials' to list all available credentials.\n")
 		return cmd.ErrSilent
 	}
@@ -240,9 +240,9 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 
 	// Upload the credential if it was explicitly set and we have found it locally.
 	if c.CredentialName != "" && credential != nil {
-		ctx.Infof("Uploading credential '%s' to controller", credentialTag.Id())
+		ctx.Infof(ctx, "Uploading credential '%s' to controller", credentialTag.Id())
 		if err := cloudClient.AddCredential(credentialTag.String(), *credential); err != nil {
-			ctx.Infof("Failed to upload credential: %v", err)
+			ctx.Infof(ctx, "Failed to upload credential: %v", err)
 			return cmd.ErrSilent
 		}
 	}
@@ -316,13 +316,13 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 	messageFormat += forUserSuffix
 
 	// "Added '<model>' model [on <cloud>/<region>] [with credential '<credential>'] for user '<user namePart>'"
-	ctx.Infof(messageFormat, messageArgs...)
+	ctx.Infof(ctx, messageFormat, messageArgs...)
 
 	if _, ok := attrs[config.AuthorizedKeysKey]; !ok {
 		// It is not an error to have no authorized-keys when adding a
 		// model, though this should never happen since we generate
 		// juju-specific SSH keys.
-		ctx.Infof(`
+		ctx.Infof(ctx, `
 No SSH authorized-keys were found. You must use "juju add-ssh-key"
 before "juju ssh", "juju scp", or "juju debug-hooks" will work.`)
 	}
@@ -584,7 +584,7 @@ func (c *addModelCommand) findSpecifiedCredential(ctx *cmd.Context, cloudClient 
 		if tag.Id() != credentialId {
 			continue
 		}
-		ctx.Infof("Using credential '%s' cached in controller", c.CredentialName)
+		ctx.Infof(ctx, "Using credential '%s' cached in controller", c.CredentialName)
 		return nil, credentialTag, "", nil
 	}
 	// Cannot find a credential with the correct name

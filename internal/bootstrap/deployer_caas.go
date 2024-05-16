@@ -79,7 +79,7 @@ func NewCAASDeployer(config CAASDeployerConfig) (*CAASDeployer, error) {
 
 // ControllerAddress returns the address of the controller that should be
 // used.
-func (d *CAASDeployer) ControllerAddress(context.Context) (string, error) {
+func (d *CAASDeployer) ControllerAddress(ctx context.Context) (string, error) {
 	s, err := d.cloudServiceGetter.CloudService(d.controllerConfig.ControllerUUID())
 	if err != nil {
 		return "", errors.Trace(err)
@@ -91,7 +91,7 @@ func (d *CAASDeployer) ControllerAddress(context.Context) (string, error) {
 	if len(addr) > 0 {
 		controllerAddress = addr[0]
 	}
-	d.logger.Debugf("CAAS controller address %v", controllerAddress)
+	d.logger.Debugf(ctx, "CAAS controller address %v", controllerAddress)
 	return controllerAddress, nil
 }
 

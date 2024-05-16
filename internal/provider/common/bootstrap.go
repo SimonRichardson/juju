@@ -164,7 +164,7 @@ func BootstrapInstance(
 	if args.CloudRegion != "" {
 		cloudRegion += "/" + args.CloudRegion
 	}
-	ctx.Infof("Launching controller instance(s) on %s...", cloudRegion)
+	ctx.Infof(ctx, "Launching controller instance(s) on %s...", cloudRegion)
 	// Print instance status reports status changes during provisioning.
 	// Note the carriage returns, meaning subsequent prints are to the same
 	// line of stderr, not a new line.
@@ -233,7 +233,7 @@ func BootstrapInstance(
 		// a blank StartInstanceParams.AvailabilityZone.
 		zones = []string{""}
 		if args.BootstrapConstraints.HasZones() {
-			logger.Debugf("environ doesn't support zones: ignoring bootstrap zone constraints")
+			logger.Debugf(ctx, "environ doesn't support zones: ignoring bootstrap zone constraints")
 		}
 	} else if err != nil {
 		return nil, nil, nil, errors.Annotate(err, "cannot start bootstrap instance")
@@ -281,7 +281,7 @@ func BootstrapInstance(
 
 		if i < len(zones)-1 {
 			// Try the next zone.
-			logger.Debugf("failed to start instance in availability zone %q: %s", zone, err)
+			logger.Debugf(ctx, "failed to start instance in availability zone %q: %s", zone, err)
 			continue
 		}
 		// This is the last zone in the list, error.
@@ -310,7 +310,7 @@ func BootstrapInstance(
 		padding := make([]string, 40-len(msg))
 		msg += strings.Join(padding, " ")
 	}
-	ctx.Infof(msg)
+	ctx.Infof(ctx, msg)
 
 	finalizer := func(ctx environs.BootstrapContext, icfg *instancecfg.InstanceConfig, opts environs.BootstrapDialOpts) error {
 		icfg.Bootstrap.BootstrapMachineInstanceId = result.Instance.Id()
@@ -452,7 +452,7 @@ var FinishBootstrap = func(
 	if err != nil {
 		return err
 	}
-	ctx.Infof("Connected to %v", addr)
+	ctx.Infof(ctx, "Connected to %v", addr)
 
 	sshOptions, cleanup, err := hostSSHOptions(addr)
 	if err != nil {
@@ -539,7 +539,7 @@ func ConfigureMachine(
 	}
 
 	script := shell.DumpFileOnErrorScript(instanceConfig.CloudInitOutputLog) + configScript
-	ctx.Infof("Running machine configuration script...")
+	ctx.Infof(ctx, "Running machine configuration script...")
 	// TODO(benhoyt) - plumb context through juju/utils/ssh?
 	return sshinit.RunConfigureScript(script, sshinitConfig)
 }
@@ -694,7 +694,7 @@ func (hc *hostChecker) loop(dying <-chan struct{}) (io.Closer, error) {
 			if lastErr == nil {
 				return hc, nil
 			}
-			logger.Debugf("connection attempt for %s failed: %v", address, lastErr)
+			logger.Debugf(ctx, "connection attempt for %s failed: %v", address, lastErr)
 		}
 		select {
 		case <-hc.closed:

@@ -61,7 +61,7 @@ func (w *secretBackendRotateWatcher) loop() (err error) {
 			if !ok {
 				return errors.Errorf("event watcher closed")
 			}
-			w.logger.Debugf("received secret backend rotation changes: %v", backendIDs)
+			w.logger.Debugf(ctx, "received secret backend rotation changes: %v", backendIDs)
 
 			ctx, cancel := w.scopedContext()
 			var err error

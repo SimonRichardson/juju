@@ -586,13 +586,13 @@ func (mm *MachineManagerAPI) destroyMachine(ctx context.Context, args params.Ent
 			continue
 		}
 		if keep {
-			mm.logger.Infof("destroy machine %v but keep instance", machineTag.Id())
+			mm.logger.Infof(ctx, "destroy machine %v but keep instance", machineTag.Id())
 			if err := machine.SetKeepInstance(keep); err != nil {
 				if !force {
 					fail(err)
 					continue
 				}
-				mm.logger.Warningf("could not keep instance for machine %v: %v", machineTag.Id(), err)
+				mm.logger.Warningf(ctx, "could not keep instance for machine %v: %v", machineTag.Id(), err)
 			}
 		}
 		info := params.DestroyMachineInfo{
@@ -627,7 +627,7 @@ func (mm *MachineManagerAPI) destroyMachine(ctx context.Context, args params.Ent
 				fail(err)
 				continue
 			}
-			mm.logger.Warningf("could not deal with units' storage on machine %v: %v", machineTag.Id(), err)
+			mm.logger.Warningf(ctx, "could not deal with units' storage on machine %v: %v", machineTag.Id(), err)
 		}
 
 		if dryRun {
@@ -668,11 +668,11 @@ func (mm *MachineManagerAPI) destroyMachine(ctx context.Context, args params.Ent
 		// CLI, is to remove the raft logs manually.
 		unpinResults, err := mm.leadership.UnpinApplicationLeadersByName(ctx, machineTag, applicationNames)
 		if err != nil {
-			mm.logger.Warningf("could not unpin application leaders for machine %s with error %v", machineTag.Id(), err)
+			mm.logger.Warningf(ctx, "could not unpin application leaders for machine %s with error %v", machineTag.Id(), err)
 		}
 		for _, result := range unpinResults.Results {
 			if result.Error != nil {
-				mm.logger.Warningf(
+				mm.logger.Warningf(ctx,
 					"could not unpin application leaders for machine %s with error %v", machineTag.Id(), result.Error)
 			}
 		}

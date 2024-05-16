@@ -461,7 +461,7 @@ func (c *loginCommand) publicControllerLogin(
 	// user. If we encounter an error after here, we need to clear it.
 	c.onRunError = func() {
 		if err := c.ClearControllerMacaroons(c.ClientStore(), controllerName); err != nil {
-			logger.Errorf("failed to clear macaroon: %v", err)
+			logger.Errorf(ctx, "failed to clear macaroon: %v", err)
 		}
 	}
 

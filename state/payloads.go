@@ -149,7 +149,7 @@ func (up UnitPayloads) SetStatus(name, status string) error {
 // trigger the actual destruction of the payload. If the payload is
 // missing then this is a noop.
 func (up UnitPayloads) Untrack(name string) error {
-	logger.Tracef("untracking %q", name)
+	logger.Tracef(ctx, "untracking %q", name)
 	change := payloadUntrackChange{
 		Unit: up.unit,
 		Name: name,

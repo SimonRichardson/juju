@@ -248,7 +248,7 @@ func (cfg *ControllerPodConfig) GetInitialModel() (string, bool) {
 	hasInitialModel := len(cfg.Bootstrap.InitialModelConfig) > 0
 	if hasInitialModel {
 		modelName := cfg.Bootstrap.InitialModelConfig[config.NameKey].(string)
-		logger.Debugf("configured initial model %q for bootstrapping", modelName)
+		logger.Debugf(ctx, "configured initial model %q for bootstrapping", modelName)
 		return modelName, true
 	}
 	return "", false

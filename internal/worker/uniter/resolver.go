@@ -67,7 +67,7 @@ func (s *uniterResolver) NextOp(
 	badge := "<unspecified>"
 	defer func() {
 		if err != nil && errors.Cause(err) != resolver.ErrNoOperation && err != resolver.ErrRestart {
-			s.config.Logger.Debugf("next %q operation could not be resolved: %v", badge, err)
+			s.config.Logger.Debugf(ctx, "next %q operation could not be resolved: %v", badge, err)
 		}
 	}()
 
@@ -101,7 +101,7 @@ func (s *uniterResolver) NextOp(
 			return s.nextOpConflicted(ctx, localState, remoteState, opFactory)
 		}
 		// continue upgrading the charm
-		log.Infof("resuming charm upgrade")
+		log.Infof(ctx, "resuming charm upgrade")
 		return s.newUpgradeOperation(ctx, localState, remoteState, opFactory)
 	}
 
@@ -167,7 +167,7 @@ func (s *uniterResolver) NextOp(
 	// If we are to shut down, we don't want to start running any more queued/pending hooks.
 	if remoteState.Shutdown {
 		badge = "shutdown"
-		log.Debugf("unit agent is shutting down, will not run pending/queued hooks")
+		log.Debugf(ctx, "unit agent is shutting down, will not run pending/queued hooks")
 		return s.nextOp(ctx, localState, remoteState, opFactory)
 	}
 
@@ -180,12 +180,12 @@ func (s *uniterResolver) NextOp(
 		switch step {
 		case operation.Pending:
 			badge = "resolve hook"
-			log.Infof("awaiting error resolution for %q hook", localState.Hook.Kind)
+			log.Infof(ctx, "awaiting error resolution for %q hook", localState.Hook.Kind)
 			return s.nextOpHookError(ctx, localState, remoteState, opFactory)
 
 		case operation.Queued:
 			badge = "queued hook"
-			log.Infof("found queued %q hook", localState.Hook.Kind)
+			log.Infof(ctx, "found queued %q hook", localState.Hook.Kind)
 			if localState.Hook.Kind == hooks.Install {
 				// Special case: handle install in nextOp,
 				// so we do nothing when the unit is dying.
@@ -207,7 +207,7 @@ func (s *uniterResolver) NextOp(
 				}
 			}
 
-			log.Infof("committing %q hook", localState.Hook.Kind)
+			log.Infof(ctx, "committing %q hook", localState.Hook.Kind)
 			return opFactory.NewSkipHook(*localState.Hook)
 
 		default:
@@ -216,7 +216,7 @@ func (s *uniterResolver) NextOp(
 
 	case operation.Continue:
 		badge = "idle"
-		log.Debugf("no operations in progress; waiting for changes")
+		log.Debugf(ctx, "no operations in progress; waiting for changes")
 		return s.nextOp(ctx, localState, remoteState, opFactory)
 
 	default:
@@ -338,12 +338,12 @@ func (s *uniterResolver) charmModified(local resolver.LocalState, remote remotes
 		return false
 	}
 	if local.CharmURL != remote.CharmURL {
-		s.config.Logger.Debugf("upgrade from %v to %v", local.CharmURL, remote.CharmURL)
+		s.config.Logger.Debugf(ctx, "upgrade from %v to %v", local.CharmURL, remote.CharmURL)
 		return true
 	}
 
 	if local.CharmModifiedVersion != remote.CharmModifiedVersion {
-		s.config.Logger.Debugf("upgrade from CharmModifiedVersion %v to %v", local.CharmModifiedVersion, remote.CharmModifiedVersion)
+		s.config.Logger.Debugf(ctx, "upgrade from CharmModifiedVersion %v to %v", local.CharmModifiedVersion, remote.CharmModifiedVersion)
 		return true
 	}
 	return false

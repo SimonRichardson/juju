@@ -85,7 +85,7 @@ func (s *storage) SaveMetadata(metadata []Metadata) error {
 				op.Assert = txn.DocMissing
 				op.Insert = &newDocCopy
 				ops = append(ops, op)
-				logger.Debugf("inserting cloud image metadata for %v", newDocCopy.Id)
+				logger.Debugf(ctx, "inserting cloud image metadata for %v", newDocCopy.Id)
 			} else if err != nil {
 				return nil, errors.Trace(err)
 			} else if existing.ImageId != newDocCopy.ImageId {
@@ -93,7 +93,7 @@ func (s *storage) SaveMetadata(metadata []Metadata) error {
 				op.Assert = txn.DocExists
 				op.Update = bson.D{{"$set", bson.D{{"image_id", newDocCopy.ImageId}}}}
 				ops = append(ops, op)
-				logger.Debugf("updating cloud image id for metadata %v", newDocCopy.Id)
+				logger.Debugf(ctx, "updating cloud image id for metadata %v", newDocCopy.Id)
 			}
 			seen.Add(newDocCopy.Id)
 		}
@@ -113,7 +113,7 @@ func (s *storage) SaveMetadata(metadata []Metadata) error {
 // DeleteMetadata implements Storage.DeleteMetadata.
 func (s *storage) DeleteMetadata(imageId string) error {
 	deleteOperation := func(docId string) txn.Op {
-		logger.Debugf("deleting metadata (ID=%v) for image (ID=%v)", docId, imageId)
+		logger.Debugf(ctx, "deleting metadata (ID=%v) for image (ID=%v)", docId, imageId)
 		return txn.Op{
 			C:      s.collection,
 			Id:     docId,
@@ -123,7 +123,7 @@ func (s *storage) DeleteMetadata(imageId string) error {
 	}
 
 	noOp := func() ([]txn.Op, error) {
-		logger.Debugf("no metadata for image ID %v to delete", imageId)
+		logger.Debugf(ctx, "no metadata for image ID %v to delete", imageId)
 		return nil, jujutxn.ErrNoOperations
 	}
 
@@ -332,7 +332,7 @@ func (s *storage) FindMetadata(criteria MetadataFilter) (map[string][]Metadata, 
 	coll, closer := s.store.GetCollection(s.collection)
 	defer closer()
 
-	logger.Debugf("searching for image metadata %#v", criteria)
+	logger.Debugf(ctx, "searching for image metadata %#v", criteria)
 	searchCriteria := buildSearchClauses(criteria)
 	var docs []imagesMetadataDoc
 	if err := coll.Find(searchCriteria).Sort("date_created").All(&docs); err != nil {

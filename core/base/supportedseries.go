@@ -120,7 +120,7 @@ var updatedSeriesVersions bool
 func updateSeriesVersionsOnce() {
 	if !updatedSeriesVersions {
 		if err := updateSeriesVersions(); err != nil {
-			logger.Warningf("failed to update distro info: %v", err)
+			logger.Warningf(ctx, "failed to update distro info: %v", err)
 		}
 		updateVersionSeries()
 		updatedSeriesVersions = true

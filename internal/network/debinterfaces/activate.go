@@ -146,11 +146,11 @@ func BridgeAndActivate(params ActivationParams) (*ActivationResult, error) {
 		return &activationResult, fmt.Errorf("bridge activation error: %w", err)
 	}
 
-	logger.Infof("bridge activation result=%v", result.Code)
+	logger.Infof(ctx, "bridge activation result=%v", result.Code)
 
 	if result.Code != 0 {
-		logger.Errorf("bridge activation stdout\n%s\n", result.Stdout)
-		logger.Errorf("bridge activation stderr\n%s\n", result.Stderr)
+		logger.Errorf(ctx, "bridge activation stdout\n%s\n", result.Stdout)
+		logger.Errorf(ctx, "bridge activation stderr\n%s\n", result.Stderr)
 		// We want to suppress long output from ifup, ifdown - it will be shown in status message!
 		if len(result.Stderr) < 40 {
 			return &activationResult, fmt.Errorf("bridge activation failed: %s", string(result.Stderr))
@@ -159,8 +159,8 @@ func BridgeAndActivate(params ActivationParams) (*ActivationResult, error) {
 		}
 	}
 
-	logger.Tracef("bridge activation stdout\n%s\n", result.Stdout)
-	logger.Tracef("bridge activation stderr\n%s\n", result.Stderr)
+	logger.Tracef(ctx, "bridge activation stdout\n%s\n", result.Stdout)
+	logger.Tracef(ctx, "bridge activation stderr\n%s\n", result.Stderr)
 
 	return &activationResult, nil
 }

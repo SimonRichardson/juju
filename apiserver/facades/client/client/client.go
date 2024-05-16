@@ -314,7 +314,7 @@ func (c *Client) FindTools(ctx context.Context, args params.FindToolsParams) (pa
 	for _, a := range result.List {
 		streamsVersions.Add(a.Version.Number.String())
 	}
-	logger.Tracef("versions from simplestream %v", streamsVersions.SortedValues())
+	logger.Tracef(ctx, "versions from simplestream %v", streamsVersions.SortedValues())
 	return c.toolVersionsForCAAS(ctx, args, streamsVersions, model.AgentVersion)
 }
 

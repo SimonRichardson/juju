@@ -22,9 +22,9 @@ var (
 // directory identified by `ContainerDir`.
 func NewDirectory(containerName string) (directory string, err error) {
 	directory = dirForName(containerName)
-	logger.Tracef("create directory: %s", directory)
+	logger.Tracef(ctx, "create directory: %s", directory)
 	if err = os.MkdirAll(directory, 0755); err != nil {
-		logger.Errorf("failed to create container directory: %v", err)
+		logger.Errorf(ctx, "failed to create container directory: %v", err)
 		return "", err
 	}
 	return directory, nil
@@ -34,18 +34,18 @@ func NewDirectory(containerName string) (directory string, err error) {
 // to `RemovedContainerDir` and makes sure that the names don't clash.
 func RemoveDirectory(containerName string) error {
 	// Move the directory.
-	logger.Tracef("create old container dir: %s", RemovedContainerDir)
+	logger.Tracef(ctx, "create old container dir: %s", RemovedContainerDir)
 	if err := os.MkdirAll(RemovedContainerDir, 0755); err != nil {
-		logger.Errorf("failed to create removed container directory: %v", err)
+		logger.Errorf(ctx, "failed to create removed container directory: %v", err)
 		return err
 	}
 	removedDir, err := utils.UniqueDirectory(RemovedContainerDir, containerName)
 	if err != nil {
-		logger.Errorf("was not able to generate a unique directory: %v", err)
+		logger.Errorf(ctx, "was not able to generate a unique directory: %v", err)
 		return err
 	}
 	if err := os.Rename(dirForName(containerName), removedDir); err != nil {
-		logger.Errorf("failed to rename container directory: %v", err)
+		logger.Errorf(ctx, "failed to rename container directory: %v", err)
 		return err
 	}
 	return nil

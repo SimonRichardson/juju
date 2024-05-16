@@ -133,7 +133,7 @@ func (s *JujuOSEnvSuite) SetFeatureFlags(flag ...string) {
 	if err := os.Setenv(osenv.JujuFeatureFlagEnvKey, flags); err != nil {
 		panic(err)
 	}
-	logger.Debugf("setting feature flags: %s", flags)
+	logger.Debugf(ctx, "setting feature flags: %s", flags)
 	featureflag.SetFlagsFromEnvironment(osenv.JujuFeatureFlagEnvKey)
 }
 

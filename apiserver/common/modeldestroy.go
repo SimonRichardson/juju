@@ -110,7 +110,7 @@ func destroyModel(ctx context.Context, st ModelManagerBackend, args state.Destro
 		if notForcing {
 			return errors.Trace(err)
 		}
-		logger.Warningf("failed destroying model %v: %v", model.UUID(), err)
+		logger.Warningf(ctx, "failed destroying model %v: %v", model.UUID(), err)
 		if err := filterNonCriticalErrorForForce(err); err != nil {
 			return errors.Trace(err)
 		}

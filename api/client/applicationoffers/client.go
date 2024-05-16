@@ -196,7 +196,7 @@ func (c *Client) modifyOfferUser(action params.OfferAction, user, access string,
 
 	for i, r := range result.Results {
 		if r.Error != nil && r.Error.Code == params.CodeAlreadyExists {
-			logger.Warningf("offer %q is already shared with %q", offerURLs[i], userTag.Id())
+			logger.Warningf(ctx, "offer %q is already shared with %q", offerURLs[i], userTag.Id())
 			result.Results[i].Error = nil
 		}
 	}

@@ -739,10 +739,10 @@ func (p *unitProcessor) placeUnitsForApplication(name string, application *charm
 		}
 	}
 
-	p.logger.Tracef("model: %s", p.existing.pretty())
-	p.logger.Tracef("placements: %v", application.To)
+	p.logger.Tracef(ctx, "model: %s", p.existing.pretty())
+	p.logger.Tracef(ctx, "placements: %v", application.To)
 	unsatisfied := p.existing.unsatisfiedMachineAndUnitPlacements(name, application.To)
-	p.logger.Tracef("unsatisfied: %v", unsatisfied)
+	p.logger.Tracef(ctx, "unsatisfied: %v", unsatisfied)
 
 	var lastChangeID string
 	// unitCount on a nil existingApp returns zero.
@@ -753,7 +753,7 @@ func (p *unitProcessor) placeUnitsForApplication(name string, application *charm
 		}
 		_ = unsatisfied
 
-		p.logger.Tracef("directive: %q", directive)
+		p.logger.Tracef(ctx, "directive: %q", directive)
 		placement, err := p.getPlacementForNewUnit(name, application, directive)
 		if err != nil {
 			return err

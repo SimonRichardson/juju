@@ -125,12 +125,12 @@ func environmentDataSources(bootstrapEnviron environs.BootstrapEnviron) ([]simpl
 	var datasources []simplestreams.DataSource
 	env, ok := bootstrapEnviron.(environs.Environ)
 	if !ok {
-		logger.Debugf("environmentDataSources is supported for IAAS, environ %#v is not Environ", bootstrapEnviron)
+		logger.Debugf(ctx, "environmentDataSources is supported for IAAS, environ %#v is not Environ", bootstrapEnviron)
 		// ignore for CAAS
 		return datasources, nil
 	}
 	for _, f := range toolsDatasourceFuncs {
-		logger.Debugf("trying datasource %q", f.id)
+		logger.Debugf(ctx, "trying datasource %q", f.id)
 		datasource, err := f.f(env)
 		if err != nil {
 			if errors.Is(err, errors.NotSupported) {

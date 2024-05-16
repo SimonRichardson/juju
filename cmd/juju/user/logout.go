@@ -100,11 +100,11 @@ func (c *logoutCommand) Run(ctx *cmd.Context) error {
 	}
 	switch loggedInCount {
 	case 0:
-		ctx.Infof("Logged out. You are no longer logged into any controllers.")
+		ctx.Infof(ctx, "Logged out. You are no longer logged into any controllers.")
 	case 1:
-		ctx.Infof("Logged out. You are still logged into 1 controller.")
+		ctx.Infof(ctx, "Logged out. You are still logged into 1 controller.")
 	default:
-		ctx.Infof("Logged out. You are still logged into %d controllers.", loggedInCount)
+		ctx.Infof(ctx, "Logged out. You are still logged into %d controllers.", loggedInCount)
 	}
 	return nil
 }

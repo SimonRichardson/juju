@@ -103,7 +103,7 @@ func (f *Facade) UnitIntroduction(ctx context.Context, args params.CAASUnitIntro
 		return errResp(errors.NotValidf("pod-uuid"))
 	}
 
-	f.logger.Debugf("introducing pod %q (%q)", args.PodName, args.PodUUID)
+	f.logger.Debugf(ctx, "introducing pod %q (%q)", args.PodName, args.PodUUID)
 
 	application, err := f.state.Application(tag.Name)
 	if err != nil {

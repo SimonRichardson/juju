@@ -145,7 +145,7 @@ func (c *CAASUnitInitCommand) Run(ctx *cmd.Context) (errOut error) {
 
 	defer func() {
 		if errOut != nil {
-			logger.Errorf("%v", errOut)
+			logger.Errorf(ctx, "%v", errOut)
 		}
 	}()
 
@@ -187,7 +187,7 @@ func (c *CAASUnitInitCommand) Run(ctx *cmd.Context) (errOut error) {
 
 	// symlink jujud
 	ln := filepath.Join(unitPaths.ToolsDir, "jujud")
-	logger.Infof("link %s => %s", ln, jujudPath)
+	logger.Infof(ctx, "link %s => %s", ln, jujudPath)
 	if err = c.symlinkFunc(jujudPath, ln); err != nil {
 		return errors.Annotatef(err, "failed to link %s to %s",
 			ln, jujudPath)
@@ -196,7 +196,7 @@ func (c *CAASUnitInitCommand) Run(ctx *cmd.Context) (errOut error) {
 	// symlink subcommands
 	for _, cmdName := range jujuc.CommandNames() {
 		ln := filepath.Join(unitPaths.ToolsDir, cmdName)
-		logger.Infof("link %s => %s", ln, jujucPath)
+		logger.Infof(ctx, "link %s => %s", ln, jujucPath)
 		if err = c.symlinkFunc(jujucPath, ln); err != nil {
 			return errors.Annotatef(err, "failed to link %s to %s",
 				ln, jujucPath)
@@ -225,7 +225,7 @@ func (c *CAASUnitInitCommand) Run(ctx *cmd.Context) (errOut error) {
 }
 
 func copy(src, dst string) error {
-	logger.Infof("copy %s => %s", src, dst)
+	logger.Infof(ctx, "copy %s => %s", src, dst)
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("cp -Rf %q %q", src, dst))
 	out, err := cmd.CombinedOutput()
 	if err != nil {

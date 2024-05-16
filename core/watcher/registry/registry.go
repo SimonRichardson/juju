@@ -180,7 +180,7 @@ func watcherLogDecorator(l logger.Logger) func(worker.Worker) (worker.Worker, er
 			return w, nil
 		}
 		if l.IsLevelEnabled(logger.TRACE) {
-			l.Tracef("starting watcher %T", w)
+			l.Tracef(ctx, "starting watcher %T", w)
 		}
 		return NewLoggingWatcher(w, l), nil
 	}
@@ -204,7 +204,7 @@ func NewLoggingWatcher(w worker.Worker, logger logger.Logger) *LoggingWatcher {
 // Kill asks the worker to stop and returns immediately.
 func (l *LoggingWatcher) Kill() {
 	if l.logger.IsLevelEnabled(logger.TRACE) {
-		l.logger.Tracef("killing watcher %T", l.worker)
+		l.logger.Tracef(ctx, "killing watcher %T", l.worker)
 	}
 	l.worker.Kill()
 }
@@ -214,7 +214,7 @@ func (l *LoggingWatcher) Kill() {
 func (l *LoggingWatcher) Wait() error {
 	err := l.worker.Wait()
 	if l.logger.IsLevelEnabled(logger.TRACE) {
-		l.logger.Tracef("watcher %T finished with error %v", l.worker, err)
+		l.logger.Tracef(ctx, "watcher %T finished with error %v", l.worker, err)
 	}
 	return errors.Trace(err)
 }

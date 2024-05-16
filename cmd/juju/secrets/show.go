@@ -112,7 +112,7 @@ func (c *showSecretsCommand) Init(args []string) error {
 // Run implements cmd.Run.
 func (c *showSecretsCommand) Run(ctxt *cmd.Context) error {
 	if c.revealSecrets && c.out.Name() == "tabular" {
-		ctxt.Infof("secret values are not shown in tabular format")
+		ctxt.Infof(ctx, "secret values are not shown in tabular format")
 		c.revealSecrets = false
 	}
 

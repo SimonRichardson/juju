@@ -180,7 +180,7 @@ func (c *removeApplicationCommand) Run(ctx *cmd.Context) error {
 	if needsConfirmation {
 		err := c.performDryRun(ctx, client)
 		if err == errDryRunNotSupportedByController {
-			ctx.Warningf(removeApplicationMsgNoDryRun, strings.Join(c.ApplicationNames, ", "))
+			ctx.Warningf(ctx, removeApplicationMsgNoDryRun, strings.Join(c.ApplicationNames, ", "))
 		} else if err != nil {
 			return err
 		}
@@ -226,7 +226,7 @@ func (c *removeApplicationCommand) performDryRun(
 	if err := c.logErrors(ctx, results); err != nil {
 		return err
 	}
-	ctx.Warningf(removeApplicationMsgPrefix)
+	ctx.Warningf(ctx, removeApplicationMsgPrefix)
 	_ = c.logResults(ctx, results)
 	return nil
 }
@@ -287,7 +287,7 @@ func (c *removeApplicationCommand) logRemovedApplication(
 	for _, entity := range info.DestroyedUnits {
 		unitTag, err := names.ParseUnitTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will remove %s\n", names.ReadableString(unitTag))
@@ -295,7 +295,7 @@ func (c *removeApplicationCommand) logRemovedApplication(
 	for _, entity := range info.DestroyedStorage {
 		storageTag, err := names.ParseStorageTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will remove %s\n", names.ReadableString(storageTag))
@@ -303,7 +303,7 @@ func (c *removeApplicationCommand) logRemovedApplication(
 	for _, entity := range info.DetachedStorage {
 		storageTag, err := names.ParseStorageTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will detach %s\n", names.ReadableString(storageTag))

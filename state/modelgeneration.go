@@ -671,7 +671,7 @@ func (st *State) AddBranch(branchName, userName string) error {
 	err = st.db().Run(buildTxn)
 	if err != nil {
 		err = onAbort(err, stateerrors.ErrDead)
-		logger.Errorf("cannot add branch to the model: %v", err)
+		logger.Errorf(ctx, "cannot add branch to the model: %v", err)
 	}
 	return err
 }

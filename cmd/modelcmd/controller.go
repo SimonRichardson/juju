@@ -187,7 +187,7 @@ func (c *ControllerCommandBase) initController0() error {
 
 // SetControllerName implements ControllerCommand.SetControllerName.
 func (c *ControllerCommandBase) SetControllerName(controllerName string, allowDefault bool) error {
-	logger.Infof("setting controllerName to %q %v", controllerName, allowDefault)
+	logger.Infof(ctx, "setting controllerName to %q %v", controllerName, allowDefault)
 	c._controllerName = controllerName
 	c.allowDefaultController = allowDefault
 	if c.runStarted {
@@ -490,7 +490,7 @@ func (c *OptionalControllerCommand) MaybePrompt(ctxt *cmd.Context, action string
 		return nil
 	}
 
-	ctxt.Infof("This operation can be applied to both a copy on this client and to the one on a controller.")
+	ctxt.Infof(ctx, "This operation can be applied to both a copy on this client and to the one on a controller.")
 	if jujucmd.IsPiped(ctxt) {
 		return errors.Errorf("The command is piped and Juju cannot prompt to clarify whether the --client or a --controller is to be used.\n" +
 			"Please clarify by re-running the command with the desired option(s).")
@@ -506,7 +506,7 @@ func (c *OptionalControllerCommand) MaybePrompt(ctxt *cmd.Context, action string
 		} else {
 			msg += " but there are other controllers registered: use -c or --controller to specify a controller if needed."
 		}
-		ctxt.Infof(msg)
+		ctxt.Infof(ctx, msg)
 
 		// If there are no controllers registered on this client,
 		// assume the operation only needs to run on a client.
@@ -521,7 +521,7 @@ func (c *OptionalControllerCommand) MaybePrompt(ctxt *cmd.Context, action string
 			return errors.Trace(err)
 		}
 		if !useClient {
-			ctxt.Infof("Neither client nor controller specified - nothing to do.")
+			ctxt.Infof(ctx, "Neither client nor controller specified - nothing to do.")
 		}
 		c.Client = useClient
 		return nil
@@ -552,12 +552,12 @@ func (c *OptionalControllerCommand) MaybePrompt(ctxt *cmd.Context, action string
 			c.Client = true
 			return nil
 		default:
-			ctxt.Infof("Invalid choice, enter a number between 1 and 3 or quit Q|q")
+			ctxt.Infof(ctx, "Invalid choice, enter a number between 1 and 3 or quit Q|q")
 		}
 	}
 quit:
 	if !c.Client && c.ControllerName == "" {
-		ctxt.Infof("Neither client nor controller specified - nothing to do.")
+		ctxt.Infof(ctx, "Neither client nor controller specified - nothing to do.")
 	}
 	return nil
 }

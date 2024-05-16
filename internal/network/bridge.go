@@ -47,16 +47,16 @@ func (b *etcNetworkInterfacesBridger) Bridge(devices []DeviceToBridge, reconfigu
 		return errors.Errorf("bridge activation error: %s", err)
 	}
 	if result != nil {
-		logger.Infof("bridgescript result=%v", result.Code)
+		logger.Infof(ctx, "bridgescript result=%v", result.Code)
 		if result.Code != 0 {
-			logger.Errorf("bridgescript stdout\n%s\n", result.Stdout)
-			logger.Errorf("bridgescript stderr\n%s\n", result.Stderr)
+			logger.Errorf(ctx, "bridgescript stdout\n%s\n", result.Stdout)
+			logger.Errorf(ctx, "bridgescript stderr\n%s\n", result.Stderr)
 			return errors.Errorf("bridgescript failed: %s", string(result.Stderr))
 		}
-		logger.Tracef("bridgescript stdout\n%s\n", result.Stdout)
-		logger.Tracef("bridgescript stderr\n%s\n", result.Stderr)
+		logger.Tracef(ctx, "bridgescript stdout\n%s\n", result.Stdout)
+		logger.Tracef(ctx, "bridgescript stderr\n%s\n", result.Stderr)
 	} else {
-		logger.Infof("bridgescript returned nothing")
+		logger.Infof(ctx, "bridgescript returned nothing")
 	}
 
 	return nil
@@ -103,16 +103,16 @@ func (b *netplanBridger) Bridge(devices []DeviceToBridge, reconfigureDelay int) 
 		return errors.Errorf("bridge activation error: %s", err)
 	}
 	if result != nil {
-		logger.Infof("bridger result=%v", result.Code)
+		logger.Infof(ctx, "bridger result=%v", result.Code)
 		if result.Code != 0 {
-			logger.Errorf("bridger stdout\n%s\n", result.Stdout)
-			logger.Errorf("bridger stderr\n%s\n", result.Stderr)
+			logger.Errorf(ctx, "bridger stdout\n%s\n", result.Stdout)
+			logger.Errorf(ctx, "bridger stderr\n%s\n", result.Stderr)
 			return errors.Errorf("bridger failed: %s", result.Stderr)
 		}
-		logger.Tracef("bridger stdout\n%s\n", result.Stdout)
-		logger.Tracef("bridger stderr\n%s\n", result.Stderr)
+		logger.Tracef(ctx, "bridger stdout\n%s\n", result.Stdout)
+		logger.Tracef(ctx, "bridger stderr\n%s\n", result.Stderr)
 	} else {
-		logger.Infof("bridger returned nothing")
+		logger.Infof(ctx, "bridger returned nothing")
 	}
 
 	return nil

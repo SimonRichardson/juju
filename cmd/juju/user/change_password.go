@@ -126,7 +126,7 @@ func (c *changePasswordCommand) Run(ctx *cmd.Context) error {
 
 	if c.Reset {
 		if c.User == "" || (c.accountDetails != nil && c.User == c.accountDetails.User) {
-			ctx.Infof("You cannot reset your own password.\nIf you want to change it, please call `juju change-user-password` without --reset option.")
+			ctx.Infof(ctx, "You cannot reset your own password.\nIf you want to change it, please call `juju change-user-password` without --reset option.")
 			return nil
 		}
 		return c.resetUserPassword(ctx)
@@ -186,7 +186,7 @@ func (c *changePasswordCommand) resetUserPassword(ctx *cmd.Context) error {
 	if err != nil {
 		return block.ProcessBlockedError(err, block.BlockChange)
 	}
-	ctx.Infof("Password for %q has been reset.", c.User)
+	ctx.Infof(ctx, "Password for %q has been reset.", c.User)
 	base64RegistrationData, err := generateUserControllerAccessToken(
 		&c.ControllerCommandBase,
 		c.userTag.Id(),
@@ -195,7 +195,7 @@ func (c *changePasswordCommand) resetUserPassword(ctx *cmd.Context) error {
 	if err != nil {
 		return errors.Annotate(err, "generating controller user access token")
 	}
-	ctx.Infof("Ask the user to run:\n     juju register %s\n", base64RegistrationData)
+	ctx.Infof(ctx, "Ask the user to run:\n     juju register %s\n", base64RegistrationData)
 	return nil
 }
 
@@ -223,7 +223,7 @@ func (c *changePasswordCommand) updateUserPassword(ctx *cmd.Context) error {
 		return block.ProcessBlockedError(err, block.BlockChange)
 	}
 	if c.accountDetails == nil {
-		ctx.Infof("Password for %q has been changed.", c.User)
+		ctx.Infof(ctx, "Password for %q has been changed.", c.User)
 	} else {
 		if c.accountDetails.Password != "" {
 			// Log back in with macaroon authentication, so we can
@@ -241,7 +241,7 @@ func (c *changePasswordCommand) updateUserPassword(ctx *cmd.Context) error {
 				return errors.Annotate(err, "failed to update client credentials")
 			}
 		}
-		ctx.Infof("Your password has been changed.")
+		ctx.Infof(ctx, "Your password has been changed.")
 	}
 	return nil
 }

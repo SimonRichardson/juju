@@ -110,12 +110,12 @@ func (l *loggerWorker) RecordSlowQuery(msg, stmt string, args []any, duration fl
 
 	if err != nil {
 		// Failed to log the slow query, log it to the main logger.
-		l.logger.Warningf("failed to log slow query: %v", err)
-		l.logger.Warningf("slow query: "+msg+"\n%s", append(args, stack)...)
+		l.logger.Warningf(ctx, "failed to log slow query: %v", err)
+		l.logger.Warningf(ctx, "slow query: "+msg+"\n%s", append(args, stack)...)
 		return
 	}
 
-	l.logger.Warningf("slow query: "+msg, args...)
+	l.logger.Warningf(ctx, "slow query: "+msg, args...)
 }
 
 // Kill is part of the worker.Worker interface.
@@ -139,10 +139,10 @@ func (l *loggerWorker) loop() error {
 	defer func() {
 		// Don't return early, just log and continue.
 		if err := file.Sync(); err != nil {
-			l.logger.Errorf("failed to sync slow query log: %v", err)
+			l.logger.Errorf(ctx, "failed to sync slow query log: %v", err)
 		}
 		if err := file.Close(); err != nil {
-			l.logger.Errorf("failed to close slow query log: %v", err)
+			l.logger.Errorf(ctx, "failed to close slow query log: %v", err)
 		}
 	}()
 

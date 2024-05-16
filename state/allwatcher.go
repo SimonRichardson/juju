@@ -104,18 +104,18 @@ func makeAllWatcherCollectionInfo(collNames []string) map[string]allWatcherState
 			collection.docType = reflect.TypeOf(backingPermission{})
 			collection.subsidiary = true
 		default:
-			allWatcherLogger.Criticalf("programming error: unknown collection %q", collName)
+			allWatcherLogger.Criticalf(ctx, "programming error: unknown collection %q", collName)
 		}
 
 		docType := collection.docType
 		if _, ok := seenTypes[docType]; ok {
-			allWatcherLogger.Criticalf("programming error: duplicate collection type %s", docType)
+			allWatcherLogger.Criticalf(ctx, "programming error: duplicate collection type %s", docType)
 		} else {
 			seenTypes[docType] = struct{}{}
 		}
 
 		if _, ok := collectionByName[collName]; ok {
-			allWatcherLogger.Criticalf("programming error: duplicate collection name %q", collName)
+			allWatcherLogger.Criticalf(ctx, "programming error: duplicate collection name %q", collName)
 		} else {
 			collectionByName[collName] = collection
 		}
@@ -133,7 +133,7 @@ func (e *backingModel) isNotFoundAndModelDead(err error) bool {
 }
 
 func (e *backingModel) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`model "%s" updated`, ctx.id)
+	allWatcherLogger.Tracef(ctx, `model "%s" updated`, ctx.id)
 
 	// Update the context with the model type.
 	ctx.modelType_ = e.Type
@@ -209,7 +209,7 @@ func (e *backingModel) updated(ctx *allWatcherContext) error {
 }
 
 func (e *backingModel) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`model "%s" removed`, ctx.id)
+	allWatcherLogger.Tracef(ctx, `model "%s" removed`, ctx.id)
 	ctx.removeFromStore(multiwatcher.ModelKind)
 	return nil
 }
@@ -236,7 +236,7 @@ func (e *backingPermission) modelAndUser(id string) (string, string, bool) {
 }
 
 func (e *backingPermission) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`permission "%s" updated`, ctx.id)
+	allWatcherLogger.Tracef(ctx, `permission "%s" updated`, ctx.id)
 
 	modelUUID, user, ok := e.modelAndUser(ctx.id)
 	if !ok {
@@ -257,7 +257,7 @@ func (e *backingPermission) updated(ctx *allWatcherContext) error {
 }
 
 func (e *backingPermission) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`permission "%s" removed`, ctx.id)
+	allWatcherLogger.Tracef(ctx, `permission "%s" removed`, ctx.id)
 
 	modelUUID, user, ok := e.modelAndUser(ctx.id)
 	if !ok {
@@ -292,7 +292,7 @@ func (e *backingPermission) getModelInfo(ctx *allWatcherContext, modelUUID strin
 }
 
 func (e *backingPermission) mongoID() string {
-	allWatcherLogger.Criticalf("programming error: attempting to get mongoID from permissions document")
+	allWatcherLogger.Criticalf(ctx, "programming error: attempting to get mongoID from permissions document")
 	return ""
 }
 
@@ -305,7 +305,7 @@ func (m *backingMachine) updateAgentVersion(info *multiwatcher.MachineInfo) {
 }
 
 func (m *backingMachine) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`machine "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `machine "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	wantsVote := false
 	hasVote := false
 	if ctx.state.IsController() {
@@ -404,7 +404,7 @@ func (m *backingMachine) updated(ctx *allWatcherContext) error {
 }
 
 func (m *backingMachine) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`machine "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `machine "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.MachineKind)
 	return nil
 }
@@ -416,7 +416,7 @@ func (m *backingMachine) mongoID() string {
 type backingInstanceData instanceData
 
 func (i *backingInstanceData) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`instance data "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `instance data "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	parentID, _, ok := ctx.entityIDForGlobalKey(machineGlobalKey(ctx.id))
 	if !ok {
 		return nil
@@ -488,7 +488,7 @@ func (u *backingUnit) updateAgentVersion(info *multiwatcher.UnitInfo) {
 }
 
 func (u *backingUnit) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`unit "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `unit "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	base, err := corebase.ParseBase(u.Base.OS, u.Base.Channel)
 	if err != nil {
 		return errors.Trace(err)
@@ -518,7 +518,7 @@ func (u *backingUnit) updated(ctx *allWatcherContext) error {
 
 	oldInfo := ctx.store.Get(info.EntityID())
 	if oldInfo == nil {
-		allWatcherLogger.Debugf("new unit %q added to backing state", u.Name)
+		allWatcherLogger.Debugf(ctx, "new unit %q added to backing state", u.Name)
 
 		// We're adding the entry for the first time,
 		// so fetch the associated unit status and opened ports.
@@ -581,11 +581,11 @@ func (ctx *allWatcherContext) getUnitAddresses(u *Unit) (string, string, error) 
 	if modelType == ModelTypeCAAS {
 		publicAddress, err := u.PublicAddress()
 		if err != nil {
-			allWatcherLogger.Tracef("getting a public address for unit %q failed: %q", u.Name(), err)
+			allWatcherLogger.Tracef(ctx, "getting a public address for unit %q failed: %q", u.Name(), err)
 		}
 		privateAddress, err := u.PrivateAddress()
 		if err != nil {
-			allWatcherLogger.Tracef("getting a private address for unit %q failed: %q", u.Name(), err)
+			allWatcherLogger.Tracef(ctx, "getting a private address for unit %q failed: %q", u.Name(), err)
 		}
 		return publicAddress.Value, privateAddress.Value, nil
 	}
@@ -609,7 +609,7 @@ func (ctx *allWatcherContext) getUnitAddresses(u *Unit) (string, string, error) 
 }
 
 func (u *backingUnit) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`unit "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `unit "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.UnitKind)
 	return nil
 }
@@ -621,7 +621,7 @@ func (u *backingUnit) mongoID() string {
 type backingApplication applicationDoc
 
 func (app *backingApplication) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`application "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `application "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	if app.CharmURL == nil {
 		return errors.Errorf("charm url is nil")
 	}
@@ -637,7 +637,7 @@ func (app *backingApplication) updated(ctx *allWatcherContext) error {
 	oldInfo := ctx.store.Get(info.EntityID())
 	needConfig := false
 	if oldInfo == nil {
-		allWatcherLogger.Debugf("new application %q added to backing state", app.Name)
+		allWatcherLogger.Debugf(ctx, "new application %q added to backing state", app.Name)
 		key := applicationGlobalKey(app.Name)
 		// We're adding the entry for the first time,
 		// so fetch the associated child documents.
@@ -695,7 +695,7 @@ func (app *backingApplication) updated(ctx *allWatcherContext) error {
 }
 
 func (app *backingApplication) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`application "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `application "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.ApplicationKind)
 	return nil
 }
@@ -707,7 +707,7 @@ func (app *backingApplication) mongoID() string {
 type backingCharm charmDoc
 
 func (ch *backingCharm) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`charm "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `charm "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	info := &multiwatcher.CharmInfo{
 		ModelUUID:    ch.ModelUUID,
 		CharmURL:     *ch.URL,
@@ -730,7 +730,7 @@ func (ch *backingCharm) updated(ctx *allWatcherContext) error {
 }
 
 func (ch *backingCharm) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`charm "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `charm "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.CharmKind)
 	return nil
 }
@@ -738,7 +738,7 @@ func (ch *backingCharm) removed(ctx *allWatcherContext) error {
 func (ch *backingCharm) mongoID() string {
 	_, id, ok := splitDocID(ch.DocID)
 	if !ok {
-		allWatcherLogger.Criticalf("charm ID not valid: %v", ch.DocID)
+		allWatcherLogger.Criticalf(ctx, "charm ID not valid: %v", ch.DocID)
 	}
 	return id
 }
@@ -755,7 +755,7 @@ func toMultiwatcherProfile(profile *LXDProfile) *multiwatcher.Profile {
 type backingRemoteApplication remoteApplicationDoc
 
 func (app *backingRemoteApplication) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`remote application "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `remote application "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	if app.Name == "" {
 		return errors.Errorf("saas application name is not set")
 	}
@@ -772,7 +772,7 @@ func (app *backingRemoteApplication) updated(ctx *allWatcherContext) error {
 	}
 	oldInfo := ctx.store.Get(info.EntityID())
 	if oldInfo == nil {
-		allWatcherLogger.Debugf("new remote application %q added to backing state", app.Name)
+		allWatcherLogger.Debugf(ctx, "new remote application %q added to backing state", app.Name)
 		// Fetch the status.
 		key := remoteApplicationGlobalKey(app.Name)
 		appStatus, err := ctx.getStatus(key, "saas application")
@@ -780,14 +780,14 @@ func (app *backingRemoteApplication) updated(ctx *allWatcherContext) error {
 			return errors.Annotatef(err, "reading remote application status for key %s", key)
 		}
 		info.Status = appStatus
-		allWatcherLogger.Debugf("saas application status %#v", info.Status)
+		allWatcherLogger.Debugf(ctx, "saas application status %#v", info.Status)
 	} else {
-		allWatcherLogger.Debugf("use status from existing app")
+		allWatcherLogger.Debugf(ctx, "use status from existing app")
 		switch t := oldInfo.(type) {
 		case *multiwatcher.RemoteApplicationUpdate:
 			info.Status = t.Status
 		default:
-			allWatcherLogger.Debugf("unexpected type %t", t)
+			allWatcherLogger.Debugf(ctx, "unexpected type %t", t)
 		}
 	}
 	ctx.store.Update(info)
@@ -823,7 +823,7 @@ func (app *backingRemoteApplication) updateOfferInfo(ctx *allWatcherContext) err
 }
 
 func (app *backingRemoteApplication) removed(ctx *allWatcherContext) (err error) {
-	allWatcherLogger.Tracef(`remote application "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `remote application "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	// TODO: see if we need the check of consumer proxy like in the change
 	if app.IsConsumerProxy {
 		err = app.updateOfferInfo(ctx)
@@ -843,7 +843,7 @@ func (app *backingRemoteApplication) mongoID() string {
 type backingApplicationOffer applicationOfferDoc
 
 func (b *backingApplicationOffer) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`application offer "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `application offer "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	info := &multiwatcher.ApplicationOfferInfo{
 		ModelUUID:       ctx.modelUUID, // ModelUUID not on applicationOfferDoc
 		OfferName:       b.OfferName,
@@ -881,7 +881,7 @@ func (b *backingApplicationOffer) updated(ctx *allWatcherContext) error {
 }
 
 func (b *backingApplicationOffer) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`application offer "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `application offer "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.ApplicationOfferKind)
 	return nil
 }
@@ -895,19 +895,19 @@ type backingAction actionDoc
 func (a *backingAction) mongoID() string {
 	_, id, ok := splitDocID(a.DocId)
 	if !ok {
-		allWatcherLogger.Criticalf("action ID not valid: %v", a.DocId)
+		allWatcherLogger.Criticalf(ctx, "action ID not valid: %v", a.DocId)
 	}
 	return id
 }
 
 func (a *backingAction) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`action "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `action "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.ActionKind)
 	return nil
 }
 
 func (a *backingAction) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`action "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `action "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	info := &multiwatcher.ActionInfo{
 		ModelUUID:      a.ModelUUID,
 		ID:             ctx.id, // local ID isn't available on the action doc
@@ -930,7 +930,7 @@ func (a *backingAction) updated(ctx *allWatcherContext) error {
 type backingRelation relationDoc
 
 func (r *backingRelation) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`relation "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `relation "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	eps := make([]multiwatcher.Endpoint, len(r.Endpoints))
 	for i, ep := range r.Endpoints {
 		eps[i] = multiwatcher.Endpoint{
@@ -964,7 +964,7 @@ func newCharmRelation(cr charm.Relation) multiwatcher.CharmRelation {
 }
 
 func (r *backingRelation) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`relation "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `relation "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.RelationKind)
 	return nil
 }
@@ -976,7 +976,7 @@ func (r *backingRelation) mongoID() string {
 type backingBlock blockDoc
 
 func (a *backingBlock) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`block "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `block "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	info := &multiwatcher.BlockInfo{
 		ModelUUID: a.ModelUUID,
 		ID:        ctx.id, // ID not in the blockDoc
@@ -989,7 +989,7 @@ func (a *backingBlock) updated(ctx *allWatcherContext) error {
 }
 
 func (a *backingBlock) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`block "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `block "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.BlockKind)
 	return nil
 }
@@ -997,7 +997,7 @@ func (a *backingBlock) removed(ctx *allWatcherContext) error {
 func (a *backingBlock) mongoID() string {
 	_, id, ok := splitDocID(a.DocID)
 	if !ok {
-		allWatcherLogger.Criticalf("block ID not valid: %v", a.DocID)
+		allWatcherLogger.Criticalf(ctx, "block ID not valid: %v", a.DocID)
 	}
 	return id
 }
@@ -1014,7 +1014,7 @@ func (s *backingStatus) toStatusInfo() multiwatcher.StatusInfo {
 }
 
 func (s *backingStatus) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`status "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `status "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	parentID, suffix, ok := ctx.entityIDForGlobalKey(ctx.id)
 	if !ok {
 		return nil
@@ -1048,7 +1048,7 @@ func (s *backingStatus) updated(ctx *allWatcherContext) error {
 			// No need to touch the unit for now, so we can exit the function here.
 			return nil
 		default:
-			allWatcherLogger.Tracef("charm status suffix %q unhandled", suffix)
+			allWatcherLogger.Tracef(ctx, "charm status suffix %q unhandled", suffix)
 			return nil
 		}
 		info0 = &newInfo
@@ -1064,7 +1064,7 @@ func (s *backingStatus) updated(ctx *allWatcherContext) error {
 		case "":
 			newInfo.Status = s.toStatusInfo()
 		default:
-			allWatcherLogger.Tracef("application status suffix %q unhandled", suffix)
+			allWatcherLogger.Tracef(ctx, "application status suffix %q unhandled", suffix)
 			return nil
 		}
 		info0 = &newInfo
@@ -1083,7 +1083,7 @@ func (s *backingStatus) updated(ctx *allWatcherContext) error {
 			newInfo.AgentStatus = s.toStatusInfo()
 			newInfo.AgentStatus.Version = agentVersion
 		default:
-			allWatcherLogger.Tracef("machine status suffix %q unhandled", suffix)
+			allWatcherLogger.Tracef(ctx, "machine status suffix %q unhandled", suffix)
 			return nil
 		}
 		info0 = &newInfo
@@ -1173,14 +1173,14 @@ func (s *backingStatus) removed(ctx *allWatcherContext) error {
 }
 
 func (s *backingStatus) mongoID() string {
-	allWatcherLogger.Criticalf("programming error: attempting to get mongoID from status document")
+	allWatcherLogger.Criticalf(ctx, "programming error: attempting to get mongoID from status document")
 	return ""
 }
 
 type backingConstraints constraintsDoc
 
 func (c *backingConstraints) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`constraints "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `constraints "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	parentID, _, ok := ctx.entityIDForGlobalKey(ctx.id)
 	if !ok {
 		return nil
@@ -1213,14 +1213,14 @@ func (c *backingConstraints) removed(ctx *allWatcherContext) error {
 }
 
 func (c *backingConstraints) mongoID() string {
-	allWatcherLogger.Criticalf("programming error: attempting to get mongoID from constraints document")
+	allWatcherLogger.Criticalf(ctx, "programming error: attempting to get mongoID from constraints document")
 	return ""
 }
 
 type backingSettings settingsDoc
 
 func (s *backingSettings) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`settings "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `settings "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	parentID, url, ok := ctx.entityIDForSettingsKey(ctx.id)
 	if !ok {
 		return nil
@@ -1265,14 +1265,14 @@ func (s *backingSettings) removed(ctx *allWatcherContext) error {
 }
 
 func (s *backingSettings) mongoID() string {
-	allWatcherLogger.Criticalf("programming error: attempting to get mongoID from settings document")
+	allWatcherLogger.Criticalf(ctx, "programming error: attempting to get mongoID from settings document")
 	return ""
 }
 
 type backingOpenedPorts map[string]interface{}
 
 func (p *backingOpenedPorts) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`opened ports "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `opened ports "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	parentID, ok := ctx.entityIDForOpenedPortsKey(ctx.id)
 	if !ok {
 		return nil
@@ -1299,7 +1299,7 @@ func (p *backingOpenedPorts) updated(ctx *allWatcherContext) error {
 }
 
 func (p *backingOpenedPorts) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`opened ports "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `opened ports "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	// This magic is needed as an open ports doc may be removed if all
 	// open ports on the subnet are removed.
 	parentID, ok := ctx.entityIDForOpenedPortsKey(ctx.id)
@@ -1333,7 +1333,7 @@ func (p *backingOpenedPorts) removed(ctx *allWatcherContext) error {
 }
 
 func (p *backingOpenedPorts) mongoID() string {
-	allWatcherLogger.Criticalf("programming error: attempting to get mongoID from openedPorts document")
+	allWatcherLogger.Criticalf(ctx, "programming error: attempting to get mongoID from openedPorts document")
 	return ""
 }
 
@@ -1366,7 +1366,7 @@ func updateUnitPorts(ctx *allWatcherContext, u *Unit) error {
 type backingGeneration generationDoc
 
 func (g *backingGeneration) updated(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`generation "%s:%s" updated`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `generation "%s:%s" updated`, ctx.modelUUID, ctx.id)
 	// Convert the state representation of config deltas
 	// to the multiwatcher representation.
 	var cfg map[string][]multiwatcher.ItemChange
@@ -1412,7 +1412,7 @@ func (g *backingGeneration) updated(ctx *allWatcherContext) error {
 }
 
 func (g *backingGeneration) removed(ctx *allWatcherContext) error {
-	allWatcherLogger.Tracef(`branch "%s:%s" removed`, ctx.modelUUID, ctx.id)
+	allWatcherLogger.Tracef(ctx, `branch "%s:%s" removed`, ctx.modelUUID, ctx.id)
 	ctx.removeFromStore(multiwatcher.BranchKind)
 	return nil
 }
@@ -1420,7 +1420,7 @@ func (g *backingGeneration) removed(ctx *allWatcherContext) error {
 func (g *backingGeneration) mongoID() string {
 	_, id, ok := splitDocID(g.DocId)
 	if !ok {
-		allWatcherLogger.Criticalf("charm ID not valid: %v", g.DocId)
+		allWatcherLogger.Criticalf(ctx, "charm ID not valid: %v", g.DocId)
 	}
 	return id
 }
@@ -1652,7 +1652,7 @@ func loadAllWatcherEntities(st *State, loadOrder []string, collectionByName map[
 	start := st.clock().Now()
 	defer func() {
 		elapsed := st.clock().Now().Sub(start)
-		allWatcherLogger.Infof("allwatcher loaded for model %q in %s", st.ModelUUID(), elapsed)
+		allWatcherLogger.Infof(ctx, "allwatcher loaded for model %q in %s", st.ModelUUID(), elapsed)
 	}()
 
 	ctx := &allWatcherContext{
@@ -1668,7 +1668,7 @@ func loadAllWatcherEntities(st *State, loadOrder []string, collectionByName map[
 	for _, name := range loadOrder {
 		c, found := collectionByName[name]
 		if !found {
-			allWatcherLogger.Criticalf("programming error, collection %q not found in map", name)
+			allWatcherLogger.Criticalf(ctx, "programming error, collection %q not found in map", name)
 			continue
 		}
 		if c.subsidiary {

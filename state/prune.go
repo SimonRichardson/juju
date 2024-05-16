@@ -154,7 +154,7 @@ func (p *collectionPruner) pruneByAge(stop <-chan struct{}) error {
 		return errors.Trace(err)
 	}
 	if deleted > 0 {
-		logger.Debugf("%s age pruning (%s): %d rows deleted", p.coll.Name, modelName, deleted)
+		logger.Debugf(ctx, "%s age pruning (%s): %d rows deleted", p.coll.Name, modelName, deleted)
 	}
 	return errors.Trace(iter.Close())
 }
@@ -181,7 +181,7 @@ func collStats(coll *mgo.Collection) (bson.M, error) {
 func dbCollectionSizeToInt(result bson.M, collectionName string) (int, error) {
 	size, ok := result["size"]
 	if !ok {
-		logger.Warningf("mongo collStats did not return a size field for %q", collectionName)
+		logger.Warningf(ctx, "mongo collStats did not return a size field for %q", collectionName)
 		// this wasn't considered an error in the past, just treat it as size 0
 		return 0, nil
 	}
@@ -311,7 +311,7 @@ func (p *collectionPruner) pruneBySize(stop <-chan struct{}) error {
 		return errors.Trace(err)
 	}
 
-	logger.Infof("%s size pruning finished: %d rows deleted", p.coll.Name, deleted)
+	logger.Infof(ctx, "%s size pruning finished: %d rows deleted", p.coll.Name, deleted)
 	return errors.Trace(iter.Close())
 }
 

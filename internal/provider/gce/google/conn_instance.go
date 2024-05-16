@@ -131,7 +131,7 @@ func (gce *Connection) RemoveInstances(prefix string, ids ...string) error {
 				zoneName := path.Base(inst.InstanceSummary.ZoneName)
 				if err := gce.removeInstance(instID, zoneName); err != nil {
 					failed = append(failed, instID)
-					logger.Errorf("while removing instance %q: %v", instID, err)
+					logger.Errorf(ctx, "while removing instance %q: %v", instID, err)
 				}
 				break
 			}
@@ -161,7 +161,7 @@ func (gce *Connection) UpdateMetadata(key, value string, ids ...string) error {
 			if inst.Name == instID {
 				if err := gce.updateInstanceMetadata(inst, key, value); err != nil {
 					failed = append(failed, instID)
-					logger.Errorf("while updating metadata for instance %q (%v=%q): %v",
+					logger.Errorf(ctx, "while updating metadata for instance %q (%v=%q): %v",
 						instID, key, value, err)
 				}
 				break

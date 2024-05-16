@@ -165,7 +165,7 @@ func (c *addCommand) Run(ctx *cmd.Context) (err error) {
 		}
 		if one.Result == nil {
 			// Old controllers don't inform us of tag names.
-			ctx.Infof("added storage %q to %s", us.StorageName, c.unitTag.Id())
+			ctx.Infof(ctx, "added storage %q to %s", us.StorageName, c.unitTag.Id())
 			continue
 		}
 		for _, tagString := range one.Result.StorageTags {
@@ -173,7 +173,7 @@ func (c *addCommand) Run(ctx *cmd.Context) (err error) {
 			if err != nil {
 				return errors.Trace(err)
 			}
-			ctx.Infof("added storage %s to %s", tag.Id(), c.unitTag.Id())
+			ctx.Infof(ctx, "added storage %s to %s", tag.Id(), c.unitTag.Id())
 		}
 	}
 

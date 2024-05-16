@@ -136,7 +136,7 @@ func (c *MoveCommand) getSubnetTags(ctx *cmd.Context, api SubnetAPI, cidrs set.S
 			if !c.CIDRs.Contains(subnet.CIDR) {
 				// This should never happen, but considering that we're using
 				// CIDRs as IDs, then we should at least tripple check.
-				ctx.Warningf("Subnet CIDR %q was not one supplied %v", subnet.CIDR, c.CIDRs.SortedValues())
+				ctx.Warningf(ctx, "Subnet CIDR %q was not one supplied %v", subnet.CIDR, c.CIDRs.SortedValues())
 				continue
 			}
 

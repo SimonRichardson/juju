@@ -93,12 +93,12 @@ func (c *ListCommand) Run(ctx *cmd.Context) error {
 		spaces, err := api.ListSpaces()
 		if err != nil {
 			if errors.Is(err, errors.NotSupported) {
-				ctx.Infof("cannot list spaces: %v", err)
+				ctx.Infof(ctx, "cannot list spaces: %v", err)
 			}
 			return errors.Annotate(err, "cannot list spaces")
 		}
 		if len(spaces) == 0 {
-			ctx.Infof("no spaces to display")
+			ctx.Infof(ctx, "no spaces to display")
 			if c.out.Name() == "tabular" {
 				return nil
 			}

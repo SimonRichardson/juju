@@ -101,10 +101,10 @@ func (c *setDefaultRegionCommand) Run(ctxt *cmd.Context) error {
 	if !c.reset && c.region == "" {
 		// We are just reading the value.
 		if cred.DefaultRegion != "" {
-			ctxt.Infof("Default region for cloud %q is %q on this client.", c.cloud, cred.DefaultRegion)
+			ctxt.Infof(ctx, "Default region for cloud %q is %q on this client.", c.cloud, cred.DefaultRegion)
 			return nil
 		}
-		ctxt.Infof("Default region for cloud %q is not set on this client.", c.cloud)
+		ctxt.Infof(ctx, "Default region for cloud %q is not set on this client.", c.cloud)
 		return nil
 	}
 	msg := fmt.Sprintf("Default region for cloud %q is no longer set on this client.", c.cloud)
@@ -122,6 +122,6 @@ func (c *setDefaultRegionCommand) Run(ctxt *cmd.Context) error {
 	if err := c.store.UpdateCredential(c.cloud, *cred); err != nil {
 		return err
 	}
-	ctxt.Infof(msg)
+	ctxt.Infof(ctx, msg)
 	return nil
 }

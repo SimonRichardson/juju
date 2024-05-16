@@ -115,7 +115,7 @@ func (w *secretBackendModelConfigWatcher) processModelChange() (bool, error) {
 	if w.currentSecretBackend == latest {
 		return false, nil
 	}
-	w.logger.Tracef("secret backend was changed from %s to %s", w.currentSecretBackend, latest)
+	w.logger.Tracef(ctx, "secret backend was changed from %s to %s", w.currentSecretBackend, latest)
 	w.currentSecretBackend = latest
 	return true, nil
 }

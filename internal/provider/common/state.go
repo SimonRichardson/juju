@@ -32,7 +32,7 @@ type BootstrapState struct {
 // putState writes the given data to the state file on the given storage.
 // The file's name is as defined in StateFile.
 func putState(stor storage.StorageWriter, data []byte) error {
-	logger.Debugf("putting %q to bootstrap storage %T", StateFile, stor)
+	logger.Debugf(ctx, "putting %q to bootstrap storage %T", StateFile, stor)
 	return stor.Put(StateFile, bytes.NewBuffer(data), int64(len(data)))
 }
 

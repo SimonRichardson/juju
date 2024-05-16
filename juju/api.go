@@ -86,7 +86,7 @@ func NewAPIConnection(args NewAPIConnectionParams) (_ api.Connection, err error)
 	// we'll update the entry correctly.
 	dnsCache := dnsCacheMap(controller.DNSCache).copy()
 	args.DialOpts.DNSCache = dnsCache
-	logger.Infof("connecting to API addresses: %v", apiInfo.Addrs)
+	logger.Infof(ctx, "connecting to API addresses: %v", apiInfo.Addrs)
 	st, err := args.OpenAPI(apiInfo, args.DialOpts)
 	if err != nil {
 		var redirErr *api.RedirectError
@@ -143,7 +143,7 @@ func NewAPIConnection(args NewAPIConnectionParams) (_ api.Connection, err error)
 	}
 	err = updateControllerDetailsFromLogin(args.Store, args.ControllerName, controller, params)
 	if err != nil {
-		logger.Errorf("cannot cache API addresses: %v", err)
+		logger.Errorf(ctx, "cannot cache API addresses: %v", err)
 	}
 
 	// Process the account details obtained from login.
@@ -167,7 +167,7 @@ func processAccountDetails(authTag names.Tag, apiInfoTag names.Tag, controllerNa
 		if ok {
 			if accountDetails, err = store.AccountDetails(controllerName); err != nil {
 				if !errors.Is(err, errors.NotFound) {
-					logger.Errorf("cannot load local account information: %v", err)
+					logger.Errorf(ctx, "cannot load local account information: %v", err)
 				}
 			} else {
 				accountDetails.LastKnownAccess = controllerAccess
@@ -187,13 +187,13 @@ func processAccountDetails(authTag names.Tag, apiInfoTag names.Tag, controllerNa
 					LastKnownAccess: controllerAccess,
 				}
 			} else if apiInfoTag == nil {
-				logger.Errorf("unexpected logged-in username %v", authTag)
+				logger.Errorf(ctx, "unexpected logged-in username %v", authTag)
 			}
 		}
 	}
 	if accountDetails != nil {
 		if err := store.UpdateAccount(controllerName, *accountDetails); err != nil {
-			logger.Errorf("cannot update account information: %v", err)
+			logger.Errorf(ctx, "cannot update account information: %v", err)
 		}
 	}
 }
@@ -377,9 +377,9 @@ func updateControllerDetailsFromLogin(
 	}
 	reordered, diffContents := addrsChanged(newDetails.APIEndpoints, details.APIEndpoints)
 	if diffContents {
-		logger.Infof("API endpoints changed from %v to %v", details.APIEndpoints, newDetails.APIEndpoints)
+		logger.Infof(ctx, "API endpoints changed from %v to %v", details.APIEndpoints, newDetails.APIEndpoints)
 	} else if reordered {
-		logger.Tracef("API endpoints reordered from %v to %v", details.APIEndpoints, newDetails.APIEndpoints)
+		logger.Tracef(ctx, "API endpoints reordered from %v to %v", details.APIEndpoints, newDetails.APIEndpoints)
 	}
 	err = store.UpdateController(controllerName, *newDetails)
 	return errors.Trace(err)

@@ -157,7 +157,7 @@ func (s *ProviderService) ReloadSpaces(ctx context.Context) error {
 			return errors.Trace(err)
 		}
 
-		s.Service.logger.Infof("discovered spaces: %s", spaces.String())
+		s.Service.logger.Infof(ctx, "discovered spaces: %s", spaces.String())
 
 		providerSpaces := NewProviderSpaces(s, s.logger)
 		if err := providerSpaces.saveSpaces(ctx, spaces, fanConfig); err != nil {
@@ -168,12 +168,12 @@ func (s *ProviderService) ReloadSpaces(ctx context.Context) error {
 			return errors.Trace(err)
 		}
 		for _, warning := range warnings {
-			s.Service.logger.Tracef(warning)
+			s.Service.logger.Tracef(ctx, warning)
 		}
 		return nil
 	}
 
-	s.Service.logger.Debugf("environ does not support space discovery, falling back to subnet discovery")
+	s.Service.logger.Debugf(ctx, "environ does not support space discovery, falling back to subnet discovery")
 	subnets, err := networkProvider.Subnets(callContext, instance.UnknownId, nil)
 	if err != nil {
 		return errors.Trace(err)
@@ -215,7 +215,7 @@ func (s *ProviderService) saveProviderSubnets(
 				return errors.Trace(err)
 			}
 			if subnetNet.IP.To4() == nil {
-				s.logger.Debugf("%s address is not an IPv4 address", subnetNet.IP)
+				s.logger.Debugf(ctx, "%s address is not an IPv4 address", subnetNet.IP)
 				continue
 			}
 			// Compute the overlay segment.
@@ -327,7 +327,7 @@ func (s *ProviderSpaces) saveSpaces(ctx context.Context, providerSpaces []networ
 			// Convert the name into a valid name that is not already in use.
 			spaceName := network.ConvertSpaceName(string(spaceInfo.Name), spaceNames)
 
-			s.logger.Debugf("Adding space %s from provider %s", spaceName, string(spaceInfo.ProviderId))
+			s.logger.Debugf(ctx, "Adding space %s from provider %s", spaceName, string(spaceInfo.ProviderId))
 			spaceUUID, err := s.spaceService.AddSpace(
 				ctx,
 				network.SpaceInfo{

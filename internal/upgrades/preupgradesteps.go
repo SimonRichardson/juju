@@ -28,7 +28,7 @@ func PreUpgradeSteps(agentConf agent.Config, isController bool) error {
 		// Update distro info in case the new Juju controller version
 		// is aware of new supported series. We'll keep going if this
 		// fails, and the user can manually update it if they need to.
-		logger.Infof("updating distro-info")
+		logger.Infof(ctx, "updating distro-info")
 		err := updateDistroInfo()
 		return errors.Annotate(err, "failed to update distro-info")
 	}
@@ -43,7 +43,7 @@ func PreUpgradeStepsCAAS(agentConf agent.Config, isController bool) error {
 		// Update distro info in case the new Juju controller version
 		// is aware of new supported series. We'll keep going if this
 		// fails, and the user can manually update it if they need to.
-		logger.Infof("updating distro-info")
+		logger.Infof(ctx, "updating distro-info")
 		err := updateDistroInfo()
 		return errors.Annotate(err, "failed to update distro-info")
 	}

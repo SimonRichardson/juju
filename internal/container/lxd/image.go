@@ -66,7 +66,7 @@ func (s *Server) FindImage(
 		target = entry.Target
 		image, _, err := s.GetImage(target)
 		if err == nil && isCompatibleVirtType(virtType, image.Type) {
-			logger.Debugf("Found image locally - %q %q", image.Filename, target)
+			logger.Debugf(ctx, "Found image locally - %q %q", image.Filename, target)
 			return SourcedImage{
 				Image:     image,
 				LXDServer: s.InstanceServer,
@@ -87,7 +87,7 @@ func (s *Server) FindImage(
 	for _, remote := range sources {
 		source, err := ConnectImageRemote(ctx, remote)
 		if err != nil {
-			logger.Infof("failed to connect to %q: %s", remote.Host, err)
+			logger.Infof(ctx, "failed to connect to %q: %s", remote.Host, err)
 			lastErr = errors.Trace(err)
 			continue
 		}
@@ -100,7 +100,7 @@ func (s *Server) FindImage(
 		if target != "" {
 			image, _, err := source.GetImage(target)
 			if err == nil {
-				logger.Debugf("Found image remotely - %q %q %q", remote.Name, image.Filename, target)
+				logger.Debugf(ctx, "Found image remotely - %q %q %q", remote.Name, image.Filename, target)
 				sourced.Image = image
 				sourced.LXDServer = source
 				break
@@ -133,7 +133,7 @@ func (s *Server) FindImage(
 func (s *Server) CopyRemoteImage(
 	ctx context.Context, sourced SourcedImage, aliases []string, callback environs.StatusCallbackFunc,
 ) error {
-	logger.Debugf("Copying image from remote server")
+	logger.Debugf(ctx, "Copying image from remote server")
 
 	newAliases := make([]api.ImageAlias, len(aliases))
 	for i, a := range aliases {

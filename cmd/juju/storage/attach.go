@@ -91,13 +91,13 @@ func (c *attachStorageCommand) Run(ctx *cmd.Context) error {
 	}
 	for i, result := range results {
 		if result.Error == nil {
-			ctx.Infof("attaching %s to %s", c.storageIds[i], c.unitId)
+			ctx.Infof(ctx, "attaching %s to %s", c.storageIds[i], c.unitId)
 		}
 	}
 	var anyFailed bool
 	for i, result := range results {
 		if result.Error != nil {
-			ctx.Infof("failed to attach %s to %s: %s", c.storageIds[i], c.unitId, result.Error)
+			ctx.Infof(ctx, "failed to attach %s to %s: %s", c.storageIds[i], c.unitId, result.Error)
 			anyFailed = true
 		}
 	}

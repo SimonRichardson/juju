@@ -60,7 +60,7 @@ func (c *Client) AddUser(
 		return names.UserTag{}, nil, errors.Trace(err)
 	}
 	if count := len(results.Results); count != 1 {
-		logger.Errorf("expected 1 result, got %#v", results)
+		logger.Errorf(ctx, "expected 1 result, got %#v", results)
 		return names.UserTag{}, nil, errors.Errorf("expected 1 result, got %d", count)
 	}
 	result := results.Results[0]
@@ -229,7 +229,7 @@ func (c *Client) ResetPassword(username string) ([]byte, error) {
 		return nil, errors.Trace(err)
 	}
 	if count := len(out.Results); count != 1 {
-		logger.Errorf("expected 1 result, got %#v", out)
+		logger.Errorf(ctx, "expected 1 result, got %#v", out)
 		return nil, errors.Errorf("expected 1 result, got %d", count)
 	}
 	result := out.Results[0]

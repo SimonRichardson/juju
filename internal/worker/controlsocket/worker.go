@@ -261,7 +261,7 @@ func (w *Worker) addMetricsUser(ctx context.Context, username string, password a
 			err := w.userService.RemoveUser(ctx, username)
 			if err != nil {
 				// Best we can do here is log an error.
-				w.logger.Warningf("add metrics user failed, but could not clean up user %q: %v",
+				w.logger.Warningf(ctx, "add metrics user failed, but could not clean up user %q: %v",
 					username, err)
 			}
 		}()
@@ -330,13 +330,13 @@ func validateMetricsUsername(username string) error {
 }
 
 func (w *Worker) writeResponse(resp http.ResponseWriter, statusCode int, body any) {
-	w.logger.Debugf("operation finished with HTTP status %v", statusCode)
+	w.logger.Debugf(ctx, "operation finished with HTTP status %v", statusCode)
 	resp.Header().Set("Content-Type", "application/json")
 
 	message, err := json.Marshal(body)
 	if err != nil {
-		w.logger.Errorf("error marshalling response body to JSON: %v", err)
-		w.logger.Errorf("response body was %#v", body)
+		w.logger.Errorf(ctx, "error marshalling response body to JSON: %v", err)
+		w.logger.Errorf(ctx, "response body was %#v", body)
 
 		// Mark this as an "internal server error"
 		statusCode = http.StatusInternalServerError
@@ -345,10 +345,10 @@ func (w *Worker) writeResponse(resp http.ResponseWriter, statusCode int, body an
 	}
 
 	resp.WriteHeader(statusCode)
-	w.logger.Tracef("returning response %q", message)
+	w.logger.Tracef(ctx, "returning response %q", message)
 	_, err = resp.Write(message)
 	if err != nil {
-		w.logger.Warningf("error writing HTTP response: %v", err)
+		w.logger.Warningf(ctx, "error writing HTTP response: %v", err)
 	}
 }
 

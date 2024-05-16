@@ -294,7 +294,7 @@ func (c *addCommand) Run(ctx *cmd.Context) error {
 	}
 	defer machineManager.Close()
 
-	logger.Infof("load config")
+	logger.Infof(ctx, "load config")
 	modelConfigClient, err := c.getModelConfigAPI()
 	if err != nil {
 		return errors.Trace(err)
@@ -319,7 +319,7 @@ func (c *addCommand) Run(ctx *cmd.Context) error {
 		}
 	}
 
-	logger.Infof("model provisioning")
+	logger.Infof(ctx, "model provisioning")
 	if c.Placement != nil && c.Placement.Scope == "model-uuid" {
 		uuid, ok := machineManager.ModelUUID()
 		if !ok {
@@ -372,9 +372,9 @@ func (c *addCommand) Run(ctx *cmd.Context) error {
 		machineId := machineInfo.Machine
 
 		if names.IsContainerMachine(machineId) {
-			ctx.Infof("created container %v", machineId)
+			ctx.Infof(ctx, "created container %v", machineId)
 		} else {
-			ctx.Infof("created machine %v", machineId)
+			ctx.Infof(ctx, "created machine %v", machineId)
 		}
 	}
 	if len(errs) == 1 {
@@ -433,6 +433,6 @@ func (c *addCommand) tryManualProvision(client manual.ProvisioningClientAPI, con
 	if err != nil {
 		return errors.Trace(err)
 	}
-	ctx.Infof("created machine %v", machineId)
+	ctx.Infof(ctx, "created machine %v", machineId)
 	return nil
 }

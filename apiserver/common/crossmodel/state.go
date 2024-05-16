@@ -15,7 +15,7 @@ import (
 func GetBackend(st *state.State) stateShim {
 	model, err := st.Model()
 	if err != nil {
-		logger.Errorf("called GetBackend on a State with no Model.")
+		logger.Errorf(ctx, "called GetBackend on a State with no Model.")
 		return stateShim{}
 	}
 	return stateShim{State: st, Model: model}

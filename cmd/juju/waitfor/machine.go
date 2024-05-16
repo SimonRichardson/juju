@@ -117,11 +117,11 @@ func (c *machineCommand) Run(ctx *cmd.Context) (err error) {
 
 		switch c.machineInfo.Life {
 		case life.Dead:
-			ctx.Infof("machine %q has been removed", c.id)
+			ctx.Infof(ctx, "machine %q has been removed", c.id)
 		case life.Dying:
-			ctx.Infof("machine %q is being removed", c.id)
+			ctx.Infof(ctx, "machine %q is being removed", c.id)
 		default:
-			ctx.Infof("machine %q is running", c.id)
+			ctx.Infof(ctx, "machine %q is running", c.id)
 			outputMachineSummary(ctx.Stdout, scopedContext, c.machineInfo)
 		}
 	}()
@@ -169,11 +169,11 @@ func (c *machineCommand) waitFor(input string, ctx ScopeContext, logger Logger) 
 				return true, nil
 			}
 		} else {
-			logger.Infof("machine %q not found, waiting...", id)
+			logger.Infof(ctx, "machine %q not found, waiting...", id)
 			return false, nil
 		}
 
-		logger.Infof("machine %q found, waiting...", id)
+		logger.Infof(ctx, "machine %q found, waiting...", id)
 		return false, nil
 	}
 }

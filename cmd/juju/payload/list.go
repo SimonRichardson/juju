@@ -107,7 +107,7 @@ func (c *ListCommand) Run(ctx *cmd.Context) error {
 	}
 
 	if len(payloads) == 0 {
-		ctx.Infof("No payloads to display.")
+		ctx.Infof(ctx, "No payloads to display.")
 		return nil
 	}
 

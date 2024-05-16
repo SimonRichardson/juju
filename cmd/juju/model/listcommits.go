@@ -148,7 +148,7 @@ func (c *CommitsCommand) Run(ctx *cmd.Context) error {
 		return errors.Trace(err)
 	}
 	if len(commits) == 0 && c.out.Name() == "tabular" {
-		ctx.Infof("No commits to list")
+		ctx.Infof(ctx, "No commits to list")
 		return nil
 	}
 	tabular := c.constructYamlJson(commits)

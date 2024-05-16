@@ -23,7 +23,7 @@ func handleBasicAPIErrors(list transport.APIErrors, logger corelogger.Logger) er
 		// We do this because the original error message can be huge and
 		// verbose, like a java stack trace!
 		if masked {
-			logger.Errorf("charmhub API error %s:%s", list[0].Code, list[0].Message)
+			logger.Errorf(ctx, "charmhub API error %s:%s", list[0].Code, list[0].Message)
 		}
 	}()
 

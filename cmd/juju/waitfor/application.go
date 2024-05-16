@@ -129,11 +129,11 @@ func (c *applicationCommand) Run(ctx *cmd.Context) (err error) {
 
 		switch c.appInfo.Life {
 		case life.Dead:
-			ctx.Infof("Application %q has been removed", c.name)
+			ctx.Infof(ctx, "Application %q has been removed", c.name)
 		case life.Dying:
-			ctx.Infof("Application %q is being removed", c.name)
+			ctx.Infof(ctx, "Application %q is being removed", c.name)
 		default:
-			ctx.Infof("Application %q is running", c.name)
+			ctx.Infof(ctx, "Application %q is running", c.name)
 			outputApplicationSummary(ctx.Stdout, scopedContext, c.appInfo, c.units, c.machines)
 		}
 	}()
@@ -220,11 +220,11 @@ func (c *applicationCommand) waitFor(input string, ctx ScopeContext, logger Logg
 			// Restore the current status of the application.
 			c.appInfo.Status.Current = currentStatus
 		} else {
-			logger.Infof("application %q not found, waiting...", name)
+			logger.Infof(ctx, "application %q not found, waiting...", name)
 			return false, nil
 		}
 
-		logger.Infof("application %q found with %q, waiting...", name, deriveApplicationStatus(currentStatus, c.units))
+		logger.Infof(ctx, "application %q found with %q, waiting...", name, deriveApplicationStatus(currentStatus, c.units))
 		return false, nil
 	}
 }

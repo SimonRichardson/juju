@@ -93,7 +93,7 @@ func (c *modelCredentialCommand) Init(args []string) error {
 // Run implements Command.Run.
 func (c *modelCredentialCommand) Run(ctx *cmd.Context) error {
 	fail := func(e error) error {
-		ctx.Infof("Failed to change model credential: %v", e)
+		ctx.Infof(ctx, "Failed to change model credential: %v", e)
 		return e
 	}
 
@@ -121,12 +121,12 @@ func (c *modelCredentialCommand) Run(ctx *cmd.Context) error {
 	remoteCredentials, err := cloudClient.UserCredentials(userTag, cloudTag)
 	if err != nil {
 		// This is ok - we can proceed with local ones anyway.
-		ctx.Infof("Could not determine if there are remote credentials for the user: %v", err)
+		ctx.Infof(ctx, "Could not determine if there are remote credentials for the user: %v", err)
 	} else {
 		for _, credTag := range remoteCredentials {
 			if credTag == credentialTag {
 				remote = true
-				ctx.Infof("Found credential remotely, on the controller. Not looking locally...")
+				ctx.Infof(ctx, "Found credential remotely, on the controller. Not looking locally...")
 				break
 			}
 		}
@@ -134,12 +134,12 @@ func (c *modelCredentialCommand) Run(ctx *cmd.Context) error {
 
 	// Credential does not exist remotely. Upload it.
 	if !remote {
-		ctx.Infof("Did not find credential remotely. Looking locally...")
+		ctx.Infof(ctx, "Did not find credential remotely. Looking locally...")
 		credential, err := c.findCredentialLocally(ctx)
 		if err != nil {
 			return fail((err))
 		}
-		ctx.Infof("Uploading local credential to the controller.")
+		ctx.Infof(ctx, "Uploading local credential to the controller.")
 		err = cloudClient.AddCredential(credentialTag.String(), *credential)
 		if err != nil {
 			return fail(err)
@@ -159,7 +159,7 @@ func (c *modelCredentialCommand) Run(ctx *cmd.Context) error {
 	if err != nil {
 		return block.ProcessBlockedError(errors.Annotate(err, "could not set model credential"), block.BlockChange)
 	}
-	ctx.Infof("Changed cloud credential on model %q to %q.", modelName, c.credential)
+	ctx.Infof(ctx, "Changed cloud credential on model %q to %q.", modelName, c.credential)
 	return nil
 }
 

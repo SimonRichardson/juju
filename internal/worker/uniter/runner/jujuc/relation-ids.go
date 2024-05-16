@@ -42,7 +42,7 @@ func (c *RelationIdsCommand) Info() *cmd.Info {
 		args = "[<name>]"
 		doc = fmt.Sprintf("Current default relation name is %q.", r.Name())
 	} else if !errors.Is(err, errors.NotFound) {
-		logger.Errorf("Could not retrieve hook relation: %v", err)
+		logger.Errorf(ctx, "Could not retrieve hook relation: %v", err)
 	}
 	return jujucmd.Info(&cmd.Info{
 		Name:    "relation-ids",

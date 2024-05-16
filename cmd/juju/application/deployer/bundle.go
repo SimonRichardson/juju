@@ -187,7 +187,7 @@ func (d *deployBundle) printDryRunUnmarshalErrors(ctx *cmd.Context, unmarshalErr
 	if msg == "" {
 		return
 	}
-	ctx.Warningf("These fields%swill be ignored during deployment\n", msg)
+	ctx.Warningf(ctx, "These fields%swill be ignored during deployment\n", msg)
 }
 
 func (d *deployBundle) makeBundleDeploySpec(ctx *cmd.Context, apiRoot DeployerAPI) (bundleDeploySpec, error) {
@@ -297,6 +297,6 @@ func (d *repositoryBundle) PrepareAndDeploy(ctx *cmd.Context, deployAPI Deployer
 	if d.bundleURL.Revision != -1 {
 		revision = fmt.Sprintf(", revision %d", d.bundleURL.Revision)
 	}
-	ctx.Infof("Located bundle %q in %s%s", d.bundleURL.Name, d.origin.Source, revision)
+	ctx.Infof(ctx, "Located bundle %q in %s%s", d.bundleURL.Name, d.origin.Source, revision)
 	return d.deploy(ctx, deployAPI, resolver)
 }

@@ -91,7 +91,7 @@ type ListFirewallRulesAPI interface {
 
 // Run implements cmd.Command.
 func (c *listFirewallRulesCommand) Run(ctx *cmd.Context) error {
-	ctx.Warningf(deprecationWarning + "\n")
+	ctx.Warningf(ctx, deprecationWarning+"\n")
 
 	client, err := c.newAPIFunc()
 	if err != nil {

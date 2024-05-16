@@ -86,7 +86,7 @@ func newOfferAuthContext(ctx context.Context, pool *state.StatePool, controllerC
 }
 
 func (h *localOfferAuthHandler) checkThirdPartyCaveat(stdctx context.Context, req *http.Request, cavInfo *bakery.ThirdPartyCaveatInfo, _ *httpbakery.DischargeToken) ([]checkers.Caveat, error) {
-	logger.Debugf("check offer third party caveat %q", cavInfo.Condition)
+	logger.Debugf(ctx, "check offer third party caveat %q", cavInfo.Condition)
 	details, err := h.authCtx.CheckOfferAccessCaveat(string(cavInfo.Condition))
 	if err != nil {
 		return nil, errors.Trace(err)

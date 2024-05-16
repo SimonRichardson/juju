@@ -137,7 +137,7 @@ func (c *removeSaasCommand) removeSaass(
 	for i, name := range c.SaasNames {
 		result := results[i]
 		if result.Error != nil {
-			ctx.Infof("removing SAAS application %s failed: %s", name, result.Error)
+			ctx.Infof(ctx, "removing SAAS application %s failed: %s", name, result.Error)
 			anyFailed = true
 			continue
 		}

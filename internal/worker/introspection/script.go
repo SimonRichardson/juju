@@ -47,7 +47,7 @@ func WriteProfileFunctions(profileDir string) error {
 // introspection worker.
 func UpdateProfileFunctions(io FileReaderWriter, profileDir string) error {
 	if runtime.GOOS != "linux" {
-		logger.Debugf("skipping profile funcs install")
+		logger.Debugf(ctx, "skipping profile funcs install")
 		return nil
 	}
 	filename := profileFilename(profileDir)

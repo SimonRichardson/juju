@@ -129,13 +129,13 @@ func (c *detachStorageCommand) Run(ctx *cmd.Context) error {
 	}
 	for i, result := range results {
 		if result.Error == nil {
-			ctx.Infof("detaching %s", c.storageIds[i])
+			ctx.Infof(ctx, "detaching %s", c.storageIds[i])
 		}
 	}
 	anyFailed := false
 	for i, result := range results {
 		if result.Error != nil {
-			ctx.Infof("failed to detach %s: %s", c.storageIds[i], result.Error)
+			ctx.Infof(ctx, "failed to detach %s: %s", c.storageIds[i], result.Error)
 			anyFailed = true
 		}
 	}

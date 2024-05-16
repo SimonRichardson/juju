@@ -138,7 +138,7 @@ func (c *IntrospectCommand) Run(ctx *cmd.Context) error {
 			return err
 		}
 		defer listener.Close()
-		ctx.Infof("Exposing %s introspection socket on %s", socketName, listener.Addr())
+		ctx.Infof(ctx, "Exposing %s introspection socket on %s", socketName, listener.Addr())
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 		proxy.Transport = unixSocketHTTPTransport(socketName)
 		return http.Serve(listener, proxy)
@@ -148,12 +148,12 @@ func (c *IntrospectCommand) Run(ctx *cmd.Context) error {
 	var resp *http.Response
 	if c.post {
 		if c.verbose {
-			ctx.Infof("Posting to %s introspection socket: %s %s", socketName, c.path, pretty.Sprint(c.form))
+			ctx.Infof(ctx, "Posting to %s introspection socket: %s %s", socketName, c.path, pretty.Sprint(c.form))
 		}
 		resp, err = client.PostForm(targetURL.String(), c.form)
 	} else {
 		if c.verbose {
-			ctx.Infof("Querying %s introspection socket: %s", socketName, c.path)
+			ctx.Infof(ctx, "Querying %s introspection socket: %s", socketName, c.path)
 		}
 		resp, err = client.Get(targetURL.String())
 	}

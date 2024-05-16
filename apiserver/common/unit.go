@@ -17,7 +17,7 @@ func RevokeLeadershipFunc(leadershipRevoker leadership.Revoker) func(names.Tag) 
 		}
 		appName, _ := names.UnitApplication(tag.Id())
 		if err := leadershipRevoker.RevokeLeadership(appName, tag.Id()); err != nil && err != leadership.ErrClaimNotHeld {
-			logger.Warningf("cannot revoke lease for dead unit %q", tag.Id())
+			logger.Warningf(ctx, "cannot revoke lease for dead unit %q", tag.Id())
 		}
 	}
 }

@@ -324,9 +324,9 @@ func bootstrapIAAS(
 	}
 
 	_, supportsNetworking := environs.SupportsNetworking(environ)
-	logger.Debugf("model %q supports application/machine networks: %v", cfg.Name(), supportsNetworking)
+	logger.Debugf(ctx, "model %q supports application/machine networks: %v", cfg.Name(), supportsNetworking)
 	disableNetworkManagement, _ := cfg.DisableNetworkManagement()
-	logger.Debugf("network management by juju enabled: %v", !disableNetworkManagement)
+	logger.Debugf(ctx, "network management by juju enabled: %v", !disableNetworkManagement)
 
 	var ss *simplestreams.Simplestreams
 	if value := ctx.Value(SimplestreamsFetcherContextKey); value == nil {
@@ -364,7 +364,7 @@ func bootstrapIAAS(
 
 		if args.BootstrapBase.Empty() && !detectedBase.Empty() {
 			args.BootstrapBase = detectedBase
-			logger.Debugf("auto-selecting bootstrap series %q", args.BootstrapBase.String())
+			logger.Debugf(ctx, "auto-selecting bootstrap series %q", args.BootstrapBase.String())
 		}
 		if args.BootstrapConstraints.Arch == nil &&
 			args.ModelConstraints.Arch == nil &&
@@ -375,7 +375,7 @@ func bootstrapIAAS(
 			if detector.UpdateModelConstraints() {
 				args.ModelConstraints.Arch = &arch
 			}
-			logger.Debugf("auto-selecting bootstrap arch %q", arch)
+			logger.Debugf(ctx, "auto-selecting bootstrap arch %q", arch)
 		}
 	}
 
@@ -469,7 +469,7 @@ func bootstrapIAAS(
 			latestPatchTxt = "latest patch of "
 			versionTxt = fmt.Sprintf("%v.%v", agentVersion.Major, agentVersion.Minor)
 		}
-		ctx.Infof("Looking for %vpackaged Juju agent version %s for %s", latestPatchTxt, versionTxt, bootstrapArch)
+		ctx.Infof(ctx, "Looking for %vpackaged Juju agent version %s for %s", latestPatchTxt, versionTxt, bootstrapArch)
 
 		availableTools, err = findPackagedTools(ctx, environ, ss, args.AgentVersion, &bootstrapArch, &bootstrapBase)
 		if err != nil && !errors.Is(err, errors.NotFound) {
@@ -482,7 +482,7 @@ func bootstrapIAAS(
 				agentVersion, availableTools = availableTools.Newest()
 			}
 			for _, tool := range availableTools {
-				ctx.Infof("Located Juju agent version %s at %s", tool.Version, tool.URL)
+				ctx.Infof(ctx, "Located Juju agent version %s at %s", tool.Version, tool.URL)
 			}
 		}
 	}
@@ -497,9 +497,9 @@ func bootstrapIAAS(
 			return err
 		}
 		if args.BuildAgent {
-			ctx.Infof("Building local Juju agent binary version %s for %s", args.AgentVersion, bootstrapArch)
+			ctx.Infof(ctx, "Building local Juju agent binary version %s for %s", args.AgentVersion, bootstrapArch)
 		} else {
-			ctx.Infof("No packaged binary found, preparing local Juju agent binary")
+			ctx.Infof(ctx, "No packaged binary found, preparing local Juju agent binary")
 		}
 		var forceVersion version.Number
 		availableTools, forceVersion, err = locallyBuildableTools()
@@ -623,7 +623,7 @@ func bootstrapIAAS(
 		return errors.Trace(err)
 	}
 
-	ctx.Infof("Installing Juju agent on bootstrap instance")
+	ctx.Infof(ctx, "Installing Juju agent on bootstrap instance")
 	if err := instanceConfig.SetTools(selectedToolsList); err != nil {
 		return errors.Trace(err)
 	}
@@ -716,11 +716,11 @@ func Bootstrap(
 		return errors.Trace(err)
 	}
 	if IsContextDone(ctx) {
-		ctx.Infof("Bootstrap cancelled, you may need to manually remove the bootstrap instance")
+		ctx.Infof(ctx, "Bootstrap cancelled, you may need to manually remove the bootstrap instance")
 		return Cancelled()
 	}
 
-	ctx.Infof("Bootstrap agent now started")
+	ctx.Infof(ctx, "Bootstrap agent now started")
 	return nil
 }
 
@@ -962,7 +962,7 @@ func bootstrapImageMetadata(
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	logger.Debugf("constraints for image metadata lookup %v", imageConstraint)
+	logger.Debugf(ctx, "constraints for image metadata lookup %v", imageConstraint)
 
 	// Get image metadata from all data sources.
 	// Since order of data source matters, order of image metadata matters too. Append is important here.
@@ -970,18 +970,18 @@ func bootstrapImageMetadata(
 	for _, source := range sources {
 		sourceMetadata, _, err := imagemetadata.Fetch(ctx, fetcher, []simplestreams.DataSource{source}, imageConstraint)
 		if errors.Is(err, errors.NotFound) || errors.Is(err, errors.Unauthorized) {
-			logger.Debugf("ignoring image metadata in %s: %v", source.Description(), err)
+			logger.Debugf(ctx, "ignoring image metadata in %s: %v", source.Description(), err)
 			// Just keep looking...
 			continue
 		} else if err != nil {
 			// When we get an actual protocol/unexpected error, we need to stop.
 			return nil, errors.Annotatef(err, "failed looking for image metadata in %s", source.Description())
 		}
-		logger.Debugf("found %d image metadata in %s", len(sourceMetadata), source.Description())
+		logger.Debugf(ctx, "found %d image metadata in %s", len(sourceMetadata), source.Description())
 		publicImageMetadata = append(publicImageMetadata, sourceMetadata...)
 	}
 
-	logger.Debugf("found %d image metadata from all image data sources", len(publicImageMetadata))
+	logger.Debugf(ctx, "found %d image metadata from all image data sources", len(publicImageMetadata))
 	return publicImageMetadata, nil
 }
 
@@ -992,14 +992,14 @@ func getBootstrapToolsVersion(possibleTools coretools.List) (coretools.List, err
 	}
 	var newVersion version.Number
 	newVersion, toolsList := possibleTools.Newest()
-	logger.Infof("newest version: %s", newVersion)
+	logger.Infof(ctx, "newest version: %s", newVersion)
 	bootstrapVersion := newVersion
 	// We should only ever bootstrap the exact same version as the client,
 	// or we risk bootstrap incompatibility.
 	if !isCompatibleVersion(newVersion, jujuversion.Current) {
 		compatibleVersion, compatibleTools := findCompatibleTools(possibleTools, jujuversion.Current)
 		if len(compatibleTools) == 0 {
-			logger.Infof(
+			logger.Infof(ctx,
 				"failed to find %s agent binaries, will attempt to use %s",
 				jujuversion.Current, newVersion,
 			)
@@ -1007,7 +1007,7 @@ func getBootstrapToolsVersion(possibleTools coretools.List) (coretools.List, err
 			bootstrapVersion, toolsList = compatibleVersion, compatibleTools
 		}
 	}
-	logger.Infof("picked bootstrap agent binary version: %s", bootstrapVersion)
+	logger.Infof(ctx, "picked bootstrap agent binary version: %s", bootstrapVersion)
 	return toolsList, nil
 }
 
@@ -1071,17 +1071,17 @@ func setPrivateMetadataSources(ctx stdcontext.Context, fetcher imagemetadata.Sim
 		if !os.IsNotExist(err) {
 			return nil, errors.Annotate(err, "cannot access agent metadata")
 		}
-		logger.Debugf("no agent directory found, using default agent metadata source: %s", tools.DefaultBaseURL)
+		logger.Debugf(ctx, "no agent directory found, using default agent metadata source: %s", tools.DefaultBaseURL)
 	} else {
 		if ending == storage.BaseToolsPath {
 			// As the specified metadataDir ended in 'tools'
 			// assume that is the only metadata to find and return.
 			tools.DefaultBaseURL = filepath.Dir(metadataDir)
-			logger.Debugf("setting default agent metadata source: %s", tools.DefaultBaseURL)
+			logger.Debugf(ctx, "setting default agent metadata source: %s", tools.DefaultBaseURL)
 			return nil, nil
 		} else {
 			tools.DefaultBaseURL = metadataDir
-			logger.Debugf("setting default agent metadata source: %s", tools.DefaultBaseURL)
+			logger.Debugf(ctx, "setting default agent metadata source: %s", tools.DefaultBaseURL)
 		}
 	}
 
@@ -1096,7 +1096,7 @@ func setPrivateMetadataSources(ctx stdcontext.Context, fetcher imagemetadata.Sim
 		}
 		return nil, nil
 	} else {
-		logger.Debugf("setting default image metadata source: %s", imageMetadataDir)
+		logger.Debugf(ctx, "setting default image metadata source: %s", imageMetadataDir)
 	}
 
 	baseURL := fmt.Sprintf("file://%s", filepath.ToSlash(imageMetadataDir))
@@ -1133,7 +1133,7 @@ func setPrivateMetadataSources(ctx stdcontext.Context, fetcher imagemetadata.Sim
 	environs.RegisterUserImageDataSourceFunc("bootstrap metadata", func(environs.Environ) (simplestreams.DataSource, error) {
 		return dataSource, nil
 	})
-	logger.Infof("custom image metadata added to search path")
+	logger.Infof(ctx, "custom image metadata added to search path")
 	return existingMetadata, nil
 }
 

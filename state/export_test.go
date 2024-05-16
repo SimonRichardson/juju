@@ -146,7 +146,7 @@ func newRunnerForHooks(st *State) jujutxn.Runner {
 		ChangeLogName:             "-",
 		ServerSideTransactions:    true,
 		RunTransactionObserver: func(t jujutxn.Transaction) {
-			txnLogger.Tracef("ran transaction in %.3fs (retries: %d) %# v\nerr: %v",
+			txnLogger.Tracef(ctx, "ran transaction in %.3fs (retries: %d) %# v\nerr: %v",
 				t.Duration.Seconds(), t.Attempt, pretty.Formatter(t.Ops), t.Error)
 		},
 		MaxRetryAttempts: db.maxTxnAttempts,

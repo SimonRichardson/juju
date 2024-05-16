@@ -32,7 +32,7 @@ func (st *State) InvalidateModelCredential(reason string) error {
 
 	if err := st.suspendCredentialModels(tag, reason); err != nil {
 		// These updates are optimistic. If they fail, it's unfortunate but we are not going to stop the call.
-		logger.Warningf("could not suspend models that use credential %v: %v", tag.Id(), err)
+		logger.Warningf(ctx, "could not suspend models that use credential %v: %v", tag.Id(), err)
 	}
 	return nil
 }
@@ -60,7 +60,7 @@ func (st *State) modelsWithCredential(tag names.CloudCredentialTag) ([]modelDoc,
 // RemoveModelsCredential clears out given credential reference from all models that have it.
 func (st *State) RemoveModelsCredential(tag names.CloudCredentialTag) error {
 	buildTxn := func(attempt int) ([]txn.Op, error) {
-		logger.Tracef("creating operations to remove models credential, attempt %d", attempt)
+		logger.Tracef(ctx, "creating operations to remove models credential, attempt %d", attempt)
 		coll, cleanup := st.db().GetCollection(modelsC)
 		defer cleanup()
 
@@ -106,7 +106,7 @@ func (st *State) suspendCredentialModels(tag names.CloudCredentialTag, reason st
 			return errors.Trace(err)
 		}
 	}
-	logger.Warningf("suspending these models:\n%s\n because their credential has become invalid:\n%s",
+	logger.Warningf(ctx, "suspending these models:\n%s\n because their credential has become invalid:\n%s",
 		strings.Join(infos, " - "),
 		reason)
 	sts := ModelStatusInvalidCredential(reason)
@@ -160,12 +160,12 @@ func (st *State) maybeSetModelStatusHistoryDoc(modelUUID string, doc statusDoc) 
 	one, closer, err := st.model(modelUUID)
 	defer func() { _ = closer() }()
 	if err != nil {
-		logger.Warningf("model %v error: %v", modelUUID, err)
+		logger.Warningf(ctx, "model %v error: %v", modelUUID, err)
 		return
 	}
 
 	if _, err = probablyUpdateStatusHistory(one.st.db(), one.Kind(), one.globalKey(), one.globalKey(), doc); err != nil {
-		logger.Warningf("%v", err)
+		logger.Warningf(ctx, "%v", err)
 	}
 }
 
@@ -173,7 +173,7 @@ func (m *Model) maybeRevertModelStatus() error {
 	// I don't know where you've been before you got here - get a clean slate.
 	err := m.Refresh()
 	if err != nil {
-		logger.Warningf("could not refresh model %v to revert its status: %v", m.UUID(), err)
+		logger.Warningf(ctx, "could not refresh model %v to revert its status: %v", m.UUID(), err)
 	}
 	modelStatus, err := m.Status()
 	if err != nil {
@@ -229,7 +229,7 @@ func (m *Model) SetCloudCredential(tag names.CloudCredentialTag) (bool, error) {
 	}
 	if updating && revert {
 		if err := m.maybeRevertModelStatus(); err != nil {
-			logger.Warningf("could not revert status for model %v: %v", m.UUID(), err)
+			logger.Warningf(ctx, "could not revert status for model %v: %v", m.UUID(), err)
 		}
 	}
 	return updating, m.Refresh()
@@ -245,7 +245,7 @@ func (st *State) modelsToRevert(tag names.CloudCredentialTag) (map[*Model]func()
 		one, closer, err := st.model(m.UUID)
 		if err != nil {
 			_ = closer()
-			logger.Warningf("model %v error: %v", m.UUID, err)
+			logger.Warningf(ctx, "model %v error: %v", m.UUID, err)
 			continue
 		}
 		modelStatus, err := one.Status()
@@ -270,7 +270,7 @@ func (st *State) modelsToRevert(tag names.CloudCredentialTag) (map[*Model]func()
 func (st *State) CloudCredentialUpdated(tag names.CloudCredentialTag) error {
 	revert, err := st.modelsToRevert(tag)
 	if err != nil {
-		logger.Warningf("could not figure out if models for credential %v need to revert: %v", tag.Id(), err)
+		logger.Warningf(ctx, "could not figure out if models for credential %v need to revert: %v", tag.Id(), err)
 	}
 
 	for m, closer := range revert {
@@ -278,7 +278,7 @@ func (st *State) CloudCredentialUpdated(tag names.CloudCredentialTag) error {
 			return errors.Trace(err)
 		}
 		if err := m.maybeRevertModelStatus(); err != nil {
-			logger.Warningf("could not revert status for model %v: %v", m.UUID(), err)
+			logger.Warningf(ctx, "could not revert status for model %v: %v", m.UUID(), err)
 		}
 		_ = closer()
 	}

@@ -149,7 +149,7 @@ func (s *Server) loop() error {
 	httpCh := make(chan error)
 
 	go func() {
-		s.logger.Infof("starting http server on %s", s.listener.Addr())
+		s.logger.Infof(ctx, "starting http server on %s", s.listener.Addr())
 		if s.server.TLSConfig == nil {
 			httpCh <- s.server.Serve(s.listener)
 		} else {

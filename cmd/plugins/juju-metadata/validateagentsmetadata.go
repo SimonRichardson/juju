@@ -154,7 +154,7 @@ func (c *validateAgentsMetadataCommand) Run(context *cmd.Context) error {
 
 	var params *simplestreams.MetadataLookupParams
 	if c.providerType == "" {
-		context.Infof("no provider type specified, using bootstrapped cloud")
+		context.Infof(ctx, "no provider type specified, using bootstrapped cloud")
 		controllerName, err := c.ControllerName()
 		if err != nil {
 			return errors.Trace(err)

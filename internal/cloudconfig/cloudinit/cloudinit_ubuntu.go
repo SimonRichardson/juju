@@ -299,8 +299,8 @@ func (cfg *ubuntuCloudConfig) updateProxySettings(proxyCfg PackageManagerProxyCo
 		if err != nil {
 			return err
 		}
-		logger.Infof("auto-detected snap store assertions from proxy")
-		logger.Infof("auto-detected snap store ID as %q", storeID)
+		logger.Infof(ctx, "auto-detected snap store assertions from proxy")
+		logger.Infof(ctx, "auto-detected snap store ID as %q", storeID)
 		addWaitSnapSeeded()
 		cfg.genSnapStoreProxyCmds(assertions, storeID)
 	} else if proxyCfg.SnapStoreAssertions() != "" && proxyCfg.SnapStoreProxyID() != "" {

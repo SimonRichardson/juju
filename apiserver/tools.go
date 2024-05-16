@@ -79,7 +79,7 @@ func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	st, err := h.ctxt.stateForRequestUnauthenticated(r)
 	if err != nil {
 		if err := sendError(w, err); err != nil {
-			logger.Errorf("%v", err)
+			logger.Errorf(ctx, "%v", err)
 		}
 		return
 	}
@@ -89,19 +89,19 @@ func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	case "GET":
 		reader, size, err := h.getToolsForRequest(r, st.State)
 		if err != nil {
-			logger.Errorf("GET(%s) failed: %v", r.URL, err)
+			logger.Errorf(ctx, "GET(%s) failed: %v", r.URL, err)
 			if err := sendError(w, errors.NewBadRequest(err, "")); err != nil {
-				logger.Errorf("%v", err)
+				logger.Errorf(ctx, "%v", err)
 			}
 			return
 		}
 		defer reader.Close()
 		if err := h.sendTools(w, reader, size); err != nil {
-			logger.Errorf("%v", err)
+			logger.Errorf(ctx, "%v", err)
 		}
 	default:
 		if err := sendError(w, errors.MethodNotAllowedf("unsupported method: %q", r.Method)); err != nil {
-			logger.Errorf("%v", err)
+			logger.Errorf(ctx, "%v", err)
 		}
 	}
 }
@@ -112,7 +112,7 @@ func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	st, err := h.stateAuthFunc(r)
 	if err != nil {
 		if err := sendError(w, err); err != nil {
-			logger.Errorf("%v", err)
+			logger.Errorf(ctx, "%v", err)
 		}
 		return
 	}
@@ -124,18 +124,18 @@ func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		agentTools, err := h.processPost(r, st.State)
 		if err != nil {
 			if err := sendError(w, err); err != nil {
-				logger.Errorf("%v", err)
+				logger.Errorf(ctx, "%v", err)
 			}
 			return
 		}
 		if err := sendStatusAndJSON(w, http.StatusOK, &params.ToolsResult{
 			ToolsList: tools.List{agentTools},
 		}); err != nil {
-			logger.Errorf("%v", err)
+			logger.Errorf(ctx, "%v", err)
 		}
 	default:
 		if err := sendError(w, errors.MethodNotAllowedf("unsupported method: %q", r.Method)); err != nil {
-			logger.Errorf("%v", err)
+			logger.Errorf(ctx, "%v", err)
 		}
 	}
 }
@@ -148,7 +148,7 @@ func (h *toolsDownloadHandler) getToolsForRequest(r *http.Request, st *state.Sta
 	if err != nil {
 		return nil, 0, errors.Annotate(err, "error parsing version")
 	}
-	logger.Debugf("request for agent binaries: %s", vers)
+	logger.Debugf(ctx, "request for agent binaries: %s", vers)
 
 	store, err := h.ctxt.controllerObjectStoreForRequest(r)
 	if err != nil {
@@ -174,7 +174,7 @@ func (h *toolsDownloadHandler) getToolsForRequest(r *http.Request, st *state.Sta
 		// Tools could not be found in tools storage,
 		// so look for them in simplestreams,
 		// fetch them and cache in tools storage.
-		logger.Infof("%v agent binaries not found locally, fetching", vers)
+		logger.Infof(ctx, "%v agent binaries not found locally, fetching", vers)
 		err = h.fetchAndCacheTools(r.Context(), vers, st, storage, store)
 		if err != nil {
 			err = errors.Annotate(err, "error fetching agent binaries")
@@ -248,7 +248,7 @@ func (h *toolsDownloadHandler) fetchAndCacheTools(
 	}
 
 	// No need to verify the server's identity because we verify the SHA-256 hash.
-	logger.Infof("fetching %v agent binaries from %v", v, exactTools.URL)
+	logger.Infof(ctx, "fetching %v agent binaries from %v", v, exactTools.URL)
 	client := jujuhttp.NewClient(jujuhttp.WithSkipHostnameVerification(true))
 	resp, err := client.Get(ctx, exactTools.URL)
 	if err != nil {
@@ -289,7 +289,7 @@ func (h *toolsDownloadHandler) fetchAndCacheTools(
 
 // sendTools streams the tools tarball to the client.
 func (h *toolsDownloadHandler) sendTools(w http.ResponseWriter, reader io.ReadCloser, size int64) error {
-	logger.Tracef("sending %d bytes", size)
+	logger.Tracef(ctx, "sending %d bytes", size)
 
 	w.Header().Set("Content-Type", "application/x-tar-gz")
 	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
@@ -320,7 +320,7 @@ func (h *toolsUploadHandler) processPost(r *http.Request, st *state.State) (*too
 		return nil, errors.BadRequestf("expected Content-Type: application/x-tar-gz, got: %v", contentType)
 	}
 
-	logger.Debugf("request to upload agent binaries: %s", toolsVersion)
+	logger.Debugf(ctx, "request to upload agent binaries: %s", toolsVersion)
 	toolsVersions := []version.Binary{toolsVersion}
 	serverRoot := h.getServerRoot(r, query, st)
 
@@ -370,7 +370,7 @@ func (h *toolsUploadHandler) handleUpload(ctx context.Context, r io.Reader, tool
 			Size:    size,
 			SHA256:  sha256,
 		}
-		logger.Debugf("uploading agent binaries %+v to storage", metadata)
+		logger.Debugf(ctx, "uploading agent binaries %+v to storage", metadata)
 		if err := storage.Add(ctx, data, metadata); err != nil {
 			return nil, err
 		}

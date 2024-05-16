@@ -118,7 +118,7 @@ func open(
 			session.Close()
 			return nil, errors.Trace(err)
 		}
-		logger.Debugf("mongodb initialised")
+		logger.Debugf(ctx, "mongodb initialised")
 	}
 
 	return st, nil
@@ -189,7 +189,7 @@ func newState(
 	profileTracker.Add(st, 1)
 
 	st.controllerTag = controllerTag
-	logger.Infof("creating cloud image metadata storage")
+	logger.Infof(ctx, "creating cloud image metadata storage")
 	st.CloudImageMetadataStorage = cloudimagemetadata.NewStorage(
 		cloudimagemetadataC,
 		&environMongo{st},
@@ -204,7 +204,7 @@ func (st *State) Close() (err error) {
 		return errors.Trace(err)
 	}
 	st.session.Close()
-	logger.Debugf("closed state without error")
+	logger.Debugf(ctx, "closed state without error")
 	// Remove the reference.
 	profileTracker.Remove(st)
 	return nil

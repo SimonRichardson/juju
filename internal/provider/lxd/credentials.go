@@ -140,7 +140,7 @@ func (p environProviderCredentials) DetectCredentials(cloudName string) (*cloud.
 
 	remoteCertCredentials, err := p.detectRemoteCredentials()
 	if err != nil {
-		logger.Debugf("unable to detect remote LXC credentials: %s", err)
+		logger.Debugf(ctx, "unable to detect remote LXC credentials: %s", err)
 	}
 
 	// If the cloud is built-in, we can start a local server to
@@ -148,7 +148,7 @@ func (p environProviderCredentials) DetectCredentials(cloudName string) (*cloud.
 	var localCertCredentials *cloud.Credential
 	if cloudName == "" || lxdnames.IsDefaultCloud(cloudName) {
 		if localCertCredentials, err = p.detectLocalCredentials(certPEM, keyPEM); err != nil {
-			logger.Debugf("unable to detect local LXC credentials: %s", err)
+			logger.Debugf(ctx, "unable to detect local LXC credentials: %s", err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (p environProviderCredentials) detectRemoteCredentials() (map[string]cloud.
 			serverCert, err := p.lxcConfigReader.ReadCert(certPath)
 			if err != nil {
 				if !os.IsNotExist(errors.Cause(err)) {
-					logger.Errorf("unable to read certificate from %s with error %s", certPath, err)
+					logger.Errorf(ctx, "unable to read certificate from %s with error %s", certPath, err)
 					continue
 				}
 			} else {

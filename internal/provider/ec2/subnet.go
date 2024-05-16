@@ -22,7 +22,7 @@ type SubnetMatcher interface {
 // the syntax of a "subnet-XXXX" then we will match the Subnet ID. Everything
 // else is just matched as a Name.
 func CreateSubnetMatcher(subnetQuery string) SubnetMatcher {
-	logger.Debugf("searching for subnet matching placement directive %q", subnetQuery)
+	logger.Debugf(ctx, "searching for subnet matching placement directive %q", subnetQuery)
 	_, ipNet, err := net.ParseCIDR(subnetQuery)
 	if err == nil {
 		return &cidrSubnetMatcher{
@@ -50,11 +50,11 @@ var _ SubnetMatcher = (*cidrSubnetMatcher)(nil)
 func (sm *cidrSubnetMatcher) Match(subnet types.Subnet) bool {
 	_, existingIPNet, err := net.ParseCIDR(aws.ToString(subnet.CidrBlock))
 	if err != nil {
-		logger.Debugf("subnet %s has invalid CIDRBlock", pretty.Sprint(subnet))
+		logger.Debugf(ctx, "subnet %s has invalid CIDRBlock", pretty.Sprint(subnet))
 		return false
 	}
 	if sm.CIDR == existingIPNet.String() {
-		logger.Debugf("found subnet %q by matching subnet CIDR: %s", aws.ToString(subnet.SubnetId), sm.CIDR)
+		logger.Debugf(ctx, "found subnet %q by matching subnet CIDR: %s", aws.ToString(subnet.SubnetId), sm.CIDR)
 		return true
 	}
 	return false
@@ -66,7 +66,7 @@ type subnetIDMatcher struct {
 
 func (sm *subnetIDMatcher) Match(subnet types.Subnet) bool {
 	if subnetID := aws.ToString(subnet.SubnetId); subnetID == sm.subnetID {
-		logger.Debugf("found subnet %q by ID", subnetID)
+		logger.Debugf(ctx, "found subnet %q by ID", subnetID)
 		return true
 	}
 	return false
@@ -79,7 +79,7 @@ type subnetNameMatcher struct {
 func (sm *subnetNameMatcher) Match(subnet types.Subnet) bool {
 	for _, tag := range subnet.Tags {
 		if aws.ToString(tag.Key) == "Name" && aws.ToString(tag.Value) == sm.name {
-			logger.Debugf("found subnet %q matching name %q", aws.ToString(subnet.SubnetId), sm.name)
+			logger.Debugf(ctx, "found subnet %q matching name %q", aws.ToString(subnet.SubnetId), sm.name)
 			return true
 		}
 	}

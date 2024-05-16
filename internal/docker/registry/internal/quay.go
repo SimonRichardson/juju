@@ -41,7 +41,7 @@ func (c quayContainerRegistry) Ping() error {
 		return nil
 	}
 	url := c.url("/")
-	logger.Debugf("quay container registry ping %q", url)
+	logger.Debugf(ctx, "quay container registry ping %q", url)
 	resp, err := c.client.Get(url)
 	if resp != nil {
 		defer resp.Body.Close()

@@ -161,7 +161,7 @@ func (s *workerSuite) TestAddressChange(c *gc.C) {
 		update := s.mustNext(c, "init")
 		assertMembers(c, update, mkMembers("0v", ipVersion))
 
-		logger.Infof("starting worker")
+		logger.Infof(ctx, "starting worker")
 		w := s.newWorker(c, st, st.session, nopAPIHostPortsSetter{}, true)
 		defer workertest.CleanKill(c, w)
 
@@ -194,7 +194,7 @@ func (s *workerSuite) TestAddressChangeNoHA(c *gc.C) {
 		update := s.mustNext(c, "init")
 		assertMembers(c, update, mkMembers("0v", ipVersion))
 
-		logger.Infof("starting worker")
+		logger.Infof(ctx, "starting worker")
 		w := s.newWorker(c, st, st.session, nopAPIHostPortsSetter{}, false)
 		defer workertest.CleanKill(c, w)
 
@@ -404,7 +404,7 @@ func (s *workerSuite) newWorker(
 }
 
 func (s *workerSuite) idleNotify() {
-	logger.Infof("idleNotify signalled")
+	logger.Infof(ctx, "idleNotify signalled")
 	s.mu.Lock()
 	idle := s.idle
 	s.mu.Unlock()
@@ -416,6 +416,6 @@ func (s *workerSuite) idleNotify() {
 	case idle <- struct{}{}:
 	case <-time.After(coretesting.LongWait):
 		// no-op
-		logger.Infof("... no one watching")
+		logger.Infof(ctx, "... no one watching")
 	}
 }

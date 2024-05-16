@@ -217,7 +217,7 @@ func newUpgradeWorker(config Config, targetVersion int) (worker.Worker, error) {
 		); err != nil {
 			info := fmt.Sprintf("failed to upgrade environ: %s", err)
 			if err := setStatus(status.Error, info); err != nil {
-				config.Logger.Warningf("failed to update model status: %v", err)
+				config.Logger.Warningf(ctx, "failed to update model status: %v", err)
 			}
 			return errors.Annotate(err, "upgrading environ")
 		}
@@ -245,7 +245,7 @@ func runEnvironUpgradeSteps(
 	}
 	upgrader, ok := env.(environs.Upgrader)
 	if !ok {
-		logger.Debugf("%T does not support environs.Upgrader", env)
+		logger.Debugf(ctx, "%T does not support environs.Upgrader", env)
 		return nil
 	}
 	args := environs.UpgradeOperationsParams{
@@ -256,7 +256,7 @@ func runEnvironUpgradeSteps(
 		if op.TargetVersion <= currentVersion {
 			// The operation is for the same as or older
 			// than the current environ version.
-			logger.Tracef(
+			logger.Tracef(ctx,
 				"ignoring upgrade operation for version %v",
 				op.TargetVersion,
 			)
@@ -266,18 +266,18 @@ func runEnvironUpgradeSteps(
 			// The operation is for a version newer than
 			// the provider's current version. This will
 			// only happen for an improperly written provider.
-			logger.Debugf(
+			logger.Debugf(ctx,
 				"ignoring upgrade operation for version %v",
 				op.TargetVersion,
 			)
 			continue
 		}
-		logger.Debugf(
+		logger.Debugf(ctx,
 			"running upgrade operation for version %v",
 			op.TargetVersion,
 		)
 		for _, step := range op.Steps {
-			logger.Debugf("running step %q", step.Description())
+			logger.Debugf(ctx, "running step %q", step.Description())
 			if err := step.Run(callCtx); err != nil {
 				return errors.Trace(err)
 			}

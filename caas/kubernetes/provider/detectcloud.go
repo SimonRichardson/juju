@@ -30,7 +30,7 @@ func (p kubernetesEnvironProvider) DetectClouds() ([]cloud.Cloud, error) {
 	if errors.Is(err, errors.NotFound) {
 		err = errors.Annotatef(err, "microk8s is not installed")
 	}
-	logger.Debugf("failed to query local microk8s: %s", err.Error())
+	logger.Debugf(ctx, "failed to query local microk8s: %s", err.Error())
 	return clouds, nil
 }
 

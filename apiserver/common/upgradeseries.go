@@ -105,7 +105,7 @@ func NewUpgradeSeriesAPI(
 	accessUnit GetAuthFunc,
 	logger corelogger.Logger,
 ) *UpgradeSeriesAPI {
-	logger.Tracef("NewUpgradeSeriesAPI called with %s", authorizer.GetAuthTag())
+	logger.Tracef(ctx, "NewUpgradeSeriesAPI called with %s", authorizer.GetAuthTag())
 	return &UpgradeSeriesAPI{
 		backend:             backend,
 		resources:           resources,
@@ -118,7 +118,7 @@ func NewUpgradeSeriesAPI(
 
 // WatchUpgradeSeriesNotifications returns a NotifyWatcher for observing changes to upgrade series locks.
 func (u *UpgradeSeriesAPI) WatchUpgradeSeriesNotifications(ctx context.Context, args params.Entities) (params.NotifyWatchResults, error) {
-	u.logger.Tracef("Starting WatchUpgradeSeriesNotifications with %+v", args)
+	u.logger.Tracef(ctx, "Starting WatchUpgradeSeriesNotifications with %+v", args)
 	result := params.NotifyWatchResults{
 		Results: make([]params.NotifyWatchResult, len(args.Entities)),
 	}
@@ -157,7 +157,7 @@ func (u *UpgradeSeriesAPI) WatchUpgradeSeriesNotifications(ctx context.Context, 
 // upgrading unit.
 // If no series upgrade is in progress an error is returned instead.
 func (u *UpgradeSeriesAPI) UpgradeSeriesUnitStatus(ctx context.Context, args params.Entities) (params.UpgradeSeriesStatusResults, error) {
-	u.logger.Tracef("Starting UpgradeSeriesUnitStatus with %+v", args)
+	u.logger.Tracef(ctx, "Starting UpgradeSeriesUnitStatus with %+v", args)
 	return u.unitStatus(args)
 }
 
@@ -167,7 +167,7 @@ func (u *UpgradeSeriesAPI) SetUpgradeSeriesUnitStatus(
 	ctx context.Context,
 	args params.UpgradeSeriesStatusParams,
 ) (params.ErrorResults, error) {
-	u.logger.Tracef("Starting SetUpgradeSeriesUnitStatus with %+v", args)
+	u.logger.Tracef(ctx, "Starting SetUpgradeSeriesUnitStatus with %+v", args)
 	return u.setUnitStatus(args)
 }
 
@@ -238,7 +238,7 @@ func (u *UpgradeSeriesAPI) setUnitStatus(args params.UpgradeSeriesStatusParams) 
 
 		sts, _, err := unit.UpgradeSeriesStatus()
 		if err != nil {
-			logger.Tracef("unit upgrade series status not found, fallback to not-started: %v", err)
+			logger.Tracef(ctx, "unit upgrade series status not found, fallback to not-started: %v", err)
 			sts = model.UpgradeSeriesNotStarted
 		}
 		if !graph.ValidState(sts) {
@@ -250,7 +250,7 @@ func (u *UpgradeSeriesAPI) setUnitStatus(args params.UpgradeSeriesStatusParams) 
 		// This can happen in situations where the upgrade completion hook
 		// fails and requires resolution before re-running.
 		if sts == p.Status {
-			logger.Debugf("unit %s already has upgrade series status %s", tag.Id(), sts)
+			logger.Debugf(ctx, "unit %s already has upgrade series status %s", tag.Id(), sts)
 			continue
 		}
 

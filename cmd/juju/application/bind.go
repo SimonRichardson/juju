@@ -116,7 +116,7 @@ func (c *bindCommand) Run(ctx *cmd.Context) error {
 	defer func() { _ = apiRoot.Close() }()
 
 	if err = c.parseBindExpression(apiRoot); err != nil && errors.Is(err, errors.NotSupported) {
-		ctx.Infof("Spaces not supported by this model's cloud, nothing to do.")
+		ctx.Infof(ctx, "Spaces not supported by this model's cloud, nothing to do.")
 		return nil
 	} else if err != nil {
 		return err
@@ -172,7 +172,7 @@ func (c *bindCommand) Run(ctx *cmd.Context) error {
 
 	// Emit binding changelog after a successful call to MergeBindings.
 	for _, change := range bindingsChangelog {
-		ctx.Infof(change)
+		ctx.Infof(ctx, change)
 	}
 	return nil
 }

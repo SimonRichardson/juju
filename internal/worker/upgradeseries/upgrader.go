@@ -59,7 +59,7 @@ func (u *upgrader) populateAgents() (err error) {
 		return errors.Trace(err)
 	}
 	if len(unknown) > 0 {
-		u.logger.Warningf("skipping agents not of type machine or unit: %s", strings.Join(unknown, ", "))
+		u.logger.Warningf(ctx, "skipping agents not of type machine or unit: %s", strings.Join(unknown, ", "))
 	}
 	return nil
 }

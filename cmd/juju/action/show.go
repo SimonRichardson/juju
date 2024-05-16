@@ -82,7 +82,7 @@ func (c *showCommand) Run(ctx *cmd.Context) error {
 	}
 	info, ok := actions[c.actionName]
 	if !ok {
-		ctx.Infof("unknown action %q\n", c.actionName)
+		ctx.Infof(ctx, "unknown action %q\n", c.actionName)
 		return cmd.ErrSilent
 	}
 

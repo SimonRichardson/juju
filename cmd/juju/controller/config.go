@@ -284,7 +284,7 @@ func (c *configCommand) setConfig(client controllerAPI, attrs config.Attrs) erro
 	}
 	if extraValues.Size() > 0 {
 		if c.ignoreReadOnlyFields {
-			logger.Warningf("invalid or read-only controller config values ignored: %v", extraValues.SortedValues())
+			logger.Warningf(ctx, "invalid or read-only controller config values ignored: %v", extraValues.SortedValues())
 		} else {
 			return errors.Errorf("invalid or read-only controller config values cannot be updated: %v", extraValues.SortedValues())
 		}

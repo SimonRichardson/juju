@@ -365,7 +365,7 @@ func (api *API) WatchRemoteRelations(ctx context.Context) (params.StringsWatchRe
 // ConsumeRemoteRelationChanges consumes changes to settings originating
 // from the remote/offering side of relations.
 func (api *API) ConsumeRemoteRelationChanges(ctx context.Context, changes params.RemoteRelationsChanges) (params.ErrorResults, error) {
-	api.logger.Debugf("ConsumeRemoteRelationChanges: %+v", changes)
+	api.logger.Debugf(ctx, "ConsumeRemoteRelationChanges: %+v", changes)
 	results := params.ErrorResults{
 		Results: make([]params.ErrorResult, len(changes.Changes)),
 	}
@@ -383,7 +383,7 @@ func (api *API) ConsumeRemoteRelationChanges(ctx context.Context, changes params
 			results.Results[i].Error = apiservererrors.ServerError(err)
 			continue
 		}
-		api.logger.Debugf("ConsumeRemoteRelationChanges: rel tag %v; app tag: %v", relationTag, applicationTag)
+		api.logger.Debugf(ctx, "ConsumeRemoteRelationChanges: rel tag %v; app tag: %v", relationTag, applicationTag)
 		if err := commoncrossmodel.PublishRelationChange(api.authorizer, api.st, relationTag, applicationTag, change); err != nil {
 			results.Results[i].Error = apiservererrors.ServerError(err)
 			continue

@@ -34,7 +34,7 @@ func createVolumes(ctx *context, ops map[names.VolumeTag]*createVolumeOp) error 
 	var volumeAttachments []storage.VolumeAttachment
 	var statuses []params.EntityStatusArgs
 	for sourceName, volumeParams := range paramsBySource {
-		ctx.config.Logger.Debugf("creating volumes: %v", volumeParams)
+		ctx.config.Logger.Debugf(ctx, "creating volumes: %v", volumeParams)
 		volumeSource := volumeSources[sourceName]
 		validVolumeParams, validationErrors := validateVolumeParams(volumeSource, volumeParams)
 		for i, err := range validationErrors {
@@ -46,7 +46,7 @@ func createVolumes(ctx *context, ops map[names.VolumeTag]*createVolumeOp) error 
 				Status: status.Error.String(),
 				Info:   err.Error(),
 			})
-			ctx.config.Logger.Debugf(
+			ctx.config.Logger.Debugf(ctx,
 				"failed to validate parameters for %s: %v",
 				names.ReadableString(volumeParams[i].Tag), err,
 			)
@@ -75,7 +75,7 @@ func createVolumes(ctx *context, ops map[names.VolumeTag]*createVolumeOp) error 
 				// status to "error" for permanent errors.
 				entityStatus.Status = status.Pending.String()
 				entityStatus.Info = result.Error.Error()
-				ctx.config.Logger.Debugf(
+				ctx.config.Logger.Debugf(ctx,
 					"failed to create %s: %v",
 					names.ReadableString(volumeParams[i].Tag),
 					result.Error,
@@ -142,7 +142,7 @@ func attachVolumes(ctx *context, ops map[params.MachineStorageId]*attachVolumeOp
 	var volumeAttachments []storage.VolumeAttachment
 	var statuses []params.EntityStatusArgs
 	for sourceName, volumeAttachmentParams := range paramsBySource {
-		ctx.config.Logger.Debugf("attaching volumes: %+v", volumeAttachmentParams)
+		ctx.config.Logger.Debugf(ctx, "attaching volumes: %+v", volumeAttachmentParams)
 		volumeSource := volumeSources[sourceName]
 		if volumeSource == nil {
 			// The storage provider does not support dynamic
@@ -176,7 +176,7 @@ func attachVolumes(ctx *context, ops map[params.MachineStorageId]*attachVolumeOp
 				// set the status to "error" for permanent errors.
 				entityStatus.Status = status.Attaching.String()
 				entityStatus.Info = result.Error.Error()
-				ctx.config.Logger.Warningf(
+				ctx.config.Logger.Warningf(ctx,
 					"failed to attach %s to %s: %v",
 					names.ReadableString(p.Volume),
 					names.ReadableString(p.Machine),
@@ -307,7 +307,7 @@ func removeVolumes(ctx *context, ops map[names.VolumeTag]*removeVolumeOp) error 
 		return nil
 	}
 	for sourceName, volumeParams := range paramsBySource {
-		ctx.config.Logger.Debugf("removing volumes from %q: %v", sourceName, volumeParams)
+		ctx.config.Logger.Debugf(ctx, "removing volumes from %q: %v", sourceName, volumeParams)
 		volumeSource := volumeSources[sourceName]
 		removeTags := make([]names.VolumeTag, len(volumeParams))
 		removeParams := make([]params.RemoveVolumeParams, len(volumeParams))
@@ -368,7 +368,7 @@ func detachVolumes(ctx *context, ops map[params.MachineStorageId]*detachVolumeOp
 	var statuses []params.EntityStatusArgs
 	var remove []params.MachineStorageId
 	for sourceName, volumeAttachmentParams := range paramsBySource {
-		ctx.config.Logger.Debugf("detaching volumes: %+v", volumeAttachmentParams)
+		ctx.config.Logger.Debugf(ctx, "detaching volumes: %+v", volumeAttachmentParams)
 		volumeSource := volumeSources[sourceName]
 		if volumeSource == nil {
 			// The storage provider does not support dynamic
@@ -402,7 +402,7 @@ func detachVolumes(ctx *context, ops map[params.MachineStorageId]*detachVolumeOp
 				reschedule = append(reschedule, ops[id])
 				entityStatus.Status = status.Detaching.String()
 				entityStatus.Info = err.Error()
-				ctx.config.Logger.Debugf(
+				ctx.config.Logger.Debugf(ctx,
 					"failed to detach %s from %s: %v",
 					names.ReadableString(p.Volume),
 					names.ReadableString(p.Machine),

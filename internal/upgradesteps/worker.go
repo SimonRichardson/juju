@@ -83,7 +83,7 @@ func (w *BaseWorker) AlreadyUpgraded() bool {
 	}
 
 	if w.FromVersion == w.ToVersion {
-		w.Logger.Infof("upgrade to %v already completed.", w.ToVersion)
+		w.Logger.Infof(ctx, "upgrade to %v already completed.", w.ToVersion)
 		w.UpgradeCompleteLock.Unlock()
 		return true
 	}
@@ -103,7 +103,7 @@ func (w *BaseWorker) RunUpgradeSteps(ctx context.Context, targets []upgrades.Tar
 		}
 
 		context := upgrades.NewContext(agentConfig, w.APICaller)
-		w.Logger.Infof("starting upgrade from %v to %v for %q", w.FromVersion, w.ToVersion, w.Tag)
+		w.Logger.Infof(ctx, "starting upgrade from %v to %v for %q", w.FromVersion, w.ToVersion, w.Tag)
 
 		retryStrategy := retry.CallArgs{
 			Clock:    w.Clock,

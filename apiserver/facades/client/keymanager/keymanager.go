@@ -138,7 +138,7 @@ func (api *KeyManagerAPI) currentKeyDataForAdd(ctx context.Context) (keys []stri
 	for _, key := range keys {
 		fingerprint, _, err := ssh.KeyFingerprint(key)
 		if err != nil {
-			api.logger.Warningf("ignoring invalid ssh key %q: %v", key, err)
+			api.logger.Warningf(ctx, "ignoring invalid ssh key %q: %v", key, err)
 			continue
 		}
 		fingerprints.Add(fingerprint)
@@ -314,7 +314,7 @@ func (api *KeyManagerAPI) currentKeyDataForDelete(ctx context.Context) (keyDataF
 	for _, key := range currentKeys {
 		fingerprint, comment, err := ssh.KeyFingerprint(key)
 		if err != nil {
-			api.logger.Debugf("invalid existing ssh key %q: %v", key, err)
+			api.logger.Debugf(ctx, "invalid existing ssh key %q: %v", key, err)
 			invalidKeys[key] = key
 			continue
 		}

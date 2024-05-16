@@ -127,7 +127,7 @@ func (s *secretsChangeRecorder) secretGrantInfo(uri *secrets.URI, applied ...sec
 			params := grant.ToParams()
 			if len(params.SubjectTags) == 0 {
 				// This should never happen.
-				s.logger.Warningf("missing SubjectTags: %+v", params)
+				s.logger.Warningf(ctx, "missing SubjectTags: %+v", params)
 				continue
 			}
 			applied = append(applied, secrets.AccessInfo{
@@ -146,7 +146,7 @@ func (s *secretsChangeRecorder) secretGrantInfo(uri *secrets.URI, applied ...sec
 			params := revoke.ToParams()
 			if len(params.SubjectTags) == 0 {
 				// This should never happen.
-				s.logger.Warningf("missing SubjectTags: %+v", params)
+				s.logger.Warningf(ctx, "missing SubjectTags: %+v", params)
 				continue
 			}
 			for j, grant := range applied {

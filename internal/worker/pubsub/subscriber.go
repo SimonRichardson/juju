@@ -93,7 +93,7 @@ func newSubscriber(config WorkerConfig) (*subscriber, error) {
 		return nil, errors.Trace(err)
 	}
 	sub.unsubAll = unsub
-	config.Logger.Debugf("subscribing to details topic")
+	config.Logger.Debugf(ctx, "subscribing to details topic")
 	unsub, err = config.Hub.Subscribe(apiserver.DetailsTopic, sub.apiServerChanges)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -158,17 +158,17 @@ func (s *subscriber) IntrospectionReport() string {
 }
 
 func (s *subscriber) waitForDeath() error {
-	s.config.Logger.Tracef("wait for catacomb dying before unsubscribe")
+	s.config.Logger.Tracef(ctx, "wait for catacomb dying before unsubscribe")
 	defer s.unsubAll()
 	defer s.unsubServerDetails()
 
 	<-s.catacomb.Dying()
-	s.config.Logger.Tracef("dying now")
+	s.config.Logger.Tracef(ctx, "dying now")
 	return s.catacomb.ErrDying()
 }
 
 func (s *subscriber) apiServerChanges(topic string, details apiserver.Details, err error) {
-	s.config.Logger.Tracef("apiServerChanges: %#v", details)
+	s.config.Logger.Tracef(ctx, "apiServerChanges: %#v", details)
 	// Make sure we have workers for the defined details.
 	if err != nil {
 		// This should never happen.
@@ -214,10 +214,10 @@ func (s *subscriber) apiServerChanges(topic string, details apiserver.Details, e
 
 		server, found := s.servers[target]
 		if found {
-			s.config.Logger.Tracef("update addresses for %s to %v", target, addresses)
+			s.config.Logger.Tracef(ctx, "update addresses for %s to %v", target, addresses)
 			server.UpdateAddresses(addresses)
 		} else {
-			s.config.Logger.Debugf("new forwarder for %s", target)
+			s.config.Logger.Debugf(ctx, "new forwarder for %s", target)
 			newInfo := *s.config.APIInfo
 			newInfo.Addrs = addresses
 			server, err := s.config.NewRemote(RemoteServerConfig{
@@ -239,7 +239,7 @@ func (s *subscriber) apiServerChanges(topic string, details apiserver.Details, e
 	}
 	for name, server := range s.servers {
 		if !apiServers.Contains(name) {
-			s.config.Logger.Debugf("%s no longer listed as an apiserver", name)
+			s.config.Logger.Debugf(ctx, "%s no longer listed as an apiserver", name)
 			server.Kill()
 			err := server.Wait()
 			if err != nil {
@@ -248,25 +248,25 @@ func (s *subscriber) apiServerChanges(topic string, details apiserver.Details, e
 			delete(s.servers, name)
 		}
 	}
-	s.config.Logger.Tracef("update complete")
+	s.config.Logger.Tracef(ctx, "update complete")
 }
 
 func (s *subscriber) forwardMessage(topic string, data map[string]interface{}) {
 	if data["origin"] != s.config.Origin {
 		// Message does not originate from the place we care about.
 		// Nothing to do.
-		s.config.Logger.Tracef("skipping message %q as origin not ours", topic)
+		s.config.Logger.Tracef(ctx, "skipping message %q as origin not ours", topic)
 		return
 	}
 	// If local-only isn't specified, then the default interface{} value is
 	// returned, which is nil, and nil isn't true.
 	if data["local-only"] == true {
 		// Local message, don't forward.
-		s.config.Logger.Tracef("skipping message %q as local-only", topic)
+		s.config.Logger.Tracef(ctx, "skipping message %q as local-only", topic)
 		return
 	}
 
-	s.config.Logger.Tracef("forward message %q", topic)
+	s.config.Logger.Tracef(ctx, "forward message %q", topic)
 	message := &params.PubSubMessage{Topic: topic, Data: data}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

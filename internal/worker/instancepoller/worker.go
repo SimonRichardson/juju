@@ -246,7 +246,7 @@ func (u *updaterWorker) queueMachineForPolling(ctx stdcontext.Context, tag names
 		}
 
 		if isDead {
-			u.config.Logger.Debugf("removing dead machine %q (instance ID %q)", entry.m, entry.instanceID)
+			u.config.Logger.Debugf(ctx, "removing dead machine %q (instance ID %q)", entry.m, entry.instanceID)
 			delete(u.pollGroup[groupType], tag)
 			delete(u.instanceIDToGroupEntry, entry.instanceID)
 			return nil
@@ -258,7 +258,7 @@ func (u *updaterWorker) queueMachineForPolling(ctx stdcontext.Context, tag names
 		// status at the next interval.
 		u.moveEntryToPollGroup(shortPollGroup, entry)
 		if groupType == longPollGroup {
-			u.config.Logger.Debugf("moving machine %q (instance ID %q) to short poll group", entry.m, entry.instanceID)
+			u.config.Logger.Debugf(ctx, "moving machine %q (instance ID %q) to short poll group", entry.m, entry.instanceID)
 		}
 		return nil
 	}
@@ -419,7 +419,7 @@ func (u *updaterWorker) processOneInstance(
 	// This will ensure that instances that have gone away do not cause excessive
 	// provider call volumes.
 	if info == nil {
-		u.config.Logger.Warningf("unable to retrieve instance information for instance: %q", id)
+		u.config.Logger.Warningf(ctx, "unable to retrieve instance information for instance: %q", id)
 
 		if groupType == shortPollGroup {
 			entry.bumpShortPollInterval(u.config.Clock)
@@ -468,7 +468,7 @@ func (u *updaterWorker) processProviderInfo(
 		// This should never occur since the machine is provisioned. If
 		// it does occur, report an unknown status to move the machine to
 		// the short poll group.
-		u.config.Logger.Warningf("cannot get current instance status for machine %v (instance ID %q): %v",
+		u.config.Logger.Warningf(ctx, "cannot get current instance status for machine %v (instance ID %q): %v",
 			entry.m.Id(), entry.instanceID, err)
 
 		return status.Unknown, -1, nil
@@ -482,7 +482,7 @@ func (u *updaterWorker) processProviderInfo(
 	}
 
 	if providerStatus != curInstStatus {
-		u.config.Logger.Infof("machine %q (instance ID %q) instance status changed from %q to %q",
+		u.config.Logger.Infof(ctx, "machine %q (instance ID %q) instance status changed from %q to %q",
 			entry.m.Id(), entry.instanceID, curInstStatus, providerStatus)
 
 		if err = entry.m.SetInstanceStatus(providerStatus.Status, providerStatus.Message, nil); err != nil {
@@ -525,7 +525,7 @@ func (u *updaterWorker) syncProviderAddresses(
 	if err != nil {
 		return -1, errors.Trace(err)
 	} else if modified {
-		u.config.Logger.Infof("machine %q (instance ID %q) has new addresses: %v",
+		u.config.Logger.Infof(ctx, "machine %q (instance ID %q) has new addresses: %v",
 			entry.m.Id(), entry.instanceID, addrs)
 	}
 
@@ -550,7 +550,7 @@ func (u *updaterWorker) maybeSwitchPollGroup(
 	// the short poll group.
 	if curGroup == longPollGroup && (curProviderStatus == status.Unknown || providerAddrCount == 0) {
 		u.moveEntryToPollGroup(shortPollGroup, entry)
-		u.config.Logger.Debugf("moving machine %q (instance ID %q) back to short poll group", entry.m, entry.instanceID)
+		u.config.Logger.Debugf(ctx, "moving machine %q (instance ID %q) back to short poll group", entry.m, entry.instanceID)
 		return
 	}
 
@@ -559,7 +559,7 @@ func (u *updaterWorker) maybeSwitchPollGroup(
 	if providerAddrCount > 0 && curMachineStatus == status.Started {
 		u.moveEntryToPollGroup(longPollGroup, entry)
 		if curGroup != longPollGroup {
-			u.config.Logger.Debugf("moving machine %q (instance ID %q) to long poll group", entry.m, entry.instanceID)
+			u.config.Logger.Debugf(ctx, "moving machine %q (instance ID %q) to long poll group", entry.m, entry.instanceID)
 		}
 		return
 	}

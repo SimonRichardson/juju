@@ -129,7 +129,7 @@ func (ns nsRefcounts_) RemoveOp(coll mongo.Collection, key string, value int) (t
 		return txn.Op{}, errors.Trace(err)
 	}
 	if refcount != value {
-		logger.Tracef("reference of %s(%q) had %d refs, expected %d", coll.Name(), key, refcount, value)
+		logger.Tracef(ctx, "reference of %s(%q) had %d refs, expected %d", coll.Name(), key, refcount, value)
 		return txn.Op{}, errRefcountChanged
 	}
 	return ns.JustRemoveOp(coll.Name(), key, value), nil

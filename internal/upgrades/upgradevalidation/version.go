@@ -33,12 +33,12 @@ func versionCheck(
 	}
 	// Downgrades not allowed.
 	if from.Major > to.Major {
-		logger.Debugf("downgrade from %q to %q is not allowed", from, to)
+		logger.Debugf(ctx, "downgrade from %q to %q is not allowed", from, to)
 		return false, version.Number{}, errors.Errorf("downgrade is not allowed")
 	}
 
 	minVer, ok := versionMap[to.Major]
-	logger.Debugf("from %q, to %q, versionMap %#v", from, to, versionMap)
+	logger.Debugf(ctx, "from %q, to %q, versionMap %#v", from, to, versionMap)
 	if !ok {
 		return false, version.Number{}, errors.Errorf("%s to %q is not supported from %q", "upgrading controller", to, from)
 	}

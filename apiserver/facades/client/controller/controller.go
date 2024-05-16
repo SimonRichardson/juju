@@ -448,7 +448,7 @@ func (c *ControllerAPI) ListBlockedModels(ctx context.Context) (params.ModelBloc
 	for uuid, blocks := range modelBlocks {
 		model, ph, err := c.statePool.GetModel(uuid)
 		if err != nil {
-			c.logger.Debugf("unable to retrieve model %s: %v", uuid, err)
+			c.logger.Debugf(ctx, "unable to retrieve model %s: %v", uuid, err)
 			continue
 		}
 		results.Models = append(results.Models, params.ModelBlockInfo{

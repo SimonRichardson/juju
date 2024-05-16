@@ -27,7 +27,7 @@ func (r *secretBackendRegistry) Register(p SecretBackendProvider) error {
 	if r.backends[backendType] != nil {
 		return errors.Errorf("duplicate backend name %q", backendType)
 	}
-	logger.Tracef("registering secret provider %q", backendType)
+	logger.Tracef(ctx, "registering secret provider %q", backendType)
 	r.backends[backendType] = p
 	return nil
 }

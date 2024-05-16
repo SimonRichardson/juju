@@ -308,7 +308,7 @@ func (c *registerCommand) publicControllerDetails(ctx *cmd.Context, host, contro
 	// user. If we encounter an error after here, we need to clear it.
 	c.onRunError = func() {
 		if err := c.ClearControllerMacaroons(c.store, controllerName); err != nil {
-			logger.Errorf("failed to clear macaroon: %v", err)
+			logger.Errorf(ctx, "failed to clear macaroon: %v", err)
 		}
 	}
 	return jujuclient.ControllerDetails{
@@ -378,7 +378,7 @@ func (c *registerCommand) nonPublicControllerDetails(ctx *cmd.Context, registrat
 		// will be expired.
 		// Log the error as it will be useful for debugging, but give user a
 		// suggestion for the way forward instead of error details.
-		logger.Infof("while validating secret key: %v", err)
+		logger.Infof(ctx, "while validating secret key: %v", err)
 		err = errors.Errorf("Provided registration token may have been expired.\nA controller administrator must reset your user to issue a new token.\nSee %q for more information.", "juju help change-user-password")
 		return errRet(errors.Trace(err))
 	}
@@ -408,12 +408,12 @@ func (c *registerCommand) nonPublicControllerDetails(ctx *cmd.Context, registrat
 	}
 
 	user := registrationParams.userTag.Id()
-	ctx.Infof("Initial password successfully set for %s.", friendlyUserName(user))
+	ctx.Infof(ctx, "Initial password successfully set for %s.", friendlyUserName(user))
 	// If we get to here, then we have a cached macaroon for the registered
 	// user. If we encounter an error after here, we need to clear it.
 	c.onRunError = func() {
 		if err := c.ClearControllerMacaroons(c.store, controllerName); err != nil {
-			logger.Errorf("failed to clear macaroon: %v", err)
+			logger.Errorf(ctx, "failed to clear macaroon: %v", err)
 		}
 	}
 	return controllerDetails, jujuclient.AccountDetails{
@@ -618,7 +618,7 @@ func (c *registerCommand) secretKeyLogin(
 			if err == nil {
 				err = closeErr
 			} else {
-				logger.Warningf("error closing API connection: %v", closeErr)
+				logger.Warningf(ctx, "error closing API connection: %v", closeErr)
 			}
 		}
 	}()

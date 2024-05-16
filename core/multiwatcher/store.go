@@ -118,7 +118,7 @@ func (a *store) All() []EntityInfo {
 // information to the list.
 func (a *store) add(id interface{}, info EntityInfo) {
 	if _, ok := a.entities[id]; ok {
-		a.logger.Criticalf("programming error: adding new entry with duplicate id %q", id)
+		a.logger.Criticalf(ctx, "programming error: adding new entry with duplicate id %q", id)
 		return
 	}
 	a.latestRevno++
@@ -137,7 +137,7 @@ func (a *store) decRef(entry *entityEntry) {
 		return
 	}
 	if entry.refCount < 0 {
-		a.logger.Criticalf("programming error: negative reference count\n%s", pretty.Sprint(entry))
+		a.logger.Criticalf(ctx, "programming error: negative reference count\n%s", pretty.Sprint(entry))
 		return
 	}
 	if !entry.removed {
@@ -146,7 +146,7 @@ func (a *store) decRef(entry *entityEntry) {
 	id := entry.info.EntityID()
 	elem, ok := a.entities[id]
 	if !ok {
-		a.logger.Criticalf("programming error: delete of non-existent entry\n%s", pretty.Sprint(entry))
+		a.logger.Criticalf(ctx, "programming error: delete of non-existent entry\n%s", pretty.Sprint(entry))
 		return
 	}
 	delete(a.entities, id)

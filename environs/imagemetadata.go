@@ -42,7 +42,7 @@ func RegisterUserImageDataSourceFunc(id string, f ImageDataSourceFunc) {
 			return
 		}
 	}
-	logger.Debugf("new user image datasource registered: %v", id)
+	logger.Debugf(ctx, "new user image datasource registered: %v", id)
 	datasourceFuncs = append([]datasourceFuncId{{id, f}}, datasourceFuncs...)
 }
 
@@ -58,7 +58,7 @@ func RegisterImageDataSourceFunc(id string, f ImageDataSourceFunc) {
 			return
 		}
 	}
-	logger.Debugf("new model image datasource registered: %v", id)
+	logger.Debugf(ctx, "new model image datasource registered: %v", id)
 	datasourceFuncs = append(datasourceFuncs, datasourceFuncId{id, f})
 }
 
@@ -110,7 +110,7 @@ func ImageMetadataSources(env BootstrapEnviron, dataSourceFactory simplestreams.
 	sources = append(sources, envDataSources...)
 
 	if config.ImageMetadataDefaultsDisabled() {
-		logger.Debugf("default image metadata sources are disabled")
+		logger.Debugf(ctx, "default image metadata sources are disabled")
 	} else {
 		// Add the official image metadata datasources.
 		officialDataSources, err := imagemetadata.OfficialDataSources(dataSourceFactory, config.ImageStream())
@@ -121,7 +121,7 @@ func ImageMetadataSources(env BootstrapEnviron, dataSourceFactory simplestreams.
 	}
 
 	for _, ds := range sources {
-		logger.Debugf("obtained image datasource %q", ds.Description())
+		logger.Debugf(ctx, "obtained image datasource %q", ds.Description())
 	}
 	return sources, nil
 }
@@ -135,7 +135,7 @@ func environmentDataSources(bootstrapEnviron BootstrapEnviron) ([]simplestreams.
 	var datasources []simplestreams.DataSource
 	env, ok := bootstrapEnviron.(Environ)
 	if !ok {
-		logger.Debugf("environmentDataSources is supported for IAAS, environ %#v is not Environ", bootstrapEnviron)
+		logger.Debugf(ctx, "environmentDataSources is supported for IAAS, environ %#v is not Environ", bootstrapEnviron)
 		// ignore for CAAS
 		return datasources, nil
 	}

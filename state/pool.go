@@ -70,7 +70,7 @@ func (ps *PooledState) Release() bool {
 
 	removed, err := ps.pool.release(ps.modelUUID, ps.itemKey)
 	if err != nil {
-		logger.Errorf("releasing state back to pool: %s", err.Error())
+		logger.Errorf(ctx, "releasing state back to pool: %s", err.Error())
 	}
 	ps.released = true
 	return removed
@@ -126,7 +126,7 @@ type StatePool struct {
 
 // OpenStatePool returns a new StatePool instance.
 func OpenStatePool(args OpenParams) (_ *StatePool, err error) {
-	logger.Tracef("opening state pool")
+	logger.Tracef(ctx, "opening state pool")
 	if err = args.Validate(); err != nil {
 		return nil, errors.Annotate(err, "validating args")
 	}
@@ -159,7 +159,7 @@ func OpenStatePool(args OpenParams) (_ *StatePool, err error) {
 	defer func() {
 		if err != nil {
 			if closeErr := st.Close(); closeErr != nil {
-				logger.Errorf("closing State for %s: %v", args.ControllerModelTag, closeErr)
+				logger.Errorf(ctx, "closing State for %s: %v", args.ControllerModelTag, closeErr)
 			}
 		}
 	}()
@@ -388,7 +388,7 @@ func (p *StatePool) Close() error {
 		return nil
 	}
 	if logger.IsLevelEnabled(corelogger.TRACE) {
-		logger.Tracef("state pool closed from:\n%s", debug.Stack())
+		logger.Tracef(ctx, "state pool closed from:\n%s", debug.Stack())
 	}
 
 	// Before we go through and close the state pool objects, we need to
@@ -401,11 +401,11 @@ func (p *StatePool) Close() error {
 
 	for uuid, item := range p.pool {
 		if err := item.state.stopWorkers(); err != nil {
-			logger.Infof("state workers for model %s did not stop: %v", uuid, err)
+			logger.Infof(ctx, "state workers for model %s did not stop: %v", uuid, err)
 		}
 	}
 	if err := p.systemState.stopWorkers(); err != nil {
-		logger.Infof("state workers for controller model did not stop: %v", err)
+		logger.Infof(ctx, "state workers for controller model did not stop: %v", err)
 	}
 
 	// Reacquire the lock to modify the pool.
@@ -422,7 +422,7 @@ func (p *StatePool) Close() error {
 	p.mu.Unlock()
 	for _, item := range pool {
 		if item.refCount() != 0 || item.remove {
-			logger.Warningf(
+			logger.Warningf(ctx,
 				"state for %v leaked from pool - references: %v, removed: %v",
 				item.state.ModelUUID(),
 				item.refCount(),

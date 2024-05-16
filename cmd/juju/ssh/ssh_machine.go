@@ -334,7 +334,7 @@ func (c *sshMachine) proxySSH() (bool, error) {
 	if err != nil {
 		return false, errors.Trace(err)
 	}
-	logger.Debugf("proxy-ssh is %v", proxy)
+	logger.Debugf(ctx, "proxy-ssh is %v", proxy)
 	return proxy, nil
 }
 
@@ -441,7 +441,7 @@ func (c *sshMachine) resolveTarget(target string) (*resolvedTarget, error) {
 		// reachability scan juju ssh could inadvertently end up using
 		// the public address when it really should be using the
 		// internal/private address.
-		logger.Debugf("proxy-ssh enabled so not doing reachability scan")
+		logger.Debugf(ctx, "proxy-ssh enabled so not doing reachability scan")
 		getAddress = c.legacyAddressGetter
 	}
 
@@ -481,11 +481,11 @@ func (c *sshMachine) resolveWithRetry(target resolvedTarget, getAddress addressG
 		}
 
 		if err != nil {
-			logger.Debugf("getting target %q address(es) failed: %v (retrying)", out.entity, err)
+			logger.Debugf(ctx, "getting target %q address(es) failed: %v (retrying)", out.entity, err)
 			return errors.Trace(err)
 		}
 
-		logger.Debugf("using target %q address %q", out.entity, out.host)
+		logger.Debugf(ctx, "using target %q address %q", out.entity, out.host)
 		return nil
 	}
 	err := retry.Call(callArgs)
@@ -518,7 +518,7 @@ func (c *sshMachine) reachableAddressGetter(entity string) (string, error) {
 	} else if len(addresses) == 0 {
 		return "", network.NoAddressError("available")
 	} else if len(addresses) == 1 {
-		logger.Debugf("Only one SSH address provided (%s), using it without probing", addresses[0])
+		logger.Debugf(ctx, "Only one SSH address provided (%s), using it without probing", addresses[0])
 		return addresses[0], nil
 	}
 	var publicKeys []string

@@ -53,7 +53,7 @@ func ensureNotBlocked(st Backend, logger corelogger.Logger) error {
 	// If there are blocks let the user know.
 	blocks, err := st.AllBlocksForController()
 	if err != nil {
-		logger.Debugf("Unable to get blocks for controller: %s", err)
+		logger.Debugf(ctx, "Unable to get blocks for controller: %s", err)
 		return errors.Trace(err)
 	}
 	if len(blocks) > 0 {

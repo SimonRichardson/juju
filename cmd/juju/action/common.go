@@ -183,34 +183,34 @@ func (c *runCommandBase) processOperationResults(ctx *cmd.Context, forceColor bo
 	}
 	if numTasks == 0 {
 		if forceColor {
-			ctx.Infof("Operation %s failed to schedule any tasks:\n%s", opIDColored, colorVal(output.ErrorHighlight, strings.Join(enqueueErrs, "\n")))
+			ctx.Infof(ctx, "Operation %s failed to schedule any tasks:\n%s", opIDColored, colorVal(output.ErrorHighlight, strings.Join(enqueueErrs, "\n")))
 		} else {
-			ctx.Infof("Operation %s failed to schedule any tasks:\n%s", operationID, strings.Join(enqueueErrs, "\n"))
+			ctx.Infof(ctx, "Operation %s failed to schedule any tasks:\n%s", operationID, strings.Join(enqueueErrs, "\n"))
 		}
 		return nil
 	}
 	if len(enqueueErrs) > 0 {
 		if forceColor {
-			ctx.Infof("Some actions could not be scheduled:\n%s\n", colorVal(output.ErrorHighlight, strings.Join(enqueueErrs, "\n")))
+			ctx.Infof(ctx, "Some actions could not be scheduled:\n%s\n", colorVal(output.ErrorHighlight, strings.Join(enqueueErrs, "\n")))
 		} else {
-			ctx.Infof("Some actions could not be scheduled:\n%s\n", strings.Join(enqueueErrs, "\n"))
+			ctx.Infof(ctx, "Some actions could not be scheduled:\n%s\n", strings.Join(enqueueErrs, "\n"))
 		}
-		ctx.Infof("")
+		ctx.Infof(ctx, "")
 	}
 	printInfo := func(opID, actionId, nTasks interface{}) {
 		if numTasks == 1 {
-			ctx.Infof("Scheduled operation %s with task %s", opID, actionId)
-			ctx.Infof("Check operation status with 'juju show-operation %s'", opID)
-			ctx.Infof("Check task status with 'juju show-task %s'", actionId)
+			ctx.Infof(ctx, "Scheduled operation %s with task %s", opID, actionId)
+			ctx.Infof(ctx, "Check operation status with 'juju show-operation %s'", opID)
+			ctx.Infof(ctx, "Check task status with 'juju show-task %s'", actionId)
 		} else {
-			ctx.Infof("Scheduled operation %s with %v tasks", opID, nTasks)
+			ctx.Infof(ctx, "Scheduled operation %s with %v tasks", opID, nTasks)
 			if forceColor {
 				_ = output.FormatYamlWithColor(ctx.Stdout, info)
 			} else {
 				_ = cmd.FormatYaml(ctx.Stdout, info)
 			}
-			ctx.Infof("Check operation status with 'juju show-operation %s'", opID)
-			ctx.Infof("Check task status with 'juju show-task <id>'")
+			ctx.Infof(ctx, "Check operation status with 'juju show-operation %s'", opID)
+			ctx.Infof(ctx, "Check task status with 'juju show-task <id>'")
 		}
 	}
 	actionIdColored := colorVal(output.InfoHighlight, actionID)
@@ -374,7 +374,7 @@ func (c *runCommandBase) progressf(ctx *cmd.Context, format string, params ...in
 	if c.hideProgress {
 		ctx.Verbosef(format, params...)
 	} else {
-		ctx.Infof(format, params...)
+		ctx.Infof(ctx, format, params...)
 	}
 }
 
@@ -825,7 +825,7 @@ func processLogMessages(
 				for _, msg := range messages {
 					logMsg, err := decodeLogMessage(msg, utc)
 					if err != nil {
-						logger.Warningf("badly formatted action log message: %v\n%v", err, msg)
+						logger.Warningf(ctx, "badly formatted action log message: %v\n%v", err, msg)
 						continue
 					}
 					handler(ctx, logMsg)

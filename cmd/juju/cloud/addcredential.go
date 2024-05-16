@@ -184,16 +184,16 @@ func (c *addCredentialCommand) Run(ctxt *cmd.Context) error {
 	if c.ControllerName != "" {
 		if err := c.maybeRemoteCloud(ctxt); err != nil {
 			if !errors.Is(err, errors.NotFound) {
-				logger.Errorf("%v", err)
+				logger.Errorf(ctx, "%v", err)
 			}
-			ctxt.Infof("Cloud %q is not found on the controller, looking for a locally stored cloud.", c.CloudName)
+			ctxt.Infof(ctx, "Cloud %q is not found on the controller, looking for a locally stored cloud.", c.CloudName)
 		}
 	}
 	if c.cloud == nil {
 		var err error
 		if c.cloud, err = common.CloudOrProvider(c.CloudName, c.cloudByNameFunc); err != nil {
-			logger.Errorf("%v", err)
-			ctxt.Infof("To view all available clouds, use 'juju clouds'.\nTo add new cloud, use 'juju add-cloud'.")
+			logger.Errorf(ctx, "%v", err)
+			ctxt.Infof(ctx, "To view all available clouds, use 'juju clouds'.\nTo add new cloud, use 'juju add-cloud'.")
 			return cmd.ErrSilent
 		}
 	}
@@ -292,7 +292,7 @@ func (c *addCredentialCommand) Run(ctxt *cmd.Context) error {
 		if _, ok := existingCredentials.AuthCredentials[name]; ok {
 			// We want to flag to the user as an error but we do not actually want to err here
 			// but continue processing the rest of cloud credentials.
-			ctxt.Infof("ERROR credential %q for cloud %q already exists locally, use 'juju update-credential %v %v -f %v' to update this local client copy", name, c.CloudName, c.CloudName, name, c.CredentialsFile)
+			ctxt.Infof(ctx, "ERROR credential %q for cloud %q already exists locally, use 'juju update-credential %v %v -f %v' to update this local client copy", name, c.CloudName, c.CloudName, name, c.CredentialsFile)
 			returnErr = cmd.ErrSilent
 			continue
 		}
@@ -613,7 +613,7 @@ func (c *addCredentialCommand) maybeRemoteCloud(ctxt *cmd.Context) error {
 		return err
 	}
 	if remoteCloud, ok := remoteUserClouds[names.NewCloudTag(c.CloudName)]; ok {
-		ctxt.Infof("Using cloud %q from the controller to verify credentials.", c.CloudName)
+		ctxt.Infof(ctx, "Using cloud %q from the controller to verify credentials.", c.CloudName)
 		c.cloud = &remoteCloud
 		c.remoteCloudFound = true
 	}
@@ -648,8 +648,8 @@ func (c *addCredentialCommand) addRemoteCredentials(ctxt *cmd.Context, all map[s
 	defer client.Close()
 	results, err := client.AddCloudsCredentials(verified)
 	if err != nil {
-		logger.Errorf("%v", err)
-		ctxt.Warningf("Could not upload credentials to controller %q", c.ControllerName)
+		logger.Errorf(ctx, "%v", err)
+		ctxt.Warningf(ctx, "Could not upload credentials to controller %q", c.ControllerName)
 	}
 	return processUpdateCredentialResult(ctxt, accountDetails, "added", results, false, c.ControllerName, localError)
 }

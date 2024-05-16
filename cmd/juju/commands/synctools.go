@@ -120,7 +120,7 @@ func (c *syncAgentBinaryCommand) Run(ctx *cmd.Context) (resultErr error) {
 
 	if envMetadataSrc := os.Getenv(constants.EnvJujuMetadataSource); c.source == "" && envMetadataSrc != "" {
 		c.source = envMetadataSrc
-		ctx.Infof("Using local simple stream source directory %q", c.source)
+		ctx.Infof(ctx, "Using local simple stream source directory %q", c.source)
 	}
 
 	sctx := &sync.SyncContext{
@@ -147,7 +147,7 @@ func (c *syncAgentBinaryCommand) Run(ctx *cmd.Context) (resultErr error) {
 		}
 	} else {
 		if c.public {
-			logger.Infof("--public is ignored unless --local-dir is specified")
+			logger.Infof(ctx, "--public is ignored unless --local-dir is specified")
 		}
 		api, err := c.getSyncToolAPI()
 		if err != nil {

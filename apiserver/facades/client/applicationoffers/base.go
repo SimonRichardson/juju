@@ -140,7 +140,7 @@ func (api *BaseAPI) applicationOffersFromModel(
 		// Just because we can't compose the result for one offer, log
 		// that and move on to the next one.
 		if err != nil {
-			api.logger.Warningf("cannot get application offer: %v", err)
+			api.logger.Warningf(ctx, "cannot get application offer: %v", err)
 			continue
 		}
 		offerParams.Users = []params.OfferUserDetails{{
@@ -154,7 +154,7 @@ func (api *BaseAPI) applicationOffersFromModel(
 		// Only admins can see some sensitive details of the offer.
 		if isAdmin {
 			if err := api.getOfferAdminDetails(user, backend, app, &offer); err != nil {
-				api.logger.Warningf("cannot get offer admin details: %v", err)
+				api.logger.Warningf(ctx, "cannot get offer admin details: %v", err)
 			}
 		}
 		results = append(results, offer)

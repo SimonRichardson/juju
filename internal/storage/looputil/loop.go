@@ -54,14 +54,14 @@ func NewLoopDeviceManager() LoopDeviceManager {
 // DetachLoopDevices detaches loop devices that are backed by files
 // inside the given root filesystem with the given prefix.
 func (m *loopDeviceManager) DetachLoopDevices(rootfs, prefix string) error {
-	logger.Debugf("detaching loop devices inside %q", rootfs)
+	logger.Debugf(ctx, "detaching loop devices inside %q", rootfs)
 	loopDevices, err := loopDevices(m.run)
 	if err != nil {
 		return errors.Annotate(err, "listing loop devices")
 	}
 
 	for _, info := range loopDevices {
-		logger.Debugf("checking loop device: %v", info)
+		logger.Debugf(ctx, "checking loop device: %v", info)
 		if !strings.HasPrefix(info.backingFile, prefix) {
 			continue
 		}
@@ -78,7 +78,7 @@ func (m *loopDeviceManager) DetachLoopDevices(rootfs, prefix string) error {
 		if m.inode(st) != info.backingInode {
 			continue
 		}
-		logger.Debugf("detaching loop device %q", info.name)
+		logger.Debugf(ctx, "detaching loop device %q", info.name)
 		if err := detachLoopDevice(m.run, info.name); err != nil {
 			return errors.Trace(err)
 		}

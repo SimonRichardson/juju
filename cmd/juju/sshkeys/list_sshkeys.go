@@ -91,7 +91,7 @@ func (c *listKeysCommand) Run(context *cmd.Context) error {
 		return errors.Trace(result.Error)
 	}
 	if len(result.Result) == 0 {
-		context.Infof("No keys to display.")
+		context.Infof(ctx, "No keys to display.")
 		return nil
 	}
 	modelIdentifier, err := c.ModelIdentifier()

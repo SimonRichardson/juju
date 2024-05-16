@@ -104,7 +104,7 @@ func (c *listCommand) Run(ctx *cmd.Context) (err error) {
 	}
 	if combined.Empty() {
 		if c.out.Name() == "tabular" {
-			ctx.Infof("No storage to display.")
+			ctx.Infof(ctx, "No storage to display.")
 		}
 		return nil
 	}

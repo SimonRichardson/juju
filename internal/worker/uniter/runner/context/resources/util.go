@@ -15,6 +15,6 @@ func closeAndLog(closer io.Closer, label string, logger logger.Logger) {
 		return
 	}
 	if err := closer.Close(); err != nil {
-		logger.Errorf("while closing %s: %v", label, err)
+		logger.Errorf(ctx, "while closing %s: %v", label, err)
 	}
 }

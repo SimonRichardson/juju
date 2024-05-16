@@ -131,9 +131,9 @@ reading/writing directly to these settings.
 func (c *setFirewallRuleCommand) Run(ctx *cmd.Context) error {
 	if c.whitelist != "" {
 		c.allowlist = c.whitelist
-		ctx.Warningf("--whitelist is deprecated in favour of --allowlist")
+		ctx.Warningf(ctx, "--whitelist is deprecated in favour of --allowlist")
 	}
-	ctx.Warningf(deprecationWarning)
+	ctx.Warningf(ctx, deprecationWarning)
 
 	client, err := c.newAPIFunc()
 	if err != nil {

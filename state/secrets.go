@@ -605,7 +605,7 @@ func (st *State) deleteSecrets(uris []*secrets.URI, revisions ...int) (external 
 			return
 		}
 		if err2 := session.AbortTransaction(); err2 != nil {
-			logger.Warningf("aborting failed delete select transaction: %v", err2)
+			logger.Warningf(ctx, "aborting failed delete select transaction: %v", err2)
 		}
 	}()
 
@@ -2108,12 +2108,12 @@ func (s *secretsStore) WatchRevisionsToPrune(ownerTags []names.Tag) (StringsWatc
 	fitler := func(id string) bool {
 		uri, err := secrets.ParseURI(id)
 		if err != nil {
-			logger.Warningf("invalid secret URI %q, err %#v", id, err)
+			logger.Warningf(ctx, "invalid secret URI %q, err %#v", id, err)
 			return false
 		}
 		md, err := s.GetSecret(uri)
 		if err != nil {
-			logger.Warningf("cannot get secret %q, err %#v", uri, err)
+			logger.Warningf(ctx, "cannot get secret %q, err %#v", uri, err)
 			return false
 		}
 		if s.st.modelTag.Id() != md.Owner.ID || md.Owner.Kind != secrets.ModelOwner {

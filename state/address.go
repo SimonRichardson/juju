@@ -106,7 +106,7 @@ func (st *State) getOpsForHostPortsChange(
 				"$set", bson.D{{"apihostports", fromNetworkHostsPorts(newHostPorts)}},
 			}},
 		}}
-		logger.Debugf("setting %s: %v", key, newHostPorts)
+		logger.Debugf(ctx, "setting %s: %v", key, newHostPorts)
 	}
 	return ops, nil
 }
@@ -151,7 +151,7 @@ func (st *State) APIHostPortsForAgents(controllerConfig controller.Config) ([]ne
 	hps, err := st.apiHostPortsForKey(apiHostPortsForAgentsKey)
 	if err != nil {
 		if err == mgo.ErrNotFound {
-			logger.Debugf("No document for %s; using %s", apiHostPortsForAgentsKey, apiHostPortsKey)
+			logger.Debugf(ctx, "No document for %s; using %s", apiHostPortsForAgentsKey, apiHostPortsKey)
 			return st.APIHostPortsForClients(controllerConfig)
 		}
 		return nil, errors.Trace(err)
@@ -169,7 +169,7 @@ func (st *State) isCAASController() (bool, error) {
 
 func (st *State) apiHostPortsForCAAS(controllerConfig controller.Config, public bool) (addresses []network.SpaceHostPorts, err error) {
 	defer func() {
-		logger.Debugf("getting api hostports for CAAS: public %t, addresses %v", public, addresses)
+		logger.Debugf(ctx, "getting api hostports for CAAS: public %t, addresses %v", public, addresses)
 	}()
 
 	if st.ModelUUID() != st.controllerModelTag.Id() {

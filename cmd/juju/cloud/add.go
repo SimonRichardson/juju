@@ -326,12 +326,12 @@ func (c *AddCloudCommand) Run(ctxt *cmd.Context) error {
 	}
 
 	if c.Client && c.ControllerName != "" {
-		ctxt.Infof("")
+		ctxt.Infof(ctx, "")
 	}
 
 	if c.ControllerName != "" {
 		if err = c.addRemoteCloud(ctxt, newCloud); err != nil {
-			ctxt.Infof("Could not upload cloud to a controller: %v", err)
+			ctxt.Infof(ctx, "Could not upload cloud to a controller: %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
@@ -349,45 +349,45 @@ func (c *AddCloudCommand) addRemoteCloud(ctxt *cmd.Context, newCloud *jujucloud.
 	err = api.AddCloud(*newCloud, c.Force)
 	if err != nil {
 		if params.ErrCode(err) == params.CodeAlreadyExists {
-			ctxt.Infof("Cloud %q already exists on the controller %q.", c.Cloud, c.ControllerName)
-			ctxt.Infof("To upload a credential to the controller for cloud %q, use \n"+
+			ctxt.Infof(ctx, "Cloud %q already exists on the controller %q.", c.Cloud, c.ControllerName)
+			ctxt.Infof(ctx, "To upload a credential to the controller for cloud %q, use \n"+
 				"* 'add-model' with --credential option or\n"+
 				"* 'add-credential -c %v'.", newCloud.Name, newCloud.Name)
 			return nil
 		}
 		if params.ErrCode(err) == params.CodeIncompatibleClouds {
-			logger.Infof("%v", err)
-			ctxt.Infof("Adding a cloud of type %q might not function correctly on this controller.\n"+
+			logger.Infof(ctx, "%v", err)
+			ctxt.Infof(ctx, "Adding a cloud of type %q might not function correctly on this controller.\n"+
 				"If you really want to do this, use --force.", newCloud.Type)
 			return nil
 		}
 		return err
 	}
-	ctxt.Infof("Cloud %q added to controller %q.", c.Cloud, c.ControllerName)
+	ctxt.Infof(ctx, "Cloud %q added to controller %q.", c.Cloud, c.ControllerName)
 	// Add a credential for the newly added cloud.
 	err = c.addCredentialToController(ctxt, *newCloud, api)
 	if err != nil {
-		logger.Warningf("%v", err)
-		ctxt.Infof("To upload a credential to the controller for cloud %q, use \n"+
+		logger.Warningf(ctx, "%v", err)
+		ctxt.Infof(ctx, "To upload a credential to the controller for cloud %q, use \n"+
 			"* 'add-model' with --credential option or\n"+
 			"* 'add-credential -c %v'.", newCloud.Name, newCloud.Name)
 		return nil
 	}
-	ctxt.Infof("Credential for cloud %q added to controller %q.", c.Cloud, c.ControllerName)
+	ctxt.Infof(ctx, "Credential for cloud %q added to controller %q.", c.Cloud, c.ControllerName)
 	return nil
 }
 
 func (c *AddCloudCommand) addLocalCloud(ctxt *cmd.Context, newCloud *jujucloud.Cloud) error {
 	operation := "added"
 	if err := addLocalCloud(c.cloudMetadataStore, *newCloud); err != nil {
-		ctxt.Infof("Cloud %q was not %v locally: %v", newCloud.Name, operation, err)
+		ctxt.Infof(ctx, "Cloud %q was not %v locally: %v", newCloud.Name, operation, err)
 		return cmd.ErrSilent
 	}
-	ctxt.Infof("Cloud %q successfully %v to your local client.", newCloud.Name, operation)
+	ctxt.Infof(ctx, "Cloud %q successfully %v to your local client.", newCloud.Name, operation)
 	if len(newCloud.AuthTypes) != 0 {
-		ctxt.Infof("You will need to add a credential for this cloud (`juju add-credential %s`)", newCloud.Name)
-		ctxt.Infof("before you can use it to bootstrap a controller (`juju bootstrap %s`) or", newCloud.Name)
-		ctxt.Infof("to create a model (`juju add-model <your model name> %s`).", newCloud.Name)
+		ctxt.Infof(ctx, "You will need to add a credential for this cloud (`juju add-credential %s`)", newCloud.Name)
+		ctxt.Infof(ctx, "before you can use it to bootstrap a controller (`juju bootstrap %s`) or", newCloud.Name)
+		ctxt.Infof(ctx, "to create a model (`juju add-model <your model name> %s`).", newCloud.Name)
 	}
 	return nil
 }
@@ -498,7 +498,7 @@ func (c *AddCloudCommand) runInteractive(ctxt *cmd.Context) (*jujucloud.Cloud, e
 	case err != nil:
 		return nil, errors.Annotate(err, "CA Certificate")
 	default:
-		ctxt.Infof("Successfully read CA Certificate from %s", filename)
+		ctxt.Infof(ctx, "Successfully read CA Certificate from %s", filename)
 		b = alt
 	}
 
@@ -726,7 +726,7 @@ func (p *CloudFileReader) ReadCloudFromFile(cloudFile string, ctxt *cmd.Context)
 
 	// first validate cloud input
 	if err = jujucloud.ValidateCloudSet(data); err != nil {
-		ctxt.Warningf(err.Error())
+		ctxt.Warningf(ctx, err.Error())
 	}
 
 	// validate cloud data

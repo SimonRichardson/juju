@@ -150,7 +150,7 @@ func (w *upgradeSeriesWorker) handleUpgradeSeriesChange() error {
 			// No upgrade-series lock. This can happen when:
 			// - The first watch call is made.
 			// - The lock is removed after a completed upgrade.
-			w.logger.Infof("no series upgrade lock present")
+			w.logger.Infof(ctx, "no series upgrade lock present")
 			w.machineStatus = model.UpgradeSeriesNotStarted
 			w.preparedUnits = nil
 			w.completedUnits = nil
@@ -158,7 +158,7 @@ func (w *upgradeSeriesWorker) handleUpgradeSeriesChange() error {
 		}
 		return errors.Trace(err)
 	}
-	w.logger.Infof("machine series upgrade status is %q", w.machineStatus)
+	w.logger.Infof(ctx, "machine series upgrade status is %q", w.machineStatus)
 
 	// Determine the set of units that are on the machine.
 	if w.units == nil {
@@ -182,7 +182,7 @@ func (w *upgradeSeriesWorker) handleUpgradeSeriesChange() error {
 
 	if err != nil {
 		if err := w.SetInstanceStatus(model.UpgradeSeriesError, err.Error()); err != nil {
-			w.logger.Errorf("failed to set series upgrade error status: %s", err.Error())
+			w.logger.Errorf(ctx, "failed to set series upgrade error status: %s", err.Error())
 		}
 	}
 	return errors.Trace(err)
@@ -223,7 +223,7 @@ func (w *upgradeSeriesWorker) handlePrepareStarted() error {
 		for _, tag := range remaining.SortedValues() {
 			names = append(names, tag.Id())
 		}
-		w.logger.Debugf("waiting for units: %s", strings.Join(names, ","))
+		w.logger.Debugf(ctx, "waiting for units: %s", strings.Join(names, ","))
 		return nil
 	}
 
@@ -238,7 +238,7 @@ func (w *upgradeSeriesWorker) transitionPrepareComplete() error {
 		return errors.Trace(err)
 	}
 
-	w.logger.Infof("preparing service units for series upgrade")
+	w.logger.Infof(ctx, "preparing service units for series upgrade")
 	upgrader, err := w.upgraderFactory()
 	if err != nil {
 		return errors.Trace(err)
@@ -284,11 +284,11 @@ func (w *upgradeSeriesWorker) handleCompleteStarted() error {
 		for _, tag := range remaining.SortedValues() {
 			names = append(names, tag.Id())
 		}
-		w.logger.Debugf("waiting for units: %s", strings.Join(names, ","))
+		w.logger.Debugf(ctx, "waiting for units: %s", strings.Join(names, ","))
 		return nil
 	}
 
-	w.logger.Infof("series upgrade complete")
+	w.logger.Infof(ctx, "series upgrade complete")
 	return errors.Trace(w.SetMachineStatus(model.UpgradeSeriesCompleted, "series upgrade complete"))
 }
 
@@ -333,7 +333,7 @@ func (w *upgradeSeriesWorker) pinLeaders() (err error) {
 		// in the log and return out. Unpinning leaders should be safe as that
 		// should be considered a no-op
 		if params.IsCodeNotImplemented(err) {
-			w.logger.Infof("failed to pin machine applications, with legacy lease manager leadership pinning is not implemented")
+			w.logger.Infof(ctx, "failed to pin machine applications, with legacy lease manager leadership pinning is not implemented")
 			return nil
 		}
 		return errors.Trace(err)
@@ -342,10 +342,10 @@ func (w *upgradeSeriesWorker) pinLeaders() (err error) {
 	var lastErr error
 	for app, err := range results {
 		if err == nil {
-			w.logger.Infof("unpin leader for application %q", app)
+			w.logger.Infof(ctx, "unpin leader for application %q", app)
 			continue
 		}
-		w.logger.Errorf("failed to pin leader for application %q: %s", app, err.Error())
+		w.logger.Errorf(ctx, "failed to pin leader for application %q: %s", app, err.Error())
 		lastErr = err
 	}
 
@@ -367,10 +367,10 @@ func (w *upgradeSeriesWorker) unpinLeaders() error {
 	var lastErr error
 	for app, err := range results {
 		if err == nil {
-			w.logger.Infof("unpinned leader for application %q", app)
+			w.logger.Infof(ctx, "unpinned leader for application %q", app)
 			continue
 		}
-		w.logger.Errorf("failed to unpin leader for application %q: %s", app, err.Error())
+		w.logger.Errorf(ctx, "failed to unpin leader for application %q: %s", app, err.Error())
 		lastErr = err
 	}
 

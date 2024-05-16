@@ -331,7 +331,7 @@ func (w *dbWorker) loop() (err error) {
 			req.done <- nil
 
 		case <-w.cfg.ControllerConfigWatcher.Changes():
-			w.cfg.Logger.Infof("controller configuration changed on disk")
+			w.cfg.Logger.Infof(ctx, "controller configuration changed on disk")
 			if err := w.handleClusterConfigChange(true); err != nil {
 				return errors.Trace(err)
 			}
@@ -506,12 +506,12 @@ func (w *dbWorker) DeleteDB(namespace string) error {
 func (w *dbWorker) startExistingDqliteNode() error {
 	mgr := w.cfg.NodeManager
 	if mgr.IsLoopbackPreferred() {
-		w.cfg.Logger.Infof("Dqlite node is configured to bind to the loopback address")
+		w.cfg.Logger.Infof(ctx, "Dqlite node is configured to bind to the loopback address")
 
 		return errors.Trace(w.initialiseDqlite())
 	}
 
-	w.cfg.Logger.Infof("Dqlite node is configured to bind to a cloud-local address")
+	w.cfg.Logger.Infof(ctx, "Dqlite node is configured to bind to a cloud-local address")
 
 	ctx, cancel := w.scopedContext()
 	defer cancel()
@@ -616,11 +616,11 @@ func (w *dbWorker) startDqliteNode(ctx context.Context, options ...app.Option) e
 		return errors.Annotatef(err, "ensuring Dqlite is ready to process changes")
 	}
 
-	w.cfg.Logger.Infof("serving Dqlite application (ID: %v)", w.dbApp.ID())
+	w.cfg.Logger.Infof(ctx, "serving Dqlite application (ID: %v)", w.dbApp.ID())
 
 	if c, err := w.dbApp.Client(ctx); err == nil {
 		if info, err := c.Cluster(ctx); err == nil {
-			w.cfg.Logger.Infof("current cluster: %#v", info)
+			w.cfg.Logger.Infof(ctx, "current cluster: %#v", info)
 		}
 	}
 
@@ -709,10 +709,10 @@ func (w *dbWorker) handleClusterConfigChange(noConfigIsFatal bool) error {
 		// fatal, it means we were checking it explicitly just in case it was
 		// written when we couldn't be notified.
 		// Having checked, we can rely hereafter on the charm notifying us.
-		log.Infof("unable to read cluster config at start-up; will await changes: %v", err)
+		log.Infof(ctx, "unable to read cluster config at start-up; will await changes: %v", err)
 		return nil
 	}
-	log.Infof("read cluster config: %+v", clusterConf)
+	log.Infof(ctx, "read cluster config: %+v", clusterConf)
 
 	mgr := w.cfg.NodeManager
 	extant, err := mgr.IsExistingNode()
@@ -739,7 +739,7 @@ func (w *dbWorker) handleClusterConfigChange(noConfigIsFatal bool) error {
 			}
 
 			// This should never happen, but we want to be conservative.
-			w.cfg.Logger.Warningf("existing Dqlite node is not bound to loopback, but should be; restarting worker")
+			w.cfg.Logger.Warningf(ctx, "existing Dqlite node is not bound to loopback, but should be; restarting worker")
 		}
 
 		// We don't have a Dqlite node, but somehow we got here, we should just
@@ -769,7 +769,7 @@ func (w *dbWorker) handleClusterConfigChange(noConfigIsFatal bool) error {
 
 			addr, ok := clusterConf[w.cfg.ControllerID]
 			if !ok {
-				log.Infof("address for this Dqlite node to bind to not found")
+				log.Infof(ctx, "address for this Dqlite node to bind to not found")
 				return nil
 			}
 
@@ -777,7 +777,7 @@ func (w *dbWorker) handleClusterConfigChange(noConfigIsFatal bool) error {
 				return errors.Trace(err)
 			}
 
-			log.Infof("successfully reconfigured Dqlite; restarting worker")
+			log.Infof(ctx, "successfully reconfigured Dqlite; restarting worker")
 			return dependency.ErrBounce
 		}
 
@@ -793,19 +793,19 @@ func (w *dbWorker) handleClusterConfigChange(noConfigIsFatal bool) error {
 		// Make absolutely sure. We only reconfigure the cluster if the details
 		// indicate exactly one controller machine, and that machine is us.
 		if _, ok := clusterConf[w.cfg.ControllerID]; ok && serverCount == 1 {
-			log.Warningf("reconfiguring Dqlite cluster with this node as the only member")
+			log.Warningf(ctx, "reconfiguring Dqlite cluster with this node as the only member")
 			if err := w.cfg.NodeManager.SetClusterToLocalNode(ctx); err != nil {
 				return errors.Annotatef(err, "reconfiguring Dqlite cluster")
 			}
 
-			log.Infof("successfully reconfigured Dqlite; restarting worker")
+			log.Infof(ctx, "successfully reconfigured Dqlite; restarting worker")
 			return dependency.ErrBounce
 		}
 
 		// Otherwise there is no deterministic course of action.
 		// We don't want to throw an error here, because it can result in churn
 		// when entering HA. Just try again to start.
-		log.Infof("unable to reconcile current controller and Dqlite cluster status; reattempting node start-up")
+		log.Infof(ctx, "unable to reconcile current controller and Dqlite cluster status; reattempting node start-up")
 		return errors.Trace(w.startExistingDqliteNode())
 	}
 
@@ -834,7 +834,7 @@ func (w *dbWorker) rebindAddress(ctx context.Context, addr string) error {
 	// NodeManager.IsLoopbackBound, but we want to guard very
 	// conservatively against breaking established clusters.
 	if len(servers) != 1 {
-		w.cfg.Logger.Debugf("not a singular server; skipping address rebind")
+		w.cfg.Logger.Debugf(ctx, "not a singular server; skipping address rebind")
 		return nil
 	}
 
@@ -845,7 +845,7 @@ func (w *dbWorker) rebindAddress(ctx context.Context, addr string) error {
 	}
 	servers[0].Address = net.JoinHostPort(addr, port)
 
-	w.cfg.Logger.Infof("rebinding Dqlite node to %s", addr)
+	w.cfg.Logger.Infof(ctx, "rebinding Dqlite node to %s", addr)
 	if err := mgr.SetClusterServers(ctx, servers); err != nil {
 		return errors.Trace(err)
 	}
@@ -861,7 +861,7 @@ func (w *dbWorker) rebindAddress(ctx context.Context, addr string) error {
 func (w *dbWorker) joinNodeToCluster(clusterConf map[string]string) error {
 	localAddr, ok := clusterConf[w.cfg.ControllerID]
 	if !ok {
-		w.cfg.Logger.Infof("address for this Dqlite node to bind to not found")
+		w.cfg.Logger.Infof(ctx, "address for this Dqlite node to bind to not found")
 		return nil
 	}
 
@@ -874,11 +874,11 @@ func (w *dbWorker) joinNodeToCluster(clusterConf map[string]string) error {
 		}
 	}
 	if len(clusterAddrs) == 0 {
-		w.cfg.Logger.Infof("no addresses available for this Dqlite node to join cluster")
+		w.cfg.Logger.Infof(ctx, "no addresses available for this Dqlite node to join cluster")
 		return nil
 	}
 
-	w.cfg.Logger.Infof("joining Dqlite cluster")
+	w.cfg.Logger.Infof(ctx, "joining Dqlite cluster")
 	mgr := w.cfg.NodeManager
 
 	withTLS, err := mgr.WithTLSOption()
@@ -896,7 +896,7 @@ func (w *dbWorker) joinNodeToCluster(clusterConf map[string]string) error {
 // reinitialised either directly or by bouncing the agent reasonably
 // soon after calling this method.
 func (w *dbWorker) shutdownDqlite(ctx context.Context, handover bool) {
-	w.cfg.Logger.Infof("shutting down Dqlite node")
+	w.cfg.Logger.Infof(ctx, "shutting down Dqlite node")
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -914,7 +914,7 @@ func (w *dbWorker) shutdownDqlite(ctx context.Context, handover bool) {
 			w.cfg.Logger.Errorf("handing off Dqlite responsibilities: %v", err)
 		}
 	} else {
-		w.cfg.Logger.Infof("skipping Dqlite handover")
+		w.cfg.Logger.Infof(ctx, "skipping Dqlite handover")
 	}
 
 	if err := w.dbApp.Close(); err != nil {

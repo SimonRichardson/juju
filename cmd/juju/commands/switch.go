@@ -206,9 +206,9 @@ func unknownSwitchTargetError(name string) error {
 
 func logSwitch(ctx *cmd.Context, oldName string, newName *string) {
 	if *newName == oldName {
-		ctx.Infof("%s (no change)", oldName)
+		ctx.Infof(ctx, "%s (no change)", oldName)
 	} else {
-		ctx.Infof("%s -> %s", oldName, *newName)
+		ctx.Infof(ctx, "%s -> %s", oldName, *newName)
 	}
 }
 

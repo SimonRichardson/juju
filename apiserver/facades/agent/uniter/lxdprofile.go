@@ -58,7 +58,7 @@ func NewLXDProfileAPI(
 	accessUnit common.GetAuthFunc,
 	logger loggo.Logger,
 ) *LXDProfileAPI {
-	logger.Tracef("NewLXDProfileAPI called with %s", authorizer.GetAuthTag())
+	logger.Tracef(ctx, "NewLXDProfileAPI called with %s", authorizer.GetAuthTag())
 	return &LXDProfileAPI{
 		backend:    backend,
 		resources:  resources,
@@ -106,7 +106,7 @@ func NewExternalLXDProfileAPI(
 // WatchUnitLXDProfileUpgradeNotifications returns a StringsWatcher for observing
 // changes to the lxd profile changes for one unit.
 func (u *LXDProfileAPI) WatchUnitLXDProfileUpgradeNotifications(args params.Entities) (params.StringsWatchResults, error) {
-	u.logger.Tracef("Starting WatchUnitLXDProfileUpgradeNotifications with %+v", args)
+	u.logger.Tracef(ctx, "Starting WatchUnitLXDProfileUpgradeNotifications with %+v", args)
 	result := params.StringsWatchResults{
 		Results: make([]params.StringsWatchResult, len(args.Entities)),
 	}
@@ -159,7 +159,7 @@ func (u *LXDProfileAPI) watchOneChangeUnitLXDProfileUpgradeNotifications(unit LX
 //
 // NOTE: can be removed in juju version 3.
 func (u *LXDProfileAPI) WatchLXDProfileUpgradeNotifications(args params.LXDProfileUpgrade) (params.StringsWatchResults, error) {
-	u.logger.Tracef("Starting WatchLXDProfileUpgradeNotifications with %+v", args)
+	u.logger.Tracef(ctx, "Starting WatchLXDProfileUpgradeNotifications with %+v", args)
 	result := params.StringsWatchResults{
 		Results: make([]params.StringsWatchResult, len(args.Entities)),
 	}

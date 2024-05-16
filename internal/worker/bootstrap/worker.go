@@ -247,7 +247,7 @@ func (w *bootstrapWorker) loop() error {
 		if !errors.Is(err, errors.NotSupported) {
 			return errors.Trace(err)
 		}
-		w.logger.Debugf("reload spaces not supported due to a non-networking environement")
+		w.logger.Debugf(ctx, "reload spaces not supported due to a non-networking environement")
 	}
 
 	// Convert the provider addresses that we got from the bootstrap instance
@@ -366,7 +366,7 @@ func (w *bootstrapWorker) filterHostPortsForManagementSpace(
 			if addrsIsInSpace {
 				hostPortsForAgents[i] = filtered
 			} else {
-				w.logger.Warningf("API addresses %v not in the management space %s", apiHostPort, mgmtSpace)
+				w.logger.Warningf(ctx, "API addresses %v not in the management space %s", apiHostPort, mgmtSpace)
 				hostPortsForAgents[i] = apiHostPort
 			}
 		}

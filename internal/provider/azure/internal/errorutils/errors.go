@@ -178,7 +178,7 @@ func MaybeInvalidateCredential(err error, ctx envcontext.ProviderCallContext) bo
 	converted := fmt.Errorf("azure cloud denied access: %w", common.CredentialNotValidError(err))
 	invalidateErr := ctx.InvalidateCredential(converted.Error())
 	if invalidateErr != nil {
-		logger.Warningf("could not invalidate stored azure cloud credential on the controller: %v", invalidateErr)
+		logger.Warningf(ctx, "could not invalidate stored azure cloud credential on the controller: %v", invalidateErr)
 	}
 	return true
 }

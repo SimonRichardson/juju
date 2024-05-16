@@ -226,7 +226,7 @@ func (c *UpdateCAASCommand) Run(ctx *cmd.Context) (err error) {
 	}
 	if err == nil {
 		if c.CloudFile != "" {
-			ctx.Infof("%q is a built-in cloud and does not support specifying a cloud YAML file.", c.caasName)
+			ctx.Infof(ctx, "%q is a built-in cloud and does not support specifying a cloud YAML file.", c.caasName)
 			return cmd.ErrSilent
 		}
 		newCloud = &builtinCloud
@@ -255,7 +255,7 @@ func (c *UpdateCAASCommand) Run(ctx *cmd.Context) (err error) {
 	}
 
 	if newCloud.Type != k8sconstants.CAASProviderType {
-		ctx.Infof("The %q cloud is a %q cloud and not a %q cloud.", c.caasName, newCloud.Type, k8sconstants.CAASProviderType)
+		ctx.Infof(ctx, "The %q cloud is a %q cloud and not a %q cloud.", c.caasName, newCloud.Type, k8sconstants.CAASProviderType)
 		return cmd.ErrSilent
 	}
 
@@ -279,17 +279,17 @@ func (c *UpdateCAASCommand) Run(ctx *cmd.Context) (err error) {
 	processErr := func(err error, successMsg string) {
 		if err != nil {
 			if err != cmd.ErrSilent {
-				ctx.Infof("%v", err)
+				ctx.Infof(ctx, "%v", err)
 			}
 			returnErr = cmd.ErrSilent
 			return
 		}
-		ctx.Infof(successMsg)
+		ctx.Infof(ctx, successMsg)
 	}
 	if c.Client {
 		if !haveBuiltinCloud && !havePersonalCloud {
 			if err := updateCloudOnLocal(c.cloudMetadataStore, *newCloud); err != nil {
-				ctx.Infof("%v", err)
+				ctx.Infof(ctx, "%v", err)
 				return cmd.ErrSilent
 			}
 		}
@@ -311,7 +311,7 @@ func (c *UpdateCAASCommand) Run(ctx *cmd.Context) (err error) {
 			return errors.Trace(err)
 		}
 		if existing.Type != k8sconstants.CAASProviderType {
-			ctx.Infof("The %q cloud on the controller is a %q cloud and not a %q cloud.", c.caasName, existing.Type, k8sconstants.CAASProviderType)
+			ctx.Infof(ctx, "The %q cloud on the controller is a %q cloud and not a %q cloud.", c.caasName, existing.Type, k8sconstants.CAASProviderType)
 			return cmd.ErrSilent
 		}
 
@@ -393,8 +393,8 @@ func (c *UpdateCAASCommand) updateCredentialOnController(ctx *cmd.Context, apiCl
 	for _, result := range results {
 		tag, err := names.ParseCloudCredentialTag(result.CredentialTag)
 		if err != nil {
-			logger.Errorf("%v", err)
-			ctx.Warningf("Could not parse credential tag %q", result.CredentialTag)
+			logger.Errorf(ctx, "%v", err)
+			ctx.Warningf(ctx, "Could not parse credential tag %q", result.CredentialTag)
 			resultError = cmd.ErrSilent
 		}
 		// We always want to display models information if there is any.
@@ -408,11 +408,11 @@ func (c *UpdateCAASCommand) updateCredentialOnController(ctx *cmd.Context, apiCl
 		}
 		if haveModelErrors || result.Error != nil {
 			if haveModelErrors {
-				ctx.Infof("Failed models may require a different credential.")
-				ctx.Infof("Use ‘juju set-credential’ to change credential for these models before repeating this update.")
+				ctx.Infof(ctx, "Failed models may require a different credential.")
+				ctx.Infof(ctx, "Use ‘juju set-credential’ to change credential for these models before repeating this update.")
 			}
 			if result.Error != nil {
-				ctx.Warningf("Controller credential %q for user %q for cloud %q on controller %q not updated: %v.",
+				ctx.Warningf(ctx, "Controller credential %q for user %q for cloud %q on controller %q not updated: %v.",
 					tag.Name(), currentAccountDetails.User, tag.Cloud().Id(), c.ControllerName, result.Error)
 			}
 			// We do not want to return err here as we have already displayed it on the console.

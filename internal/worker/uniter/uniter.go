@@ -323,7 +323,7 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 		if u.localRunListener != nil {
 			u.localRunListener.UnregisterRunner(unitTag.Id())
 		}
-		u.logger.Infof("unit %q shutting down: %s", unitTag.Id(), errorString)
+		u.logger.Infof(ctx, "unit %q shutting down: %s", unitTag.Id(), errorString)
 	}()
 
 	if err := u.init(ctx, unitTag); err != nil {
@@ -339,7 +339,7 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 			return errors.Annotatef(err, "failed to initialize uniter for %q", unitTag)
 		}
 	}
-	u.logger.Infof("unit %q started", u.unit)
+	u.logger.Infof(ctx, "unit %q started", u.unit)
 
 	// Check we are running the correct charm version.
 	if u.sidecar && u.enforcedCharmModifiedVersion != -1 {
@@ -352,7 +352,7 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 			return errors.Trace(err)
 		}
 		if appCharmModifiedVersion != u.enforcedCharmModifiedVersion {
-			u.logger.Infof("remote charm modified version (%d) does not match agent's (%d)",
+			u.logger.Infof(ctx, "remote charm modified version (%d) does not match agent's (%d)",
 				appCharmModifiedVersion, u.enforcedCharmModifiedVersion)
 			return u.stopUnitError()
 		}
@@ -365,7 +365,7 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 
 	var watcher *remotestate.RemoteStateWatcher
 
-	u.logger.Infof("hooks are retried %v", u.hookRetryStrategy.ShouldRetry)
+	u.logger.Infof(ctx, "hooks are retried %v", u.hookRetryStrategy.ShouldRetry)
 	retryHookChan := make(chan struct{}, 1)
 	// TODO(katco): 2016-08-09: This type is deprecated: lp:1611427
 	retryHookTimer := utils.NewBackoffTimer(utils.BackoffTimerConfig{
@@ -611,7 +611,7 @@ func (u *Uniter) verifyCharmProfile(ctx stdcontext.Context, url string) error {
 	}
 	if !required {
 		// If no lxd profile is required for this charm, move on.
-		u.logger.Debugf("no lxd profile required for %s", url)
+		u.logger.Debugf(ctx, "no lxd profile required for %s", url)
 		return nil
 	}
 	profile, err := u.unit.LXDProfileName()
@@ -622,7 +622,7 @@ func (u *Uniter) verifyCharmProfile(ctx stdcontext.Context, url string) error {
 		if err := u.unit.SetUnitStatus(ctx, status.Waiting, "required charm profile not yet applied to machine", nil); err != nil {
 			return errors.Trace(err)
 		}
-		u.logger.Debugf("required lxd profile not found on machine")
+		u.logger.Debugf(ctx, "required lxd profile not found on machine")
 		return errors.NotFoundf("required charm profile on machine")
 	}
 	// double check profile revision matches charm revision.
@@ -638,10 +638,10 @@ func (u *Uniter) verifyCharmProfile(ctx stdcontext.Context, url string) error {
 		if err := u.unit.SetUnitStatus(ctx, status.Waiting, fmt.Sprintf("required charm profile %q not yet applied to machine", profile), nil); err != nil {
 			return errors.Trace(err)
 		}
-		u.logger.Debugf("charm is revision %d, charm profile has revision %d", curl.Revision, rev)
+		u.logger.Debugf(ctx, "charm is revision %d, charm profile has revision %d", curl.Revision, rev)
 		return errors.NotFoundf("required charm profile, %q, on machine", profile)
 	}
-	u.logger.Debugf("required lxd profile %q FOUND on machine", profile)
+	u.logger.Debugf(ctx, "required lxd profile %q FOUND on machine", profile)
 	if err := u.unit.SetUnitStatus(ctx, status.Waiting, status.MessageInitializingAgent, nil); err != nil {
 		return errors.Trace(err)
 	}
@@ -665,7 +665,7 @@ func (u *Uniter) charmState(ctx stdcontext.Context) (bool, string, int, error) {
 
 	opState := u.operationExecutor.State()
 	if opState.Kind == operation.Install {
-		u.logger.Infof("resuming charm install")
+		u.logger.Infof(ctx, "resuming charm install")
 		if canApplyCharmProfile {
 			// Note: canApplyCharmProfile will be false for a CAAS model.
 			// Verify the charm profile before proceeding.
@@ -744,7 +744,7 @@ func (u *Uniter) terminate(ctx stdcontext.Context) error {
 // For IAAS models, we want to terminate the agent, as each unit is run by
 // an individual agent for that unit.
 func (u *Uniter) stopUnitError() error {
-	u.logger.Debugf("u.modelType: %s", u.modelType)
+	u.logger.Debugf(ctx, "u.modelType: %s", u.modelType)
 	if u.modelType == model.CAAS {
 		if u.sidecar {
 			return errors.WithType(jworker.ErrTerminateAgent, ErrCAASUnitDead)
@@ -829,7 +829,7 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 	u.secretsTracker = secretsTracker
 
 	if err := charm.ClearDownloads(u.paths.State.BundlesDir); err != nil {
-		u.logger.Warningf(err.Error())
+		u.logger.Warningf(ctx, err.Error())
 	}
 	charmLogger := u.logger.Child("charm")
 	deployer, err := u.newDeployer(
@@ -907,7 +907,7 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 		return errors.Trace(err)
 	}
 	socket := u.paths.Runtime.LocalJujuExecSocket.Server
-	u.logger.Debugf("starting local juju-exec listener on %v", socket)
+	u.logger.Debugf(ctx, "starting local juju-exec listener on %v", socket)
 	u.localRunListener, err = NewRunListener(socket, u.logger)
 	if err != nil {
 		return errors.Annotate(err, "creating juju run listener")

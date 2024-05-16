@@ -45,7 +45,7 @@ func CloudInitUserData(
 	cloudConfig.AddRunCmd("ifconfig || ip addr")
 
 	if instanceConfig.MachineContainerHostname != "" {
-		logger.Debugf("Cloud-init configured to set hostname")
+		logger.Debugf(ctx, "Cloud-init configured to set hostname")
 		cloudConfig.SetAttr("hostname", instanceConfig.MachineContainerHostname)
 	}
 

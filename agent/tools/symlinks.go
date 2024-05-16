@@ -17,7 +17,7 @@ import (
 // command. If the commands already exist, this operation does nothing.
 // If dir is a symbolic link, it will be dereferenced first.
 func EnsureSymlinks(jujuDir, dir string, commands []string) (err error) {
-	logger.Infof("ensure jujuc symlinks in %s", dir)
+	logger.Infof(ctx, "ensure jujuc symlinks in %s", dir)
 	defer func() {
 		if err != nil {
 			err = errors.Annotatef(err, "cannot initialize commands in %q", dir)
@@ -33,21 +33,21 @@ func EnsureSymlinks(jujuDir, dir string, commands []string) (err error) {
 			return err
 		}
 		if !filepath.IsAbs(link) {
-			logger.Infof("%s is relative", link)
+			logger.Infof(ctx, "%s is relative", link)
 			link = filepath.Join(filepath.Dir(dir), link)
 		}
 		jujuDir = link
-		logger.Infof("was a symlink, now looking at %s", jujuDir)
+		logger.Infof(ctx, "was a symlink, now looking at %s", jujuDir)
 	}
 
 	jujucPath := filepath.Join(jujuDir, names.Jujuc)
 	targetPath := jujucPath
 	if _, err := os.Stat(jujucPath); os.IsNotExist(err) {
 		jujudPath := filepath.Join(jujuDir, names.Jujud)
-		logger.Debugf("jujuc not found at %s using jujud path %s", jujucPath, jujudPath)
+		logger.Debugf(ctx, "jujuc not found at %s using jujud path %s", jujucPath, jujudPath)
 		targetPath = jujudPath
 	}
-	logger.Debugf("target tools path %s", targetPath)
+	logger.Debugf(ctx, "target tools path %s", targetPath)
 	for _, name := range commands {
 		// The link operation fails when the target already exists,
 		// so this is a no-op when the command names already

@@ -302,7 +302,7 @@ func (c *upgradeMachineCommand) UpgradePrepare(ctx *cmd.Context) (err error) {
 	}
 
 	m := UpgradeMachinePrepareFinishedMessage + "\n"
-	ctx.Infof(m, c.machineNumber)
+	ctx.Infof(ctx, m, c.machineNumber)
 
 	return nil
 }
@@ -425,7 +425,7 @@ func (c *upgradeMachineCommand) handleNotifications(ctx *cmd.Context) error {
 	err = c.catacomb.Wait()
 	if err != nil {
 		if params.IsCodeStopped(err) {
-			logger.Debugf("the upgrade machine watcher has been stopped")
+			logger.Debugf(ctx, "the upgrade machine watcher has been stopped")
 		} else {
 			return errors.Trace(err)
 		}
@@ -469,7 +469,7 @@ func (c *upgradeMachineCommand) handleUpgradeChange(ctx *cmd.Context, wid string
 	if len(messages) == 0 {
 		return nil
 	}
-	ctx.Infof(strings.Join(messages, "\n"))
+	ctx.Infof(ctx, strings.Join(messages, "\n"))
 	return nil
 }
 
@@ -498,7 +498,7 @@ func (c *upgradeMachineCommand) UpgradeComplete(ctx *cmd.Context) error {
 	}
 
 	m := UpgradeMachineCompleteFinishedMessage + "\n"
-	ctx.Infof(m, c.machineNumber)
+	ctx.Infof(ctx, m, c.machineNumber)
 
 	return nil
 }

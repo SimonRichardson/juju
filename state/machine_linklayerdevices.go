@@ -203,7 +203,7 @@ func (m *Machine) SetLinkLayerDevices(devicesArgs ...LinkLayerDeviceArgs) (err e
 	defer errors.DeferredAnnotatef(&err, "cannot set link-layer devices to machine %q", m.doc.Id)
 
 	if len(devicesArgs) == 0 {
-		logger.Debugf("no device addresses to set")
+		logger.Debugf(ctx, "no device addresses to set")
 		return nil
 	}
 
@@ -234,7 +234,7 @@ func (m *Machine) SetLinkLayerDevices(devicesArgs ...LinkLayerDeviceArgs) (err e
 			return nil, errors.Trace(err)
 		}
 		if len(setDevicesOps) == 0 {
-			logger.Debugf("no changes to LinkLayerDevices for machine %q", m.Id())
+			logger.Debugf(ctx, "no changes to LinkLayerDevices for machine %q", m.Id())
 			return nil, jujutxn.ErrNoOperations
 		}
 		return append([]txn.Op{m.assertAliveOp()}, setDevicesOps...), nil
@@ -527,7 +527,7 @@ func (a *LinkLayerDeviceAddress) addressAndSubnet() (string, string, error) {
 func (m *Machine) SetDevicesAddresses(devicesAddresses ...LinkLayerDeviceAddress) (err error) {
 	defer errors.DeferredAnnotatef(&err, "cannot set link-layer device addresses of machine %q", m.doc.Id)
 	if len(devicesAddresses) == 0 {
-		logger.Debugf("no device addresses to set")
+		logger.Debugf(ctx, "no device addresses to set")
 		return nil
 	}
 
@@ -546,7 +546,7 @@ func (m *Machine) SetDevicesAddresses(devicesAddresses ...LinkLayerDeviceAddress
 			return nil, errors.Trace(err)
 		}
 		if len(setAddressesOps) == 0 {
-			logger.Debugf("no changes to DevicesAddresses for machine %q", m.Id())
+			logger.Debugf(ctx, "no changes to DevicesAddresses for machine %q", m.Id())
 			return nil, jujutxn.ErrNoOperations
 		}
 		return append([]txn.Op{m.assertAliveOp()}, setAddressesOps...), nil
@@ -590,7 +590,7 @@ func (m *Machine) validateSetDevicesAddressesArgs(args *LinkLayerDeviceAddress) 
 		return errors.NotValidf("empty DeviceName")
 	}
 	if !corenetwork.IsValidLinkLayerDeviceName(args.DeviceName) {
-		logger.Warningf(
+		logger.Warningf(ctx,
 			"address %q on machine %q has invalid device name %q (using anyway)",
 			args.CIDRAddress, m.Id(), args.DeviceName,
 		)

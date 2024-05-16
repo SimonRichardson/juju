@@ -53,12 +53,12 @@ func (m *Model) discoverFan(environ environs.BootstrapEnviron, modelConfig *conf
 		return false, err
 	}
 	if len(fanConfig) != 0 {
-		logger.Debugf("Not trying to autoconfigure FAN - configured already")
+		logger.Debugf(ctx, "Not trying to autoconfigure FAN - configured already")
 		return false, nil
 	}
 	subnets, err := netEnviron.SuperSubnets(envcontext.WithoutCredentialInvalidator(stdcontext.Background()))
 	if errors.Is(err, errors.NotSupported) || (err == nil && len(subnets) == 0) {
-		logger.Debugf("Not trying to autoconfigure FAN - SuperSubnets not supported or empty")
+		logger.Debugf(ctx, "Not trying to autoconfigure FAN - SuperSubnets not supported or empty")
 		return false, nil
 	}
 	if err != nil {

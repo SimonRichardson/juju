@@ -542,7 +542,7 @@ func (a *action) Log(message string) error {
 	// Just to ensure we do not allow bad actions to fill up disk.
 	// 1000 messages should be enough for anyone.
 	if len(a.doc.Logs) > 1000 {
-		logger.Warningf("exceeded 1000 log messages, action may be stuck")
+		logger.Warningf(ctx, "exceeded 1000 log messages, action may be stuck")
 		return nil
 	}
 	m, err := a.st.Model()
@@ -595,7 +595,7 @@ func newActionDoc(mb modelBackend, operationID string, receiverTag names.Tag,
 		return actionDoc{}, actionNotificationDoc{}, err
 	}
 	actionId := strconv.Itoa(id)
-	actionLogger.Debugf("newActionDoc name: '%s', receiver: '%s', actionId: '%s'", actionName, receiverTag, actionId)
+	actionLogger.Debugf(ctx, "newActionDoc name: '%s', receiver: '%s', actionId: '%s'", actionName, receiverTag, actionId)
 	modelUUID := mb.ModelUUID()
 	return actionDoc{
 			DocId:          mb.docID(actionId),
@@ -620,7 +620,7 @@ var ensureActionMarker = ensureSuffixFn(actionMarker)
 
 // Action returns an Action by Id.
 func (m *Model) Action(id string) (Action, error) {
-	actionLogger.Tracef("Action() %q", id)
+	actionLogger.Tracef(ctx, "Action() %q", id)
 	st := m.st
 	actions, closer := st.db().GetCollection(actionsC)
 	defer closer()
@@ -633,13 +633,13 @@ func (m *Model) Action(id string) (Action, error) {
 	if err != nil {
 		return nil, errors.Annotatef(err, "cannot get action %q", id)
 	}
-	actionLogger.Tracef("Action() %q found %+v", id, doc)
+	actionLogger.Tracef(ctx, "Action() %q found %+v", id, doc)
 	return newAction(st, doc), nil
 }
 
 // AllActions returns all Actions.
 func (m *Model) AllActions() ([]Action, error) {
-	actionLogger.Tracef("AllActions()")
+	actionLogger.Tracef(ctx, "AllActions()")
 	actions, closer := m.st.db().GetCollection(actionsC)
 	defer closer()
 

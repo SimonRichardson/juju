@@ -243,7 +243,7 @@ func (c *listCredentialsCommand) sortClouds(maps ...map[string]jujucloud.Cloud) 
 
 func (c *listCredentialsCommand) Run(ctxt *cmd.Context) error {
 	if c.showSecrets && c.out.Name() == "tabular" {
-		ctxt.Infof("secrets are not shown in tabular format")
+		ctxt.Infof(ctx, "secrets are not shown in tabular format")
 		c.showSecrets = false
 	}
 	credentials := credentialsMap{ClientOnly: c.Client}
@@ -258,14 +258,14 @@ func (c *listCredentialsCommand) Run(ctxt *cmd.Context) error {
 	if c.Client {
 		credentials.Client, err = c.localCredentials(ctxt)
 		if err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
 	if c.ControllerName != "" {
 		credentials.Controller, err = c.remoteCredentials(ctxt)
 		if err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
@@ -289,7 +289,7 @@ func (c *listCredentialsCommand) remoteCredentials(ctxt *cmd.Context) (map[strin
 	byCloud := map[string]CloudCredential{}
 	for _, one := range remotes {
 		if one.Error != nil {
-			ctxt.Warningf("error loading remote credential: %v", one.Error)
+			ctxt.Warningf(ctx, "error loading remote credential: %v", one.Error)
 			continue
 		}
 		remoteCredential := one.Result.Content
@@ -319,7 +319,7 @@ func (c *listCredentialsCommand) localCredentials(ctxt *cmd.Context) (map[string
 		if errors.Is(err, errors.NotFound) {
 			continue
 		} else if err != nil {
-			ctxt.Warningf("error loading credential for cloud %v: %v", cloudName, err)
+			ctxt.Warningf(ctx, "error loading credential for cloud %v: %v", cloudName, err)
 			continue
 		}
 		if !c.showSecrets {

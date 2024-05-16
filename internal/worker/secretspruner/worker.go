@@ -84,7 +84,7 @@ func (w *Worker) loop() (err error) {
 			if !ok {
 				return errors.New("secret prune changed watch closed")
 			}
-			w.config.Logger.Debugf("maybe have user secret revisions to prune")
+			w.config.Logger.Debugf(ctx, "maybe have user secret revisions to prune")
 			if err := w.config.SecretsFacade.DeleteObsoleteUserSecrets(); err != nil {
 				return errors.Trace(err)
 			}

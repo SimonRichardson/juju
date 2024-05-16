@@ -101,7 +101,7 @@ func (w *ValueWatcher) loop() error {
 			return ErrSubscriptionClosed
 		case changes, ok := <-in:
 			if !ok {
-				w.logger.Debugf("change channel closed for %q; terminating watcher for %q", w.namespace, w.changeValue)
+				w.logger.Debugf(ctx, "change channel closed for %q; terminating watcher for %q", w.namespace, w.changeValue)
 				return nil
 			}
 
@@ -129,7 +129,7 @@ func (w *ValueWatcher) drainInitialEvent(in <-chan []changestream.ChangeEvent) {
 	select {
 	case _, ok := <-in:
 		if !ok {
-			w.logger.Debugf("change channel closed for %q; terminating watcher for %q", w.namespace, w.changeValue)
+			w.logger.Debugf(ctx, "change channel closed for %q; terminating watcher for %q", w.namespace, w.changeValue)
 			return
 		}
 	default:

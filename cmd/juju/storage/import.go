@@ -134,7 +134,7 @@ func (c *importFilesystemCommand) Run(ctx *cmd.Context) (err error) {
 	}
 	defer api.Close()
 
-	ctx.Infof(
+	ctx.Infof(ctx,
 		"importing %q from storage pool %q as storage %q",
 		c.storageProviderId, c.storagePool, c.storageName,
 	)
@@ -145,7 +145,7 @@ func (c *importFilesystemCommand) Run(ctx *cmd.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	ctx.Infof("imported storage %s", storageTag.Id())
+	ctx.Infof(ctx, "imported storage %s", storageTag.Id())
 	return nil
 }
 

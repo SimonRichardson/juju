@@ -338,7 +338,7 @@ func (f *FirewallerAPI) WatchIngressAddressesForRelations(ctx context.Context, r
 	}
 
 	one := func(tag string) (id string, changes []string, _ error) {
-		f.logger.Debugf("Watching ingress addresses for %+v from model %v", tag, f.st.ModelUUID())
+		f.logger.Debugf(ctx, "Watching ingress addresses for %+v from model %v", tag, f.st.ModelUUID())
 
 		relationTag, err := names.ParseRelationTag(tag)
 		if err != nil {

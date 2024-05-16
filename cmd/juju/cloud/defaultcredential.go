@@ -115,10 +115,10 @@ func (c *setDefaultCredentialCommand) Run(ctxt *cmd.Context) error {
 	if !c.reset && c.credential == "" {
 		// We are just reading the value.
 		if cred.DefaultCredential != "" {
-			ctxt.Infof("Default credential for cloud %q is %q on this client.", c.cloud, cred.DefaultCredential)
+			ctxt.Infof(ctx, "Default credential for cloud %q is %q on this client.", c.cloud, cred.DefaultCredential)
 			return nil
 		}
-		ctxt.Infof("Default credential for cloud %q is not set on this client.", c.cloud)
+		ctxt.Infof(ctx, "Default credential for cloud %q is not set on this client.", c.cloud)
 		return nil
 	}
 	msg := fmt.Sprintf("Default credential for cloud %q is no longer set on this client.", c.cloud)
@@ -132,6 +132,6 @@ func (c *setDefaultCredentialCommand) Run(ctxt *cmd.Context) error {
 	if err := c.store.UpdateCredential(c.cloud, *cred); err != nil {
 		return err
 	}
-	ctxt.Infof(msg)
+	ctxt.Infof(ctx, msg)
 	return nil
 }

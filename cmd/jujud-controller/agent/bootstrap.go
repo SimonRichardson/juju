@@ -127,7 +127,7 @@ func copyFile(dest, source string) error {
 
 func copyFileFromTemplate(to, from string) (err error) {
 	if _, err := os.Stat(to); os.IsNotExist(err) {
-		logger.Debugf("copying file from %q to %s", from, to)
+		logger.Debugf(ctx, "copying file from %q to %s", from, to)
 		if err := copyFile(to, from); err != nil {
 			return errors.Trace(err)
 		}
@@ -278,7 +278,7 @@ func (c *BootstrapCommand) Run(ctx *cmd.Context) error {
 			// If we have been asked for a newer version, ensure the newer
 			// tools can actually be found, or else bootstrap won't complete.
 			streams := envtools.PreferredStreams(&desiredVersion, args.ControllerModelConfig.Development(), args.ControllerModelConfig.AgentStream())
-			logger.Infof("newer agent binaries requested, looking for %v in streams: %v", desiredVersion, strings.Join(streams, ","))
+			logger.Infof(ctx, "newer agent binaries requested, looking for %v in streams: %v", desiredVersion, strings.Join(streams, ","))
 			filter := tools.Filter{
 				Number: desiredVersion,
 				Arch:   arch.HostArch(),
@@ -287,15 +287,15 @@ func (c *BootstrapCommand) Run(ctx *cmd.Context) error {
 			ss := simplestreams.NewSimpleStreams(simplestreams.DefaultDataSourceFactory())
 			_, toolsErr := envtools.FindTools(ctx, ss, env, -1, -1, streams, filter)
 			if toolsErr == nil {
-				logger.Infof("agent binaries are available, upgrade will occur after bootstrap")
+				logger.Infof(ctx, "agent binaries are available, upgrade will occur after bootstrap")
 			}
 			if errors.Is(toolsErr, errors.NotFound) {
 				// Newer tools not available, so revert to using the tools
 				// matching the current agent version.
-				logger.Warningf("newer agent binaries for %q not available, sticking with version %q", desiredVersion, jujuversion.Current)
+				logger.Warningf(ctx, "newer agent binaries for %q not available, sticking with version %q", desiredVersion, jujuversion.Current)
 				controllerModelConfigAttrs["agent-version"] = jujuversion.Current.String()
 			} else if toolsErr != nil {
-				logger.Errorf("cannot find newer agent binaries: %v", toolsErr)
+				logger.Errorf(ctx, "cannot find newer agent binaries: %v", toolsErr)
 				return errors.Trace(toolsErr)
 			}
 		}
@@ -327,7 +327,7 @@ func (c *BootstrapCommand) Run(ctx *cmd.Context) error {
 
 		mmprof, err := mongo.NewMemoryProfile(args.ControllerConfig.MongoMemoryProfile())
 		if err != nil {
-			logger.Errorf("could not set requested memory profile: %v", err)
+			logger.Errorf(ctx, "could not set requested memory profile: %v", err)
 		} else {
 			agentConfig.SetMongoMemoryProfile(mmprof)
 		}
@@ -435,7 +435,7 @@ func (c *BootstrapCommand) Run(ctx *cmd.Context) error {
 	}
 	if err = model.AutoConfigureContainerNetworking(env, configSchemaSource); err != nil {
 		if errors.Is(err, errors.NotSupported) {
-			logger.Debugf("Not performing container networking auto-configuration on a non-networking environment")
+			logger.Debugf(ctx, "Not performing container networking auto-configuration on a non-networking environment")
 		} else {
 			return err
 		}
@@ -514,7 +514,7 @@ func ensureKeys(
 }
 
 func (c *BootstrapCommand) startMongo(ctx stdcontext.Context, isCAAS bool, addrs network.ProviderAddresses, agentConfig agent.Config) error {
-	logger.Debugf("starting mongo")
+	logger.Debugf(ctx, "starting mongo")
 
 	info, ok := agentConfig.MongoInfo()
 	if !ok {
@@ -543,7 +543,7 @@ func (c *BootstrapCommand) startMongo(ctx stdcontext.Context, isCAAS bool, addrs
 	}
 
 	if !isCAAS {
-		logger.Debugf("calling EnsureMongoServerInstalled")
+		logger.Debugf(ctx, "calling EnsureMongoServerInstalled")
 		ensureServerParams, err := cmdutil.NewEnsureMongoParams(agentConfig)
 		if err != nil {
 			return err
@@ -565,13 +565,13 @@ func (c *BootstrapCommand) startMongo(ctx stdcontext.Context, isCAAS bool, addrs
 	}); err != nil {
 		return err
 	}
-	logger.Infof("started mongo")
+	logger.Infof(ctx, "started mongo")
 	return nil
 }
 
 // saveCustomImageMetadata stores the custom image metadata to the database,
 func (c *BootstrapCommand) saveCustomImageMetadata(st *state.State, env environs.BootstrapEnviron, imageMetadata []*imagemetadata.ImageMetadata) error {
-	logger.Debugf("saving custom image metadata")
+	logger.Debugf(ctx, "saving custom image metadata")
 	return storeImageMetadataInState(st, env, "custom", simplestreams.CUSTOM_CLOUD_DATA, imageMetadata)
 }
 

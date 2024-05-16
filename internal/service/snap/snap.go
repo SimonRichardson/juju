@@ -206,7 +206,7 @@ func (s Service) Exists() (bool, error) {
 // Install installs the snap and its background services.
 func (s Service) Install() error {
 	for _, app := range s.app.Prerequisites() {
-		logger.Infof("command: %v", app)
+		logger.Infof(ctx, "command: %v", app)
 
 		out, err := s.runCommandWithRetry(app.Install()...)
 		if err != nil {

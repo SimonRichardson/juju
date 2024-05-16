@@ -138,7 +138,7 @@ func (c *downloadCommand) Init(args []string) error {
 func (c *downloadCommand) validateCharmOrBundle(charmOrBundle string) (*charm.URL, error) {
 	curl, err := charm.ParseURL(charmOrBundle)
 	if err != nil {
-		logger.Debugf("%s", err)
+		logger.Debugf(ctx, "%s", err)
 		return nil, errors.NotValidf("charm or bundle name, %q, is", charmOrBundle)
 	}
 	if !charm.CharmHub.Matches(curl.Schema) {
@@ -216,10 +216,10 @@ func (c *downloadCommand) Run(cmdContext *cmd.Context) error {
 	}
 
 	if c.revision == -1 {
-		cmdContext.Infof("Fetching %s %q revision %d using %q channel and base %q",
+		cmdContext.Infof(ctx, "Fetching %s %q revision %d using %q channel and base %q",
 			entityType, entity.Name, entity.Revision, normChannel, normBase)
 	} else {
-		cmdContext.Infof("Fetching %s %q revision %d",
+		cmdContext.Infof(ctx, "Fetching %s %q revision %d",
 			entityType, entity.Name, entity.Revision)
 	}
 
@@ -243,7 +243,7 @@ func (c *downloadCommand) Run(cmdContext *cmd.Context) error {
 	// If we're piping to stdout, then we don't need to mention how to install
 	// and deploy the charm.
 	if c.pipeToStdout {
-		cmdContext.Infof("Downloading of %s complete", entityType)
+		cmdContext.Infof(ctx, "Downloading of %s complete", entityType)
 		return nil
 	}
 
@@ -262,7 +262,7 @@ Calculated: %s`, c.charmOrBundle, entitySHA, calculatedHash)
 		path = fmt.Sprintf("./%s", path)
 	}
 
-	cmdContext.Infof(`
+	cmdContext.Infof(ctx, `
 Install the %q %s with:
     juju deploy %s`[1:], entity.Name, entityType, path)
 
@@ -321,7 +321,7 @@ func (c *downloadCommand) refresh(
 				// suggested series. If it can't do that, it will give up after
 				// the second attempt.
 				if retrySuggested && errors.Is(err, errors.NotSupported) && len(possibleBases) > 0 {
-					cmdContext.Infof("Base %q is not supported for charm %q, trying base %q", base.DisplayString(), c.charmOrBundle, possibleBases[0].DisplayString())
+					cmdContext.Infof(ctx, "Base %q is not supported for charm %q, trying base %q", base.DisplayString(), c.charmOrBundle, possibleBases[0].DisplayString())
 					return c.refresh(ctx, cmdContext, client, normChannel, arch, possibleBases[0], false)
 				}
 				return nil, nil, errors.Trace(err)

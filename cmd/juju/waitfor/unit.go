@@ -126,11 +126,11 @@ func (c *unitCommand) Run(ctx *cmd.Context) (err error) {
 
 		switch c.unitInfo.Life {
 		case life.Dead:
-			ctx.Infof("unit %q has been removed", c.name)
+			ctx.Infof(ctx, "unit %q has been removed", c.name)
 		case life.Dying:
-			ctx.Infof("unit %q is being removed", c.name)
+			ctx.Infof(ctx, "unit %q is being removed", c.name)
 		default:
-			ctx.Infof("unit %q is running", c.name)
+			ctx.Infof(ctx, "unit %q is running", c.name)
 			outputUnitSummary(ctx.Stdout, scopedContext, c.unitInfo, c.machines)
 		}
 	}()
@@ -195,11 +195,11 @@ func (c *unitCommand) waitFor(input string, ctx ScopeContext, logger Logger) fun
 				return true, nil
 			}
 		} else {
-			logger.Infof("unit %q not found, waiting...", name)
+			logger.Infof(ctx, "unit %q not found, waiting...", name)
 			return false, nil
 		}
 
-		logger.Infof("unit %q found, waiting...", name)
+		logger.Infof(ctx, "unit %q found, waiting...", name)
 		return false, nil
 	}
 }

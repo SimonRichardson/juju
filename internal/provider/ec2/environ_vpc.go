@@ -162,7 +162,7 @@ func validateVPC(apiClient vpcAPIClient, ctx envcontext.ProviderCallContext, vpc
 	// TODO(dimitern): Rather than just logging that, use publicSubnet.Id or
 	// even publicSubnet.AvailZone as default bootstrap placement directive, so
 	// the controller would be reachable.
-	logger.Infof(
+	logger.Infof(ctx,
 		"found subnet %q (%s) in AZ %q, suitable for a Juju controller instance",
 		aws.ToString(publicSubnet.SubnetId), aws.ToString(publicSubnet.CidrBlock), aws.ToString(publicSubnet.AvailabilityZone),
 	)
@@ -185,7 +185,7 @@ func validateVPC(apiClient vpcAPIClient, ctx envcontext.ProviderCallContext, vpc
 		return errors.Annotatef(err, "VPC %q main route table %q", vpcID, aws.ToString(mainRouteTable.RouteTableId))
 	}
 
-	logger.Infof("VPC %q is suitable for Juju controllers and expose-able workloads", vpcID)
+	logger.Infof(ctx, "VPC %q is suitable for Juju controllers and expose-able workloads", vpcID)
 	return nil
 }
 
@@ -212,7 +212,7 @@ func getVPCByID(apiClient vpcAPIClient, ctx envcontext.ProviderCallContext, vpcI
 	if numResults := len(response.Vpcs); numResults == 0 {
 		return nil, fmt.Errorf("VPC %q %w%w", vpcID, errors.NotFound, errors.Hide(errorVPCNotUsable))
 	} else if numResults > 1 {
-		logger.Debugf("VPCs() returned %s", pretty.Sprint(response))
+		logger.Debugf(ctx, "VPCs() returned %s", pretty.Sprint(response))
 		return nil, errors.Errorf("expected 1 result from AWS, got %d", numResults)
 	}
 
@@ -235,7 +235,7 @@ func checkVPCIsAvailable(vpc *types.Vpc) error {
 	}
 
 	if aws.ToBool(vpc.IsDefault) {
-		logger.Infof("VPC %q is the default VPC for the region", aws.ToString(vpc.VpcId))
+		logger.Infof(ctx, "VPC %q is the default VPC for the region", aws.ToString(vpc.VpcId))
 	}
 
 	return nil
@@ -306,7 +306,7 @@ func findFirstPublicSubnet(subnets []types.Subnet) (*types.Subnet, error) {
 		defaultForAZ := aws.ToBool(subnet.DefaultForAz)
 		assignIpv6 := aws.ToBool(subnet.AssignIpv6AddressOnCreation)
 		if mapOnLaunch || defaultForAZ || assignIpv6 {
-			logger.Debugf(
+			logger.Debugf(ctx,
 				"VPC %q subnet %q has MapPublicIPOnLaunch=%v, DefaultForAZ=%v, AssignIPv6AddressOnCreation=%v",
 				aws.ToString(subnet.VpcId), aws.ToString(subnet.SubnetId),
 				mapOnLaunch, defaultForAZ, assignIpv6,
@@ -330,7 +330,7 @@ func getVPCInternetGateway(apiClient vpcAPIClient, ctx envcontext.ProviderCallCo
 	if numResults := len(resp.InternetGateways); numResults == 0 {
 		return nil, fmt.Errorf("VPC has no Internet Gateway attached%w", errors.Hide(errorVPCNotRecommended))
 	} else if numResults > 1 {
-		logger.Debugf("InternetGateways() returned %#v", resp)
+		logger.Debugf(ctx, "InternetGateways() returned %#v", resp)
 		return nil, errors.Errorf("expected 1 result from AWS, got %d", numResults)
 	}
 
@@ -403,13 +403,13 @@ func checkVPCRouteTableRoutes(vpc *types.Vpc, routeTable *types.RouteTable, gate
 	hasDefaultRoute := false
 	hasLocalRoute := false
 
-	logger.Tracef("checking route table %+v routes", routeTable)
+	logger.Tracef(ctx, "checking route table %+v routes", routeTable)
 	gatewayID := aws.ToString(gateway.InternetGatewayId)
 	vpcCIDRBlock := aws.ToString(vpc.CidrBlock)
 	for _, route := range routeTable.Routes {
 		if route.State != types.RouteStateActive {
 			if logger.IsLevelEnabled(corelogger.TRACE) {
-				logger.Tracef("skipping inactive route %s", pretty.Sprint(route))
+				logger.Tracef(ctx, "skipping inactive route %s", pretty.Sprint(route))
 			}
 			continue
 		}
@@ -421,15 +421,15 @@ func checkVPCRouteTableRoutes(vpc *types.Vpc, routeTable *types.RouteTable, gate
 		case routeCIDRIPv6Block == defaultRouteIPv6CIDRBlock:
 		case routeCIDRBlock == defaultRouteIpv4CIDRBlock:
 			if routeGatewayID == gatewayID {
-				logger.Tracef("default route uses expected gateway %q", gatewayID)
+				logger.Tracef(ctx, "default route uses expected gateway %q", gatewayID)
 				hasDefaultRoute = true
 			}
 		case routeGatewayID == localRouteGatewayID:
-			logger.Tracef("local route uses expected CIDR %q", vpcCIDRBlock)
+			logger.Tracef(ctx, "local route uses expected CIDR %q", vpcCIDRBlock)
 			hasLocalRoute = true
 		default:
 			if logger.IsLevelEnabled(corelogger.TRACE) {
-				logger.Tracef("route %s is neither local nor default (skipping)", pretty.Sprint(route))
+				logger.Tracef(ctx, "route %s is neither local nor default (skipping)", pretty.Sprint(route))
 			}
 		}
 	}
@@ -493,11 +493,11 @@ func getVPCSubnetsForAvailabilityZone(
 	for _, subnet := range subnets {
 		subnetID := aws.ToString(subnet.SubnetId)
 		if aws.ToString(subnet.AvailabilityZone) != zoneName {
-			logger.Debugf("skipping subnet %q (in VPC %q): not in the chosen AZ %q", subnetID, vpcID, zoneName)
+			logger.Debugf(ctx, "skipping subnet %q (in VPC %q): not in the chosen AZ %q", subnetID, vpcID, zoneName)
 			continue
 		}
 		if !allowedSubnets.IsEmpty() && !allowedSubnets.Contains(corenetwork.Id(subnetID)) {
-			logger.Debugf("skipping subnet %q (in VPC %q, AZ %q): not matching spaces constraints", subnetID, vpcID, zoneName)
+			logger.Debugf(ctx, "skipping subnet %q (in VPC %q, AZ %q): not matching spaces constraints", subnetID, vpcID, zoneName)
 			continue
 		}
 		matchingSubnets = append(matchingSubnets, subnet)
@@ -508,7 +508,7 @@ func getVPCSubnetsForAvailabilityZone(
 		return nil, errors.NewNotFound(nil, message)
 	}
 
-	logger.Infof("found %d subnets in VPC %q matching AZ %q and constraints: %v", len(matchingSubnets), vpcID, zoneName, matchingSubnets)
+	logger.Infof(ctx, "found %d subnets in VPC %q matching AZ %q and constraints: %v", len(matchingSubnets), vpcID, zoneName, matchingSubnets)
 	return matchingSubnets, nil
 }
 
@@ -522,7 +522,7 @@ func isVPCIDSet(vpcID string) bool {
 
 func validateBootstrapVPC(apiClient vpcAPIClient, cloudCtx envcontext.ProviderCallContext, region, vpcID string, forceVPCID bool, ctx environs.BootstrapContext) error {
 	if vpcID == vpcIDNone {
-		ctx.Infof("Using EC2-classic features or default VPC in region %q", region)
+		ctx.Infof(ctx, "Using EC2-classic features or default VPC in region %q", region)
 	}
 	if !isVPCIDSet(vpcID) {
 		return nil
@@ -538,13 +538,13 @@ func validateBootstrapVPC(apiClient vpcAPIClient, cloudCtx envcontext.ProviderCa
 		if !forceVPCID {
 			return errors.Annotatef(err, vpcNotRecommendedErrorPrefix, vpcID)
 		}
-		ctx.Infof(vpcNotRecommendedButForcedWarning)
+		ctx.Infof(ctx, vpcNotRecommendedButForcedWarning)
 	case err != nil:
 		// Anything else unexpected while validating the VPC.
 		return errors.Annotate(maybeConvertCredentialError(err, cloudCtx), cannotValidateVPCErrorPrefix)
 	}
 
-	ctx.Infof("Using VPC %q in region %q", vpcID, region)
+	ctx.Infof(ctx, "Using VPC %q in region %q", vpcID, region)
 
 	return nil
 }
@@ -562,7 +562,7 @@ func validateModelVPC(apiClient vpcAPIClient, ctx envcontext.ProviderCallContext
 	case errors.Is(err, errorVPCNotRecommended):
 		// VPC does not meet minimum validation criteria, but that's less
 		// important for hosted models, as the controller is already accessible.
-		logger.Infof(
+		logger.Infof(ctx,
 			"Juju will use, but does not recommend using VPC %q: %v",
 			vpcID, err.Error(),
 		)
@@ -570,7 +570,7 @@ func validateModelVPC(apiClient vpcAPIClient, ctx envcontext.ProviderCallContext
 		// Anything else unexpected while validating the VPC.
 		return errors.Annotate(maybeConvertCredentialError(err, ctx), cannotValidateVPCErrorPrefix)
 	}
-	logger.Infof("Using VPC %q for model %q", vpcID, modelName)
+	logger.Infof(ctx, "Using VPC %q for model %q", vpcID, modelName)
 
 	return nil
 }

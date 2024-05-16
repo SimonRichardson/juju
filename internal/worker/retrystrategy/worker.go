@@ -92,7 +92,7 @@ func (h retryStrategyHandler) Handle(_ context.Context) error {
 		return errors.Trace(err)
 	}
 	if newRetryStrategy != h.config.RetryStrategy {
-		h.config.Logger.Debugf("bouncing retrystrategy worker to get new values")
+		h.config.Logger.Debugf(ctx, "bouncing retrystrategy worker to get new values")
 		return dependency.ErrBounce
 	}
 	return nil

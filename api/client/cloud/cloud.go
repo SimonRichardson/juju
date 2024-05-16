@@ -404,7 +404,7 @@ func (c *Client) modifyCloudUser(action params.CloudAction, user, access string,
 
 	for i, r := range result.Results {
 		if r.Error != nil && r.Error.Code == params.CodeAlreadyExists {
-			logger.Warningf("cloud %q is already shared with %q", clouds[i], userTag.Id())
+			logger.Warningf(ctx, "cloud %q is already shared with %q", clouds[i], userTag.Id())
 			result.Results[i].Error = nil
 		}
 	}

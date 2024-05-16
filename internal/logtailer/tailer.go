@@ -162,13 +162,13 @@ func (t *logTailer) processInitialLines() (int64, error) {
 		rec, err := logLineToRecord(t.modelUUID, line)
 		if err != nil {
 			if deserialisationFailures == 0 {
-				logger.Warningf("log deserialization failed, %v", err)
+				logger.Warningf(ctx, "log deserialization failed, %v", err)
 			}
 			deserialisationFailures++
 			continue
 		} else {
 			if deserialisationFailures > 1 {
-				logger.Debugf("total of %d log serialisation errors", deserialisationFailures)
+				logger.Debugf(ctx, "total of %d log serialisation errors", deserialisationFailures)
 			}
 			deserialisationFailures = 0
 		}
@@ -187,7 +187,7 @@ func (t *logTailer) processInitialLines() (int64, error) {
 		}
 	}
 	if deserialisationFailures > 1 {
-		logger.Debugf("total of %d log serialisation errors", deserialisationFailures)
+		logger.Debugf(ctx, "total of %d log serialisation errors", deserialisationFailures)
 	}
 	if err := scanner.Err(); err != nil {
 		return -1, errors.Trace(err)
@@ -253,13 +253,13 @@ func (t *logTailer) tailFile(seekTo *tail.SeekInfo) (err error) {
 			rec, err := logLineToRecord(t.modelUUID, line.Text)
 			if err != nil {
 				if deserialisationFailures == 0 {
-					logger.Warningf("log deserialization failed, %v", err)
+					logger.Warningf(ctx, "log deserialization failed, %v", err)
 				}
 				deserialisationFailures++
 				continue
 			} else {
 				if deserialisationFailures > 1 {
-					logger.Debugf("total of %d log serialisation errors", deserialisationFailures)
+					logger.Debugf(ctx, "total of %d log serialisation errors", deserialisationFailures)
 				}
 				deserialisationFailures = 0
 			}

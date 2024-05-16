@@ -172,7 +172,7 @@ func (c *dumpLogsCommand) dumpLogsForEnv(ctx *cmd.Context, statePool *state.Stat
 	st, err := statePool.Get(tag.Id())
 	if err != nil {
 		if errors.Is(err, errors.NotFound) {
-			ctx.Infof("model with uuid %v has been removed", tag.Id())
+			ctx.Infof(ctx, "model with uuid %v has been removed", tag.Id())
 			return nil
 		}
 		return errors.Annotate(err, "failed open model")
@@ -180,7 +180,7 @@ func (c *dumpLogsCommand) dumpLogsForEnv(ctx *cmd.Context, statePool *state.Stat
 	defer st.Release()
 
 	logName := ctx.AbsPath(filepath.Join(c.outDir, fmt.Sprintf("%s.log", tag.Id())))
-	ctx.Infof("writing to %s", logName)
+	ctx.Infof(ctx, "writing to %s", logName)
 
 	file, err := os.Create(logName)
 	if err != nil {

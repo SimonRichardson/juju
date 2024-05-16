@@ -263,7 +263,7 @@ func (c *destroyCommand) Run(ctx *cmd.Context) error {
 		if err != nil {
 			return errors.Annotate(err, "getting model status")
 		}
-		ctx.Warningf(destroyModelMsg, modelName)
+		ctx.Warningf(ctx, destroyModelMsg, modelName)
 		if err := printDestroyWarningDetails(ctx, modelStatuses[0], modelName, modelDetails.ModelType, c.releaseStorage); err != nil {
 			return errors.Trace(err)
 		}
@@ -432,9 +432,9 @@ func getModelStatus(ctx *cmd.Context, api DestroyModelAPI, tag names.ModelTag) (
 	}
 	if err != nil {
 		if params.IsCodeNotFound(err) {
-			ctx.Infof("\nModel destroyed.")
+			ctx.Infof(ctx, "\nModel destroyed.")
 		} else {
-			ctx.Infof("Unable to get the model status from the API: %v.", err)
+			ctx.Infof(ctx, "Unable to get the model status from the API: %v.", err)
 		}
 		return nil, erroredStatuses
 	}
@@ -469,7 +469,7 @@ func getModelStatus(ctx *cmd.Context, api DestroyModelAPI, tag names.ModelTag) (
 	}
 
 	if l := len(status); l != 1 {
-		ctx.Infof("error finding model status: expected one result, got %d", l)
+		ctx.Infof(ctx, "error finding model status: expected one result, got %d", l)
 		return nil, erroredStatuses
 	}
 	return &modelData{
@@ -541,7 +541,7 @@ func (c *destroyCommand) handleError(
 	if params.IsCodeHasPersistentStorage(err) {
 		return handlePersistentStorageError(modelTag, modelName, api)
 	}
-	logger.Errorf(`failed to destroy model %q`, modelName)
+	logger.Errorf(ctx, `failed to destroy model %q`, modelName)
 	return err
 }
 

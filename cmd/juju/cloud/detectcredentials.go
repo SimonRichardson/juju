@@ -163,7 +163,7 @@ func (c *detectCredentialsCommand) credentialsAPI() (CredentialAPI, error) {
 }
 
 func (c *detectCredentialsCommand) allClouds(ctxt *cmd.Context) (map[string]jujucloud.Cloud, error) {
-	ctxt.Infof("\nLooking for cloud and credential information on local client...")
+	ctxt.Infof(ctx, "\nLooking for cloud and credential information on local client...")
 	clouds, _, err := jujucloud.PublicCloudMetadata(jujucloud.JujuPublicCloudsPath())
 	if err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func (c *detectCredentialsCommand) allClouds(ctxt *cmd.Context) (map[string]juju
 		clouds[k] = v
 	}
 	if c.ControllerName != "" {
-		ctxt.Infof("\nLooking for cloud information on controller %q...", c.ControllerName)
+		ctxt.Infof(ctx, "\nLooking for cloud information on controller %q...", c.ControllerName)
 		// If there is a cloud definition for the same cloud both
 		// on the controller and on the client and they conflict,
 		// we want definition from the controller to take precedence.
@@ -250,13 +250,13 @@ func (c *detectCredentialsCommand) Run(ctxt *cmd.Context) error {
 		if err != nil {
 			// Should never happen but it will on go 1.2
 			// because lxd provider is not built.
-			logger.Errorf("provider %q not available on this platform", providerName)
+			logger.Errorf(ctx, "provider %q not available on this platform", providerName)
 			continue
 		}
 		if detectCredentials, ok := provider.(environs.ProviderCredentials); ok {
 			detected, err := detectCredentials.DetectCredentials("")
 			if err != nil && !errors.Is(err, errors.NotFound) {
-				logger.Errorf("could not detect credentials for provider %q: %v", providerName, err)
+				logger.Errorf(ctx, "could not detect credentials for provider %q: %v", providerName, err)
 				continue
 			}
 			if errors.Is(err, errors.NotFound) || len(detected.AuthCredentials) == 0 {
@@ -277,7 +277,7 @@ func (c *detectCredentialsCommand) Run(ctxt *cmd.Context) error {
 			for _, credName := range sortedName {
 				newCred := detected.AuthCredentials[credName]
 				if credName == "" {
-					logger.Debugf("ignoring unnamed credential for provider %s", providerName)
+					logger.Debugf(ctx, "ignoring unnamed credential for provider %s", providerName)
 					continue
 				}
 				// Ignore empty credentials.
@@ -399,7 +399,7 @@ func (c *detectCredentialsCommand) interactiveCredentialsUpdate(ctxt *cmd.Contex
 		// Prompt for the cloud for which to save the credential.
 		cloudName, err := c.promptCloudName(ctxt.Stderr, ctxt.Stdin, cred.defaultCloudName)
 		if err != nil {
-			ctxt.Warningf("%v", err.Error())
+			ctxt.Warningf(ctx, "%v", err.Error())
 			continue
 		}
 		if quit(cloudName) {
@@ -412,11 +412,11 @@ func (c *detectCredentialsCommand) interactiveCredentialsUpdate(ctxt *cmd.Contex
 		}
 		cloud, err := common.CloudOrProvider(cloudName, c.cloudByNameFunc)
 		if err != nil {
-			ctxt.Warningf("%v", err)
+			ctxt.Warningf(ctx, "%v", err)
 			continue
 		}
 		if cloud.Type != cred.cloudType {
-			ctxt.Warningf("%v", errors.Errorf("chosen credential not compatible with %q cloud", cloud.Type))
+			ctxt.Warningf(ctx, "%v", errors.Errorf("chosen credential not compatible with %q cloud", cloud.Type))
 			continue
 		}
 
@@ -441,7 +441,7 @@ func (c *detectCredentialsCommand) interactiveCredentialsUpdate(ctxt *cmd.Contex
 		addLoadedCredential(loaded, cloudName, cred)
 		if c.Client {
 			if err := c.Store.UpdateCredential(cloudName, *existing); err != nil {
-				ctxt.Warningf("error saving credential locally: %v\n", err)
+				ctxt.Warningf(ctx, "error saving credential locally: %v\n", err)
 				localErr = err
 			} else {
 				// Update so we display correctly next time list is printed.
@@ -475,7 +475,7 @@ func addLoadedCredential(all map[string]map[string]map[string]jujucloud.Credenti
 
 func (c *detectCredentialsCommand) addRemoteCredentials(ctxt *cmd.Context, clouds map[string]jujucloud.Cloud, all map[string]map[string]map[string]jujucloud.Credential, localErr error) error {
 	if len(all) == 0 {
-		ctxt.Infof("No credentials loaded to controller %v.\n", c.ControllerName)
+		ctxt.Infof(ctx, "No credentials loaded to controller %v.\n", c.ControllerName)
 		return nil
 	}
 	accountDetails, err := c.Store.AccountDetails(c.ControllerName)
@@ -495,7 +495,7 @@ func (c *detectCredentialsCommand) addRemoteCredentials(ctxt *cmd.Context, cloud
 		for region, byRegion := range byCloud {
 			aCloud, ok := c.remoteClouds[cloud]
 			if !ok {
-				ctxt.Infof("Cloud %q does not exist on the controller: not uploading credentials for it...", cloud)
+				ctxt.Infof(ctx, "Cloud %q does not exist on the controller: not uploading credentials for it...", cloud)
 				moreCloudInfoNeeded = true
 				continue
 			}
@@ -505,14 +505,14 @@ func (c *detectCredentialsCommand) addRemoteCredentials(ctxt *cmd.Context, cloud
 			}
 			result, err := client.AddCloudsCredentials(verified)
 			if err != nil {
-				logger.Errorf("%v", err)
-				ctxt.Warningf("Could not upload credentials to controller %q", c.ControllerName)
+				logger.Errorf(ctx, "%v", err)
+				ctxt.Warningf(ctx, "Could not upload credentials to controller %q", c.ControllerName)
 			}
 			results = append(results, result...)
 		}
 	}
 	if moreCloudInfoNeeded {
-		ctxt.Infof("Use 'juju clouds' to view all available clouds and 'juju add-cloud' to add missing ones.")
+		ctxt.Infof(ctx, "Use 'juju clouds' to view all available clouds and 'juju add-cloud' to add missing ones.")
 	}
 	return processUpdateCredentialResult(ctxt, accountDetails, "loaded", results, false, c.ControllerName, localErr)
 }

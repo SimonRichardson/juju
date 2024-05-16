@@ -147,7 +147,7 @@ func (c *listCommand) Run(ctx *cmd.Context) error {
 		output = shortOutput
 	default:
 		if len(sortedNames) == 0 {
-			ctx.Infof("No actions defined for %s.", c.appName)
+			ctx.Infof(ctx, "No actions defined for %s.", c.appName)
 			return nil
 		}
 		var list []listOutput

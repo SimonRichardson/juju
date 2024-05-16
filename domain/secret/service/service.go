@@ -216,7 +216,7 @@ func (s *SecretService) CreateUserSecret(ctx context.Context, uri *secrets.URI, 
 				if err2 := backend.DeleteContent(ctx, revId); err2 != nil &&
 					!errors.Is(err2, errors.NotSupported) &&
 					!errors.Is(err2, secreterrors.SecretRevisionNotFound) {
-					s.logger.Warningf("failed to delete secret %q: %v", revId, err2)
+					s.logger.Warningf(ctx, "failed to delete secret %q: %v", revId, err2)
 				}
 			}
 		}()
@@ -326,7 +326,7 @@ func (s *SecretService) UpdateUserSecret(ctx context.Context, uri *secrets.URI, 
 					if err2 := backend.DeleteContent(ctx, revId); err2 != nil &&
 						!errors.Is(err2, errors.NotSupported) &&
 						!errors.Is(err2, secreterrors.SecretRevisionNotFound) {
-						s.logger.Warningf("failed to delete secret %q: %v", revId, err2)
+						s.logger.Warningf(ctx, "failed to delete secret %q: %v", revId, err2)
 					}
 				}
 			}()
@@ -664,7 +664,7 @@ func (s *SecretService) SecretRotated(ctx context.Context, uri *secrets.URI, par
 		return errors.Trace(err)
 	}
 	if !info.RotatePolicy.WillRotate() {
-		s.logger.Debugf("secret %q was rotated but now is set to not rotate")
+		s.logger.Debugf(ctx, "secret %q was rotated but now is set to not rotate")
 		return nil
 	}
 	lastRotateTime := info.NextRotateTime
@@ -673,17 +673,17 @@ func (s *SecretService) SecretRotated(ctx context.Context, uri *secrets.URI, par
 		lastRotateTime = &now
 	}
 	nextRotateTime := *info.RotatePolicy.NextRotateTime(*lastRotateTime)
-	s.logger.Debugf("secret %q was rotated: rev was %d, now %d", uri.ID, params.OriginalRevision, info.LatestRevision)
+	s.logger.Debugf(ctx, "secret %q was rotated: rev was %d, now %d", uri.ID, params.OriginalRevision, info.LatestRevision)
 	// If the secret will expire before it is due to be next rotated, rotate sooner to allow
 	// the charm a chance to update it before it expires.
 	willExpire := info.LatestExpireTime != nil && info.LatestExpireTime.Before(nextRotateTime)
 	forcedRotateTime := lastRotateTime.Add(secrets.RotateRetryDelay)
 	if willExpire {
-		s.logger.Warningf("secret %q rev %d will expire before next scheduled rotation", uri.ID, info.LatestRevision)
+		s.logger.Warningf(ctx, "secret %q rev %d will expire before next scheduled rotation", uri.ID, info.LatestRevision)
 	}
 	if willExpire && forcedRotateTime.Before(*info.LatestExpireTime) || !params.Skip && info.LatestRevision == params.OriginalRevision {
 		nextRotateTime = forcedRotateTime
 	}
-	s.logger.Debugf("secret %q next rotate time is now: %s", uri.ID, nextRotateTime.UTC().Format(time.RFC3339))
+	s.logger.Debugf(ctx, "secret %q next rotate time is now: %s", uri.ID, nextRotateTime.UTC().Format(time.RFC3339))
 	return s.st.SecretRotated(ctx, uri, nextRotateTime)
 }

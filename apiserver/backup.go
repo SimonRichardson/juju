@@ -33,7 +33,7 @@ func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	switch req.Method {
 	case "GET":
-		logger.Infof("handling backups download request")
+		logger.Infof(ctx, "handling backups download request")
 		model, err := st.Model()
 		if err != nil {
 			h.sendError(resp, err)
@@ -59,6 +59,6 @@ func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 func (h *backupHandler) sendError(w http.ResponseWriter, err error) {
 	err, status := apiservererrors.ServerErrorAndStatus(err)
 	if err := sendStatusAndJSON(w, status, err); err != nil {
-		logger.Errorf("%v", err)
+		logger.Errorf(ctx, "%v", err)
 	}
 }

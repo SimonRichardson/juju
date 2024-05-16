@@ -74,7 +74,7 @@ func (cd *CharmDownloader) setup() error {
 		return errors.Trace(err)
 	}
 
-	cd.logger.Debugf("started watching applications referencing charms that have not yet been downloaded")
+	cd.logger.Debugf(ctx, "started watching applications referencing charms that have not yet been downloaded")
 	return nil
 }
 
@@ -101,7 +101,7 @@ func (cd *CharmDownloader) loop() error {
 				appTags[i] = names.NewApplicationTag(appName)
 			}
 
-			cd.logger.Debugf("triggering asynchronous download of charms for the following applications: %v", strings.Join(changes, ", "))
+			cd.logger.Debugf(ctx, "triggering asynchronous download of charms for the following applications: %v", strings.Join(changes, ", "))
 			if err := cd.charmDownloaderAPI.DownloadApplicationCharms(appTags); err != nil {
 				return errors.Trace(err)
 			}

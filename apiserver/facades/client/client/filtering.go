@@ -33,7 +33,7 @@ func UnitChainPredicateFn(
 	f = func(unit *state.Unit) (bool, error) {
 		// Don't try and filter the same unit 2x.
 		if matches, ok := considered[unit.Name()]; ok {
-			logger.Debugf("%s has already been examined and found to be: %t", unit.Name(), matches)
+			logger.Debugf(ctx, "%s has already been examined and found to be: %t", unit.Name(), matches)
 			return matches, nil
 		}
 
@@ -48,7 +48,7 @@ func UnitChainPredicateFn(
 		for _, subName := range unit.SubordinateNames() {
 			// A master match supercedes any subordinate match.
 			if matches {
-				logger.Debugf("%s is a subordinate to a match.", subName)
+				logger.Debugf(ctx, "%s is a subordinate to a match.", subName)
 				considered[subName] = true
 				continue
 			}
@@ -150,7 +150,7 @@ func unitMatchUnitName(u *state.Unit, patterns []string) (bool, bool, error) {
 		// Currently, the only error possible here is a matching
 		// error. We don't want this error to hold up further
 		// matching.
-		logger.Debugf("ignoring matching error: %v", err)
+		logger.Debugf(ctx, "ignoring matching error: %v", err)
 		return false, false, nil
 	}
 	return um.matchUnit(u), true, nil

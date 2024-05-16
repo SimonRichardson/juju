@@ -201,11 +201,11 @@ func (c *listCloudsCommand) Run(ctxt *cmd.Context) error {
 	details, listErr := c.getCloudList() // error checked below, after printing out best-effort results
 	if c.showAllMessage {
 		if details.len() != 0 {
-			ctxt.Infof("Only clouds with registered credentials are shown.")
+			ctxt.Infof(ctx, "Only clouds with registered credentials are shown.")
 		} else {
-			ctxt.Infof("No clouds with registered credentials to show.")
+			ctxt.Infof(ctx, "No clouds with registered credentials to show.")
 		}
-		ctxt.Infof("There are more clouds, use --all to see them.")
+		ctxt.Infof(ctx, "There are more clouds, use --all to see them.")
 	}
 	var result interface{}
 	switch c.out.Name() {

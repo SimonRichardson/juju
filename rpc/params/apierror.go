@@ -133,14 +133,14 @@ func (e RedirectErrorInfo) AsMap() map[string]interface{} {
 func serializeToMap(v interface{}) map[string]interface{} {
 	data, err := json.Marshal(v)
 	if err != nil {
-		logger.Criticalf("serializeToMap: marshal to json failed: %v", err)
+		logger.Criticalf(ctx, "serializeToMap: marshal to json failed: %v", err)
 		return nil
 	}
 
 	var asMap map[string]interface{}
 	err = json.Unmarshal(data, &asMap)
 	if err != nil {
-		logger.Criticalf("serializeToMap: unmarshal to map failed: %v", err)
+		logger.Criticalf(ctx, "serializeToMap: unmarshal to map failed: %v", err)
 		return nil
 	}
 

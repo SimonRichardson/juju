@@ -109,7 +109,7 @@ func (c *RemoveCAASCommand) Run(ctxt *cmd.Context) error {
 	}
 
 	if c.ControllerName == "" {
-		ctxt.Infof("There are no controllers running.\nTo remove cloud %q from the current client, use the --client option.", c.cloudName)
+		ctxt.Infof(ctx, "There are no controllers running.\nTo remove cloud %q from the current client, use the --client option.", c.cloudName)
 	}
 
 	if c.ControllerName != "" && c.Client { // TODO(caas): only do RBAC cleanup for removing from both client and controller to less complexity.
@@ -170,7 +170,7 @@ func cleanUpCredentialRBACResources(
 	}
 	for _, credential := range cloudCredentials.AuthCredentials {
 		if err := cleanUpCredentialRBAC(ctx, pCloud, credential); err != nil {
-			logger.Warningf("unable to remove RBAC resources for credential %q", credential.Label)
+			logger.Warningf(ctx, "unable to remove RBAC resources for credential %q", credential.Label)
 		}
 	}
 	return nil

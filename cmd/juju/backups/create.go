@@ -116,7 +116,7 @@ func (c *createCommand) Run(ctx *cmd.Context) error {
 	defer client.Close()
 
 	if c.NoDownload {
-		ctx.Warningf(downloadWarning)
+		ctx.Warningf(ctx, downloadWarning)
 	}
 
 	metadataResult, copyFrom, err := c.create(client)
@@ -129,7 +129,7 @@ func (c *createCommand) Run(ctx *cmd.Context) error {
 	}
 
 	if c.NoDownload {
-		ctx.Infof("Remote backup stored on the controller as %v", metadataResult.Filename)
+		ctx.Infof(ctx, "Remote backup stored on the controller as %v", metadataResult.Filename)
 	} else {
 		filename := c.decideFilename(ctx, c.Filename, metadataResult.Started)
 		if err := c.download(ctx, client, copyFrom, filename); err != nil {
@@ -165,7 +165,7 @@ func (c *createCommand) download(ctx *cmd.Context, client APIClient, copyFrom st
 	if err != nil {
 		return errors.Annotatef(err, "while copying to local archive file %v", archiveFilename)
 	}
-	ctx.Infof("Downloaded to %v", archiveFilename)
+	ctx.Infof(ctx, "Downloaded to %v", archiveFilename)
 	return nil
 }
 

@@ -147,7 +147,7 @@ func (c *ListCommand) formatApplicationResources(ctx *cmd.Context, sr coreresour
 			return errors.Trace(err)
 		}
 		if len(formatted.Resources) == 0 && len(formatted.Updates) == 0 {
-			ctx.Infof(noResources)
+			ctx.Infof(ctx, noResources)
 			return nil
 		}
 
@@ -159,7 +159,7 @@ func (c *ListCommand) formatApplicationResources(ctx *cmd.Context, sr coreresour
 		return errors.Trace(err)
 	}
 	if len(formatted.Resources) == 0 && len(formatted.Updates) == 0 {
-		ctx.Infof(noResources)
+		ctx.Infof(ctx, noResources)
 		return nil
 	}
 	return c.out.Write(ctx, formatted)
@@ -167,7 +167,7 @@ func (c *ListCommand) formatApplicationResources(ctx *cmd.Context, sr coreresour
 
 func (c *ListCommand) formatUnitResources(ctx *cmd.Context, unit, application string, sr coreresources.ApplicationResources) error {
 	if len(sr.Resources) == 0 && len(sr.UnitResources) == 0 {
-		ctx.Infof(noResources)
+		ctx.Infof(ctx, noResources)
 		return nil
 	}
 

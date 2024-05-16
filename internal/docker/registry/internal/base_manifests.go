@@ -129,7 +129,7 @@ func (c baseClient) GetBlobs(imageName, digest string) (*BlobsResponse, error) {
 // GetBlobsCommon returns blobs result for the provided url.
 func (c baseClient) GetBlobsCommon(url string) (*BlobsResponse, error) {
 	resp, err := c.client.Get(url)
-	logger.Tracef("getting blobs for %q, err %v", url, err)
+	logger.Tracef(ctx, "getting blobs for %q, err %v", url, err)
 	if err != nil {
 		return nil, errors.Trace(unwrapNetError(err))
 	}

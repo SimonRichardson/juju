@@ -142,14 +142,14 @@ func (c *removeStorageCommand) Run(ctx *cmd.Context) error {
 	}
 	for i, result := range results {
 		if result.Error == nil {
-			ctx.Infof("removing %s", c.storageIds[i])
+			ctx.Infof(ctx, "removing %s", c.storageIds[i])
 		}
 	}
 	anyFailed := false
 	anyAttached := false
 	for i, result := range results {
 		if result.Error != nil {
-			ctx.Infof("failed to remove %s: %s", c.storageIds[i], result.Error)
+			ctx.Infof(ctx, "failed to remove %s: %s", c.storageIds[i], result.Error)
 			if params.IsCodeStorageAttached(result.Error) {
 				anyAttached = true
 			}
@@ -157,7 +157,7 @@ func (c *removeStorageCommand) Run(ctx *cmd.Context) error {
 		}
 	}
 	if anyAttached && c.modelType != model.CAAS {
-		ctx.Infof(`
+		ctx.Infof(ctx, `
 Use the --force option to remove attached storage, or use
 "juju detach-storage" to explicitly detach the storage
 before removing.`)

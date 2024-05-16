@@ -364,7 +364,7 @@ func (r *charmHubRefresher) Allowed(cfg RefresherConfig) (bool, error) {
 		if !cfg.Force {
 			return false, errors.Trace(err)
 		}
-		r.logger.Warningf("Charm placement check failed, using --force may break deployment")
+		r.logger.Warningf(ctx, "Charm placement check failed, using --force may break deployment")
 	}
 
 	return true, nil

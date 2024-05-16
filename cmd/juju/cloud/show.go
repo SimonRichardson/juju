@@ -148,7 +148,7 @@ func (c *showCloudCommand) Run(ctxt *cmd.Context) error {
 		}
 
 		if remoteErr != nil {
-			ctxt.Infof("ERROR %v", remoteErr)
+			ctxt.Infof(ctx, "ERROR %v", remoteErr)
 			displayErr = cmd.ErrSilent
 		} else if remoteCloud != nil {
 			outputs = append(outputs, c.displayCloud(
@@ -158,12 +158,12 @@ func (c *showCloudCommand) Run(ctxt *cmd.Context) error {
 				showRemoteConfig,
 			))
 		} else {
-			ctxt.Infof("No cloud %q exists on the controller.", c.CloudName)
+			ctxt.Infof(ctx, "No cloud %q exists on the controller.", c.CloudName)
 		}
 	}
 	if c.Client {
 		if localErr != nil {
-			ctxt.Infof("ERROR %v", localErr)
+			ctxt.Infof(ctx, "ERROR %v", localErr)
 			displayErr = cmd.ErrSilent
 		} else if localCloud != nil {
 			outputs = append(outputs, c.displayCloud(
@@ -173,7 +173,7 @@ func (c *showCloudCommand) Run(ctxt *cmd.Context) error {
 				c.includeConfig,
 			))
 		} else {
-			ctxt.Infof("No cloud %q exists on this client.", c.CloudName)
+			ctxt.Infof(ctx, "No cloud %q exists on this client.", c.CloudName)
 		}
 	}
 

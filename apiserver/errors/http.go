@@ -17,7 +17,7 @@ import (
 // processing.
 func SendError(w http.ResponseWriter, errToSend error) error {
 	paramsErr, statusCode := ServerErrorAndStatus(errToSend)
-	logger.Debugf("sending error: %d %v", statusCode, paramsErr)
+	logger.Debugf(ctx, "sending error: %d %v", statusCode, paramsErr)
 	return errors.Trace(SendStatusAndJSON(w, statusCode, &params.ErrorResult{
 		Error: paramsErr,
 	}))

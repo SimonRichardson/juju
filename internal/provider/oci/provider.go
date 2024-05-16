@@ -200,7 +200,7 @@ func (e EnvironProvider) PrepareConfig(ctx context.Context, args environs.Prepar
 
 // Open implements environs.EnvironProvider.
 func (e *EnvironProvider) Open(ctx stdcontext.Context, params environs.OpenParams) (environs.Environ, error) {
-	logger.Infof("opening model %q", params.Config.Name())
+	logger.Infof(ctx, "opening model %q", params.Config.Name())
 
 	if err := validateCloudSpec(params.Cloud); err != nil {
 		return nil, errors.Trace(err)
@@ -218,7 +218,7 @@ func (e *EnvironProvider) Open(ctx stdcontext.Context, params environs.OpenParam
 	// We don't support setting a default region in the credentials anymore. Because, such approach conflicts with the
 	// way we handle regions in Juju.
 	if creds["region"] != "" {
-		logger.Warningf("Setting a default region in Oracle Cloud credentials is not supported.")
+		logger.Warningf(ctx, "Setting a default region in Oracle Cloud credentials is not supported.")
 	}
 	err := providerConfig.Validate()
 	if err != nil {
@@ -311,7 +311,7 @@ func (e EnvironProvider) DetectCredentials(cloudName string) (*cloud.CloudCreden
 	for _, val := range cfg.SectionStrings() {
 		values := new(credentialSection)
 		if err := cfg.Section(val).MapTo(values); err != nil {
-			logger.Warningf("invalid value in section %s: %s", val, err)
+			logger.Warningf(ctx, "invalid value in section %s: %s", val, err)
 			continue
 		}
 		missingFields := []string{}
@@ -332,7 +332,7 @@ func (e EnvironProvider) DetectCredentials(cloudName string) (*cloud.CloudCreden
 		}
 
 		if len(missingFields) > 0 {
-			logger.Warningf("missing required field(s) in section %s: %s", val, strings.Join(missingFields, ", "))
+			logger.Warningf(ctx, "missing required field(s) in section %s: %s", val, strings.Join(missingFields, ", "))
 			continue
 		}
 
@@ -341,7 +341,7 @@ func (e EnvironProvider) DetectCredentials(cloudName string) (*cloud.CloudCreden
 			return nil, errors.Trace(err)
 		}
 		if err := common.ValidateKey(pemFileContent, values.PassPhrase); err != nil {
-			logger.Warningf("failed to decrypt PEM %s using the configured pass phrase", values.KeyFile)
+			logger.Warningf(ctx, "failed to decrypt PEM %s using the configured pass phrase", values.KeyFile)
 			continue
 		}
 

@@ -123,7 +123,7 @@ func machineBlockDevicesChanged(ctx *context) error {
 	if len(toUpdate) == 0 {
 		return nil
 	}
-	ctx.config.Logger.Debugf("refreshing mounted filesystems: %#v", toUpdate)
+	ctx.config.Logger.Debugf(ctx, "refreshing mounted filesystems: %#v", toUpdate)
 	_, err = ctx.managedFilesystemSource.AttachFilesystems(ctx.config.CloudCallContextFunc(stdcontext.Background()), toUpdate)
 	return err
 }
@@ -133,7 +133,7 @@ func machineBlockDevicesChanged(ctx *context) error {
 // previously observed block devices.
 func processPendingVolumeBlockDevices(ctx *context) error {
 	if len(ctx.pendingVolumeBlockDevices) == 0 {
-		ctx.config.Logger.Tracef("no pending volume block devices")
+		ctx.config.Logger.Tracef(ctx, "no pending volume block devices")
 		return nil
 	}
 	volumeTags := make([]names.VolumeTag, len(ctx.pendingVolumeBlockDevices))
@@ -153,7 +153,7 @@ func refreshVolumeBlockDevices(ctx *context, volumeTags []names.VolumeTag) ([]na
 	if !ok {
 		// This function should only be called by machine-scoped
 		// storage provisioners.
-		ctx.config.Logger.Warningf("refresh block devices, expected machine tag, got %v", ctx.config.Scope)
+		ctx.config.Logger.Warningf(ctx, "refresh block devices, expected machine tag, got %v", ctx.config.Scope)
 		return nil, nil
 	}
 	ids := make([]params.MachineStorageId, len(volumeTags))

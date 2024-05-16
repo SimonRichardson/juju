@@ -129,7 +129,7 @@ func (w *updaterWorker) loop() error {
 				continue
 			}
 
-			logger.Debugf("external controllers changed: %q", ids)
+			logger.Debugf(ctx, "external controllers changed: %q", ids)
 			tags := make([]names.ControllerTag, len(ids))
 			for i, id := range ids {
 				if !names.IsValidController(id) {
@@ -142,12 +142,12 @@ func (w *updaterWorker) loop() error {
 				// We're informed when an external controller
 				// is added or removed, so treat as a toggle.
 				if watchers.Contains(tag) {
-					logger.Infof("stopping watcher for external controller %q", tag.Id())
+					logger.Infof(ctx, "stopping watcher for external controller %q", tag.Id())
 					_ = w.runner.StopAndRemoveWorker(tag.Id(), w.catacomb.Dying())
 					watchers.Remove(tag)
 					continue
 				}
-				logger.Infof("starting watcher for external controller %q", tag.Id())
+				logger.Infof(ctx, "starting watcher for external controller %q", tag.Id())
 				watchers.Add(tag)
 				if err := w.runner.StartWorker(tag.Id(), func() (worker.Worker, error) {
 					cw := controllerWatcher{
@@ -206,7 +206,7 @@ func (w *controllerWatcher) loop() error {
 	} else if err != nil {
 		return errors.Annotate(err, "getting cached external controller info")
 	}
-	logger.Debugf("controller info for controller %q: %v", w.tag.Id(), info)
+	logger.Debugf(ctx, "controller info for controller %q: %v", w.tag.Id(), info)
 
 	var nw watcher.NotifyWatcher
 	var client ExternalControllerWatcherClientCloser
@@ -260,7 +260,7 @@ func (w *controllerWatcher) loop() error {
 			}); err != nil {
 				return errors.Annotate(err, "caching external controller info")
 			}
-			logger.Infof("new controller info for controller %q: %v", w.tag.Id(), info)
+			logger.Infof(ctx, "new controller info for controller %q: %v", w.tag.Id(), info)
 			if err := worker.Stop(nw); err != nil {
 				return errors.Trace(err)
 			}

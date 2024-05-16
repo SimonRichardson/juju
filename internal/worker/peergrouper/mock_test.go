@@ -84,7 +84,7 @@ func (e *errorPatterns) errorFor(name string, args ...interface{}) error {
 	}
 	err := f()
 	if err != nil {
-		logger.Errorf("errorFor %q -> %v", s, err)
+		logger.Errorf(ctx, "errorFor %q -> %v", s, err)
 	}
 	return err
 }
@@ -191,7 +191,7 @@ func (st *fakeState) ControllerHost(id string) (ControllerHost, error) {
 func (st *fakeState) addController(id string, wantsVote bool) *fakeController {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	logger.Infof("fakeState.addController %q", id)
+	logger.Infof(ctx, "fakeState.addController %q", id)
 	if st.controllers[id] != nil {
 		panic(fmt.Errorf("id %q already used", id))
 	}
@@ -437,10 +437,10 @@ func (session *fakeMongoSession) setStatus(members []replicaset.MemberStatus) {
 // Set implements mongoSession.Set
 func (session *fakeMongoSession) Set(members []replicaset.Member) error {
 	if err := session.errors.errorFor("Session.Set"); err != nil {
-		logger.Infof("NOT setting replicaset members to \n%s", prettyReplicaSetMembersSlice(members))
+		logger.Infof(ctx, "NOT setting replicaset members to \n%s", prettyReplicaSetMembersSlice(members))
 		return err
 	}
-	logger.Infof("setting replicaset members to \n%s", prettyReplicaSetMembersSlice(members))
+	logger.Infof(ctx, "setting replicaset members to \n%s", prettyReplicaSetMembersSlice(members))
 	session.members.Set(deepCopy(members))
 	if session.InstantlyReady {
 		statuses := make([]replicaset.MemberStatus, len(members))
@@ -463,10 +463,10 @@ func (session *fakeMongoSession) Set(members []replicaset.Member) error {
 
 func (session *fakeMongoSession) StepDownPrimary() error {
 	if err := session.errors.errorFor("Session.StepDownPrimary"); err != nil {
-		logger.Debugf("StepDownPrimary error: %v", err)
+		logger.Debugf(ctx, "StepDownPrimary error: %v", err)
 		return err
 	}
-	logger.Debugf("StepDownPrimary")
+	logger.Debugf(ctx, "StepDownPrimary")
 	status := session.status.Get().(*replicaset.Status)
 	members := session.members.Get().([]replicaset.Member)
 	membersById := make(map[int]replicaset.Member, len(members))
@@ -501,7 +501,7 @@ func (session *fakeMongoSession) StepDownPrimary() error {
 	secondaryIndex := secondaryIndexes[rand.Intn(len(secondaryIndexes))]
 	status.Members[primaryIndex].State = replicaset.SecondaryState
 	status.Members[secondaryIndex].State = replicaset.PrimaryState
-	logger.Debugf("StepDownPrimary nominated %d to be the new primary from: %v",
+	logger.Debugf(ctx, "StepDownPrimary nominated %d to be the new primary from: %v",
 		status.Members[secondaryIndex].Id, info)
 	session.setStatus(status.Members)
 	return nil

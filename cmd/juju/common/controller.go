@@ -61,7 +61,7 @@ func tryAPI(c *modelcmd.ModelCommandBase) error {
 		_, err = client.List()
 		closeErr := client.Close()
 		if closeErr != nil {
-			logger.Debugf("Error closing client: %v", closeErr)
+			logger.Debugf(ctx, "Error closing client: %v", closeErr)
 		}
 	}
 	return err
@@ -90,7 +90,7 @@ func WaitForAgentInitialisation(
 		}
 	}
 
-	ctx.Infof("Contacting Juju controller%s to verify accessibility...", addressInfo)
+	ctx.Infof(ctx, "Contacting Juju controller%s to verify accessibility...", addressInfo)
 
 	var apiAttempts int
 	err = retry.Call(retry.CallArgs{
@@ -115,7 +115,7 @@ func WaitForAgentInitialisation(
 				} else {
 					msg += fmt.Sprintf("\nController machines are in the %q model", bootstrap.ControllerModelName)
 				}
-				ctx.Infof(msg)
+				ctx.Infof(ctx, msg)
 				return nil
 			}
 

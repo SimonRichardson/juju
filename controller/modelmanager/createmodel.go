@@ -129,7 +129,7 @@ func (c *ModelConfigCreator) checkVersion(base *config.Config, attrs map[string]
 	if len(list) == 0 {
 		return errors.Errorf("no agent binaries found for version %s", versionNumber)
 	}
-	logger.Tracef("found agent binaries: %#v", list)
+	logger.Tracef(ctx, "found agent binaries: %#v", list)
 	return nil
 }
 

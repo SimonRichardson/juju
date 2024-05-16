@@ -118,8 +118,8 @@ func (s *Service) errorf(err error, msg string, args ...interface{}) error {
 		err = errors.Annotatef(err, msg, args...)
 	}
 	err.(*errors.Err).SetLocation(1)
-	logger.Errorf("%v", err)
-	logger.Debugf("stack trace:\n%s", errors.ErrorStack(err))
+	logger.Errorf(ctx, "%v", err)
+	logger.Debugf(ctx, "stack trace:\n%s", errors.ErrorStack(err))
 	return err
 }
 
@@ -240,7 +240,7 @@ func (s *Service) readConf() (common.Conf, error) {
 func (s *Service) newConn() (DBusAPI, error) {
 	conn, err := s.newDBus()
 	if err != nil {
-		logger.Errorf("failed to connect to dbus for application %q: %v", s.Service.Name, err)
+		logger.Errorf(ctx, "failed to connect to dbus for application %q: %v", s.Service.Name, err)
 	}
 	return conn, err
 }
@@ -271,13 +271,13 @@ func (s *Service) Running() (bool, error) {
 func (s *Service) Start() error {
 	err := s.start()
 	if errors.Is(err, errors.AlreadyExists) {
-		logger.Debugf("service %q already running", s.Name())
+		logger.Debugf(ctx, "service %q already running", s.Name())
 		return nil
 	} else if err != nil {
-		logger.Errorf("service %q failed to start: %v", s.Name(), err)
+		logger.Errorf(ctx, "service %q failed to start: %v", s.Name(), err)
 		return err
 	}
-	logger.Debugf("service %q successfully started", s.Name())
+	logger.Debugf(ctx, "service %q successfully started", s.Name())
 	return nil
 }
 
@@ -331,13 +331,13 @@ func (s *Service) wait(op string, statusCh chan string) error {
 func (s *Service) Stop() error {
 	err := s.stop()
 	if errors.Is(err, errors.NotFound) {
-		logger.Debugf("service %q not running", s.Name())
+		logger.Debugf(ctx, "service %q not running", s.Name())
 		return nil
 	} else if err != nil {
-		logger.Errorf("service %q failed to stop: %v", s.Name(), err)
+		logger.Errorf(ctx, "service %q failed to stop: %v", s.Name(), err)
 		return err
 	}
-	logger.Debugf("service %q successfully stopped", s.Name())
+	logger.Debugf(ctx, "service %q successfully stopped", s.Name())
 	return nil
 }
 
@@ -373,13 +373,13 @@ func (s *Service) stop() error {
 func (s *Service) Remove() error {
 	err := s.remove()
 	if errors.Is(err, errors.NotFound) {
-		logger.Debugf("service %q not installed", s.Name())
+		logger.Debugf(ctx, "service %q not installed", s.Name())
 		return nil
 	} else if err != nil {
-		logger.Errorf("failed to remove service %q: %v", s.Name(), err)
+		logger.Errorf(ctx, "failed to remove service %q: %v", s.Name(), err)
 		return err
 	}
-	logger.Debugf("service %q successfully removed", s.Name())
+	logger.Debugf(ctx, "service %q successfully removed", s.Name())
 	return nil
 }
 
@@ -426,13 +426,13 @@ func (s *Service) Install() error {
 
 	err := s.install()
 	if errors.Is(err, errors.AlreadyExists) {
-		logger.Debugf("service %q already installed", s.Name())
+		logger.Debugf(ctx, "service %q already installed", s.Name())
 		return nil
 	} else if err != nil {
-		logger.Errorf("failed to install service %q: %v", s.Name(), err)
+		logger.Errorf(ctx, "failed to install service %q: %v", s.Name(), err)
 		return err
 	}
-	logger.Debugf("service %q successfully installed", s.Name())
+	logger.Debugf(ctx, "service %q successfully installed", s.Name())
 	return nil
 }
 
@@ -579,7 +579,7 @@ func (s *Service) execStartFileName() string {
 func SysdReload() error {
 	err := Cmdline{}.reload()
 	if err != nil {
-		logger.Errorf("services not reloaded %v\n", err)
+		logger.Errorf(ctx, "services not reloaded %v\n", err)
 		return err
 	}
 	return nil

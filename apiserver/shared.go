@@ -147,7 +147,7 @@ func newSharedServerContext(config sharedServerConfig) (*sharedServerContext, er
 	// and we know that we can't make any API calls until the server has started.
 	unsubscribe, err := ctx.centralHub.Subscribe(controller.ConfigChanged, ctx.onConfigChanged)
 	if err != nil {
-		ctx.logger.Criticalf("programming error in subscribe function: %v", err)
+		ctx.logger.Criticalf(ctx, "programming error in subscribe function: %v", err)
 		return nil, errors.Trace(err)
 	}
 	ctx.unsubscribe = unsubscribe
@@ -160,7 +160,7 @@ func (c *sharedServerContext) Close() {
 
 func (c *sharedServerContext) onConfigChanged(topic string, data controller.ConfigChangedMessage, err error) {
 	if err != nil {
-		c.logger.Criticalf("programming error in %s message data: %v", topic, err)
+		c.logger.Criticalf(ctx, "programming error in %s message data: %v", topic, err)
 		return
 	}
 
@@ -175,7 +175,7 @@ func (c *sharedServerContext) onConfigChanged(topic string, data controller.Conf
 	c.configMutex.Unlock()
 
 	if removed.Size() != 0 || added.Size() != 0 {
-		c.logger.Infof("updating features to %v", values)
+		c.logger.Infof(ctx, "updating features to %v", values)
 	}
 }
 

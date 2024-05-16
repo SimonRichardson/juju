@@ -94,18 +94,18 @@ func (x *executor) Run(ctx context.Context, op Operation, remoteStateChange <-ch
 		span.End()
 	}()
 
-	x.logger.Debugf("running operation %v for %s", op, x.unitName)
+	x.logger.Debugf(ctx, "running operation %v for %s", op, x.unitName)
 
 	if op.NeedsGlobalMachineLock() {
-		x.logger.Debugf("acquiring machine lock for %s", x.unitName)
+		x.logger.Debugf(ctx, "acquiring machine lock for %s", x.unitName)
 		releaser, err := x.acquireMachineLock(op.String(), op.ExecutionGroup())
 		if err != nil {
 			return errors.Annotatef(err, "acquiring %q lock for %s", op, x.unitName)
 		}
-		defer x.logger.Debugf("lock released for %s", x.unitName)
+		defer x.logger.Debugf(ctx, "lock released for %s", x.unitName)
 		defer releaser()
 	} else {
-		x.logger.Debugf("no machine lock needed for %s", x.unitName)
+		x.logger.Debugf(ctx, "no machine lock needed for %s", x.unitName)
 	}
 
 	switch err := x.do(ctx, op, stepPrepare); errors.Cause(err) {
@@ -147,20 +147,20 @@ func (x *executor) Skip(ctx context.Context, op Operation) (err error) {
 		span.End()
 	}()
 
-	x.logger.Debugf("skipping operation %v for %s", op, x.unitName)
+	x.logger.Debugf(ctx, "skipping operation %v for %s", op, x.unitName)
 	return x.do(ctx, op, stepCommit)
 }
 
 func (x *executor) do(ctx context.Context, op Operation, step executorStep) (err error) {
 	message := step.message(op, x.unitName)
-	x.logger.Debugf(message)
+	x.logger.Debugf(ctx, message)
 	newState, firstErr := step.run(op, ctx, *x.state)
 	if newState != nil {
 		writeErr := x.writeState(*newState)
 		if firstErr == nil {
 			firstErr = writeErr
 		} else if writeErr != nil {
-			x.logger.Errorf("after %s for %s: %v", message, x.unitName, writeErr)
+			x.logger.Errorf(ctx, "after %s for %s: %v", message, x.unitName, writeErr)
 		}
 	}
 	return errors.Annotatef(firstErr, message)

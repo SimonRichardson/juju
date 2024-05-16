@@ -84,7 +84,7 @@ func (c *ShowSpaceCommand) Run(ctx *cmd.Context) error {
 		space, err := api.ShowSpace(c.Name)
 		if err != nil {
 			if errors.Is(err, errors.NotSupported) {
-				ctx.Infof("cannot retrieve space %q: %v", c.Name, err)
+				ctx.Infof(ctx, "cannot retrieve space %q: %v", c.Name, err)
 			}
 			if params.IsCodeUnauthorized(err) {
 				common.PermissionsMessage(ctx.Stderr, "retrieving space")

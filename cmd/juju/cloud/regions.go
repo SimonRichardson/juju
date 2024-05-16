@@ -134,14 +134,14 @@ func (c *listRegionsCommand) Run(ctxt *cmd.Context) error {
 	var returnErr error
 	if c.Client {
 		if err := c.findLocalRegions(ctxt); err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
 
 	if c.ControllerName != "" {
 		if err := c.findRemoteRegions(ctxt); err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}

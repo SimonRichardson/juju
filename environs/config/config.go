@@ -1008,7 +1008,7 @@ func (c *Config) validateDefaultBase() error {
 	if err != nil {
 		return errors.Annotate(err, "cannot read supported bases")
 	}
-	logger.Tracef("supported bases %s", supported)
+	logger.Tracef(ctx, "supported bases %s", supported)
 	var found bool
 	for _, supportedBase := range supported {
 		if parsedBase.IsCompatible(supportedBase) {
@@ -1033,7 +1033,7 @@ func (c *Config) DefaultBase() (string, bool) {
 	case string:
 		return s, s != ""
 	default:
-		logger.Errorf("invalid default-base: %q", s)
+		logger.Errorf(ctx, "invalid default-base: %q", s)
 		return "", false
 	}
 }
@@ -1910,7 +1910,7 @@ func (c *Config) ValidateUnknownAttrs(extrafields schema.Fields, defaults schema
 	checker := schema.FieldMap(extrafields, defaults)
 	coerced, err := checker.Coerce(attrs, nil)
 	if err != nil {
-		logger.Debugf("coercion failed attributes: %#v, checker: %#v, %v", attrs, checker, err)
+		logger.Debugf(ctx, "coercion failed attributes: %#v, checker: %#v, %v", attrs, checker, err)
 		return nil, err
 	}
 	result := coerced.(map[string]any)
@@ -1924,9 +1924,9 @@ func (c *Config) ValidateUnknownAttrs(extrafields schema.Fields, defaults schema
 				// only warn about attributes with non-empty string values
 				altName := strings.Replace(name, "_", "-", -1)
 				if extrafields[altName] != nil || allFields[altName] != nil {
-					logger.Warningf("unknown config field %q, did you mean %q?", name, altName)
+					logger.Warningf(ctx, "unknown config field %q, did you mean %q?", name, altName)
 				} else {
-					logger.Warningf("unknown config field %q", name)
+					logger.Warningf(ctx, "unknown config field %q", name)
 				}
 			}
 			result[name] = value

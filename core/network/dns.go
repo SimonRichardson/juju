@@ -36,7 +36,7 @@ type DNSConfig struct {
 func ParseResolvConf(path string) (*DNSConfig, error) {
 	file, err := os.Open(path)
 	if os.IsNotExist(err) {
-		logger.Debugf("%q does not exist - not parsing", path)
+		logger.Debugf(ctx, "%q does not exist - not parsing", path)
 		return nil, nil
 	} else if err != nil {
 		return nil, errors.Trace(err)

@@ -342,7 +342,7 @@ func (c *ModelCommandBase) modelDetails(controllerName, modelIdentifier string) 
 		if !errors.Is(err, errors.NotFound) {
 			return "", nil, errors.Trace(err)
 		}
-		logger.Debugf("model %q not found, refreshing", modelIdentifier)
+		logger.Debugf(ctx, "model %q not found, refreshing", modelIdentifier)
 		// The model is not known locally, so query the models
 		// available in the controller, and cache them locally.
 		if err := c.RefreshModels(c.store, controllerName); err != nil {

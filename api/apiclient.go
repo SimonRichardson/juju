@@ -558,11 +558,11 @@ func dialAPI(ctx context.Context, info *Info, opts0 DialOpts) (*dialResult, erro
 		if err := info.Proxier.Start(ctx); err != nil {
 			return nil, errors.Annotate(err, "starting proxy for api connection")
 		}
-		logger.Debugf("starting proxier for connection")
+		logger.Debugf(ctx, "starting proxier for connection")
 
 		switch p := info.Proxier.(type) {
 		case jujuproxy.TunnelProxier:
-			logger.Debugf("tunnel proxy in use at %s on port %s", p.Host(), p.Port())
+			logger.Debugf(ctx, "tunnel proxy in use at %s on port %s", p.Host(), p.Port())
 			addrs = []string{
 				fmt.Sprintf("%s:%s", p.Host(), p.Port()),
 			}
@@ -620,7 +620,7 @@ func dialAPI(ctx context.Context, info *Info, opts0 DialOpts) (*dialResult, erro
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	logger.Infof("connection established to %q", dialInfo.urlStr)
+	logger.Infof(ctx, "connection established to %q", dialInfo.urlStr)
 	dialInfo.proxier = info.Proxier
 	return dialInfo, nil
 }
@@ -738,7 +738,7 @@ func (ap *addressProvider) next(ctx context.Context) (*resolvedAddress, error) {
 					return nil, errors.Errorf("cannot resolve %q: %v", host, err)
 				}
 				ap.dnsCache.Add(host, ips)
-				logger.Debugf("looked up %v -> %v", host, ips)
+				logger.Debugf(ctx, "looked up %v -> %v", host, ips)
 			}
 
 			for _, ip := range ips {
@@ -843,7 +843,7 @@ func verifyCAMulti(ctx context.Context, addrs []string, opts *dialOpts) error {
 	// VerifyCA implementation was provided.
 	result, err := try.Result()
 	if err != nil || result == nil {
-		logger.Debugf("unable to retrieve CA cert from remote host; skipping CA verification")
+		logger.Debugf(ctx, "unable to retrieve CA cert from remote host; skipping CA verification")
 		return nil
 	}
 
@@ -851,7 +851,7 @@ func verifyCAMulti(ctx context.Context, addrs []string, opts *dialOpts) error {
 	// succeeds then we are done; tls connections will work out of the box.
 	res := result.(caRetrieveRes)
 	if _, err = res.caCert.Verify(x509.VerifyOptions{}); err == nil {
-		logger.Debugf("remote CA certificate trusted by system roots")
+		logger.Debugf(ctx, "remote CA certificate trusted by system roots")
 		return nil
 	}
 
@@ -975,7 +975,7 @@ func lookupIPAddr(ctx context.Context, host string, resolver IPAddrResolver) ([]
 		if addr.Zone != "" {
 			// Ignore IPv6 zone. Hopefully this shouldn't
 			// cause any problems in practice.
-			logger.Infof("ignoring IP address with zone %q", addr)
+			logger.Infof(ctx, "ignoring IP address with zone %q", addr)
 			continue
 		}
 		ips = append(ips, addr.IP.String())
@@ -987,7 +987,7 @@ func lookupIPAddr(ctx context.Context, host string, resolver IPAddrResolver) ([]
 // This is so that we can use the usual Try error combination
 // logic even for errors that happen before we start a try.
 func recordTryError(try *parallel.Try, err error) {
-	logger.Infof("%v", err)
+	logger.Infof(ctx, "%v", err)
 	_ = try.Start(func(_ <-chan struct{}) (io.Closer, error) {
 		return nil, errors.Trace(err)
 	})
@@ -1069,7 +1069,7 @@ func (d dialer) dial(_ <-chan struct{}) (io.Closer, error) {
 		lastErr = err
 	}
 	if lastErr == nil {
-		logger.Debugf("no error, but not connected, probably cancelled before we started")
+		logger.Debugf(ctx, "no error, but not connected, probably cancelled before we started")
 		return nil, parallel.ErrStopped
 	}
 	return nil, errors.Trace(lastErr)
@@ -1082,10 +1082,10 @@ func (d dialer) dial1() (jsoncodec.JSONConn, *tls.Config, error) {
 	if d.opts.certPool == nil {
 		tlsConfig.ServerName = d.serverName
 	}
-	logger.Tracef("dialing: %q %v", d.urlStr, d.ipAddr)
+	logger.Tracef(ctx, "dialing: %q %v", d.urlStr, d.ipAddr)
 	conn, err := d.opts.DialWebsocket(d.ctx, d.urlStr, tlsConfig, d.ipAddr)
 	if err == nil {
-		logger.Debugf("successfully dialed %q", d.urlStr)
+		logger.Debugf(ctx, "successfully dialed %q", d.urlStr)
 		return conn, tlsConfig, nil
 	}
 	if !isX509Error(err) {
@@ -1112,7 +1112,7 @@ func (d dialer) dial1() (jsoncodec.JSONConn, *tls.Config, error) {
 	tlsConfig.ServerName = d.serverName
 	conn, rootCAErr := d.opts.DialWebsocket(d.ctx, d.urlStr, tlsConfig, d.ipAddr)
 	if rootCAErr != nil {
-		logger.Debugf("failed to dial websocket using fallback public CA: %v", rootCAErr)
+		logger.Debugf(ctx, "failed to dial websocket using fallback public CA: %v", rootCAErr)
 		// We return the original error as it's usually more meaningful.
 		return nil, nil, errors.Trace(err)
 	}
@@ -1210,12 +1210,12 @@ func (c *conn) IsBroken(ctx context.Context) bool {
 	case <-c.broken:
 		return true
 	case <-ctx.Done():
-		logger.Debugf("connection ping context expired")
+		logger.Debugf(ctx, "connection ping context expired")
 		return true
 	default:
 	}
 	if err := c.ping(ctx); err != nil {
-		logger.Debugf("connection ping failed: %v", err)
+		logger.Debugf(ctx, "connection ping failed: %v", err)
 		return true
 	}
 	return false

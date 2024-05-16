@@ -107,6 +107,6 @@ func (c *scaleApplicationCommand) Run(ctx *cmd.Context) error {
 	if err := result.Error; err != nil {
 		return err
 	}
-	ctx.Infof("%v scaled to %d units", c.applicationName, result.Info.Scale)
+	ctx.Infof(ctx, "%v scaled to %d units", c.applicationName, result.Info.Scale)
 	return nil
 }

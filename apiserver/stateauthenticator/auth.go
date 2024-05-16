@@ -328,14 +328,14 @@ func (a *Authenticator) updateUserLastLogin(ctx context.Context, modelAccess per
 			// fails, then just report it as a log message and return the
 			// original error message.
 			if err := updateLastLogin(); err != nil {
-				logger.Warningf("updating last login time for %v, %v", userTag, err)
+				logger.Warningf(ctx, "updating last login time for %v, %v", userTag, err)
 			}
 			return errors.Trace(err)
 		}
 	}
 
 	if err := updateLastLogin(); err != nil {
-		logger.Warningf("updating last login time for %v, %v", userTag, err)
+		logger.Warningf(ctx, "updating last login time for %v, %v", userTag, err)
 	}
 
 	return nil

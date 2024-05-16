@@ -59,7 +59,7 @@ leader.
 		args = "[<key> [<unit id>]]"
 		doc += fmt.Sprintf("Current default unit id is %q.", name)
 	} else if !errors.Is(err, errors.NotFound) {
-		logger.Errorf("Failed to retrieve remote unit name: %v", err)
+		logger.Errorf(ctx, "Failed to retrieve remote unit name: %v", err)
 	}
 	return jujucmd.Info(&cmd.Info{
 		Name:    "relation-get",

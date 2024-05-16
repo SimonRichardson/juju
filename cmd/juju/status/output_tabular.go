@@ -456,7 +456,7 @@ func printRemoteApplications(tw *ansiterm.TabWriter, remoteApplications map[stri
 			}
 		} else {
 			// This is not expected.
-			logger.Errorf("invalid offer URL %q: %v", app.OfferURL, err)
+			logger.Errorf(ctx, "invalid offer URL %q: %v", app.OfferURL, err)
 			store = "unknown"
 			urlPath = app.OfferURL
 		}
@@ -562,7 +562,7 @@ func printMachine(w *output.Wrapper, m machineStatus) {
 	// We want to display availability zone so extract from hardware info".
 	hw, err := instance.ParseHardware(m.Hardware)
 	if err != nil {
-		logger.Warningf("invalid hardware info %s for machine %v", m.Hardware, m)
+		logger.Warningf(ctx, "invalid hardware info %s for machine %v", m.Hardware, m)
 	}
 	az := ""
 	if hw.AvailabilityZone != nil {

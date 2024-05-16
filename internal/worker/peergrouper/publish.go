@@ -38,7 +38,7 @@ func (s *CachingAPIHostPortsSetter) SetAPIHostPorts(controllerConfig controller.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if reflect.DeepEqual(sorted, s.last) {
-		logger.Debugf("API host ports have not changed")
+		logger.Debugf(ctx, "API host ports have not changed")
 		return nil
 	}
 

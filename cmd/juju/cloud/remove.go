@@ -103,16 +103,16 @@ func (c *removeCloudCommand) Run(ctxt *cmd.Context) error {
 	var returnErr error
 	if c.Client {
 		if err := c.removeLocalCloud(ctxt); err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
 	if c.ControllerName != "" {
 		if err := c.removeControllerCloud(ctxt); err != nil {
 			if errors.Is(err, errors.NotFound) {
-				ctxt.Infof("No cloud called %q exists on controller %q", c.Cloud, c.ControllerName)
+				ctxt.Infof(ctx, "No cloud called %q exists on controller %q", c.Cloud, c.ControllerName)
 			} else {
-				ctxt.Infof("ERROR %v", err)
+				ctxt.Infof(ctx, "ERROR %v", err)
 				returnErr = cmd.ErrSilent
 			}
 		}
@@ -129,17 +129,17 @@ func (c *removeCloudCommand) removeLocalCloud(ctxt *cmd.Context) error {
 		return c.removeLocalPersonalCloud(ctxt)
 	}
 	if _, ok := cloudDetails.builtin[c.Cloud]; ok {
-		ctxt.Infof("Cannot remove built-in cloud %q from client", c.Cloud)
+		ctxt.Infof(ctx, "Cannot remove built-in cloud %q from client", c.Cloud)
 		return nil
 	}
 	if cloudDetails, ok := cloudDetails.public[c.Cloud]; ok {
-		ctxt.Infof("Cannot remove public cloud %q from client", c.Cloud)
+		ctxt.Infof(ctx, "Cannot remove public cloud %q from client", c.Cloud)
 		if cloudDetails.CredentialCount != 0 {
-			ctxt.Infof("To hide this cloud, remove it's credentials with `juju remove-credential`")
+			ctxt.Infof(ctx, "To hide this cloud, remove it's credentials with `juju remove-credential`")
 		}
 		return nil
 	}
-	ctxt.Infof("No cloud called %q exists on this client", c.Cloud)
+	ctxt.Infof(ctx, "No cloud called %q exists on this client", c.Cloud)
 	return nil
 }
 
@@ -149,14 +149,14 @@ func (c *removeCloudCommand) removeLocalPersonalCloud(ctxt *cmd.Context) error {
 		return err
 	}
 	if _, ok := personalClouds[c.Cloud]; !ok {
-		ctxt.Infof("No local cloud called %q exists on this client", c.Cloud)
+		ctxt.Infof(ctx, "No local cloud called %q exists on this client", c.Cloud)
 		return nil
 	}
 	delete(personalClouds, c.Cloud)
 	if err := cloud.WritePersonalCloudMetadata(personalClouds); err != nil {
 		return errors.Trace(err)
 	}
-	ctxt.Infof("Removed details of cloud %q from this client", c.Cloud)
+	ctxt.Infof(ctx, "Removed details of cloud %q from this client", c.Cloud)
 	return nil
 }
 
@@ -170,6 +170,6 @@ func (c *removeCloudCommand) removeControllerCloud(ctxt *cmd.Context) error {
 	if err != nil {
 		return err
 	}
-	ctxt.Infof("Removed details of cloud %q from controller %q", c.Cloud, c.ControllerName)
+	ctxt.Infof(ctx, "Removed details of cloud %q from controller %q", c.Cloud, c.ControllerName)
 	return nil
 }

@@ -248,7 +248,7 @@ func unmarshalCharmMetadata(metadataYAML string) *charm.Meta {
 		// we were dealing with handwritten data for test, not
 		// the real deal.  Usually charms are validated before
 		// being uploaded to the store.
-		logger.Warningf(errors.Annotate(err, "cannot unmarshal charm metadata").Error())
+		logger.Warningf(ctx, errors.Annotate(err, "cannot unmarshal charm metadata").Error())
 		return nil
 	}
 	return meta
@@ -266,7 +266,7 @@ func unmarshalCharmConfig(configYAML string) *charm.Config {
 		// we were dealing with handwritten data for test, not
 		// the real deal.  Usually charms are validated before
 		// being uploaded to the store.
-		logger.Warningf(errors.Annotate(err, "cannot unmarshal charm config").Error())
+		logger.Warningf(ctx, errors.Annotate(err, "cannot unmarshal charm config").Error())
 		return nil
 	}
 	return cfg
@@ -274,7 +274,7 @@ func unmarshalCharmConfig(configYAML string) *charm.Config {
 
 func transformRelations(requires, provides map[string]charm.Relation) map[string]map[string]string {
 	if len(requires) == 0 && len(provides) == 0 {
-		logger.Debugf("no relation data found in charm meta data")
+		logger.Debugf(ctx, "no relation data found in charm meta data")
 		return nil
 	}
 	relations := make(map[string]map[string]string)

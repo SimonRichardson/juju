@@ -372,7 +372,7 @@ func (c *refreshCommand) Run(ctx *cmd.Context) error {
 
 	if c.BindToSpaces != "" {
 		if err := c.parseBindFlag(apiRoot); err != nil && errors.Is(err, errors.NotSupported) {
-			ctx.Infof("Spaces not supported by this model's cloud, ignoring bindings.")
+			ctx.Infof(ctx, "Spaces not supported by this model's cloud, ignoring bindings.")
 		} else if err != nil {
 			return err
 		}
@@ -442,7 +442,7 @@ func (c *refreshCommand) Run(ctx *cmd.Context) error {
 		if charmOrigin.Source == corecharm.CharmHub {
 			channel = fmt.Sprintf(" in channel %s", charmID.Origin.Channel.String())
 		}
-		ctx.Infof("Added %s charm %q, revision %d%s, to the model", charmOrigin.Source, curl.Name, curl.Revision, channel)
+		ctx.Infof(ctx, "Added %s charm %q, revision %d%s, to the model", charmOrigin.Source, curl.Name, curl.Revision, channel)
 	}
 
 	// Next, upgrade resources.
@@ -463,15 +463,15 @@ func (c *refreshCommand) Run(ctx *cmd.Context) error {
 	// 1. There is a change to the charm's channel.
 	// 2. There is a resource change to process.
 	if errors.Is(runErr, refresher.ErrAlreadyUpToDate) {
-		ctx.Infof(runErr.Error())
+		ctx.Infof(ctx, runErr.Error())
 		if len(resourceIDs) == 0 && c.Channel.String() == oldOrigin.CoreCharmOrigin().Channel.String() {
 			return nil
 		}
 		if c.Channel.String() != oldOrigin.CoreCharmOrigin().Channel.String() {
-			ctx.Infof("Note: all future refreshes will now use channel %q", charmID.Origin.Channel.String())
+			ctx.Infof(ctx, "Note: all future refreshes will now use channel %q", charmID.Origin.Channel.String())
 		}
 		if len(resourceIDs) > 0 {
-			ctx.Infof("resources to be upgraded")
+			ctx.Infof(ctx, "resources to be upgraded")
 		}
 	}
 
@@ -518,7 +518,7 @@ func (c *refreshCommand) Run(ctx *cmd.Context) error {
 
 	// Emit binding changelog after a successful call to SetCharm.
 	for _, change := range bindingsChangelog {
-		ctx.Infof(change)
+		ctx.Infof(ctx, change)
 	}
 
 	return nil

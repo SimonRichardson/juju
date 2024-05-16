@@ -55,6 +55,6 @@ func (c *dockerhub) DecideBaseURL() error {
 		addr += "/"
 	}
 	c.repoDetails.ServerAddress = addr
-	logger.Tracef("dockerhub repoDetails %s", c.repoDetails)
+	logger.Tracef(ctx, "dockerhub repoDetails %s", c.repoDetails)
 	return nil
 }

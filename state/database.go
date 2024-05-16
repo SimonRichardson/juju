@@ -322,9 +322,9 @@ func (db *database) CopyForModel(modelUUID string) (Database, SessionCloser) {
 func (db *database) GetCollection(name string) (collection mongo.Collection, closer SessionCloser) {
 	info, found := db.schema[name]
 	if !found {
-		logger.Errorf("using unknown collection %q", name)
+		logger.Errorf(ctx, "using unknown collection %q", name)
 		if featureflag.Enabled(feature.DeveloperMode) {
-			logger.Errorf("from %s", string(debug.Stack()))
+			logger.Errorf(ctx, "from %s", string(debug.Stack()))
 		}
 	}
 
@@ -385,14 +385,14 @@ func (db *database) TransactionRunner() (runner jujutxn.Runner, closer SessionCl
 		}
 		observer := func(t jujutxn.Transaction) {
 			if txnLogger.IsLevelEnabled(corelogger.TRACE) {
-				txnLogger.Tracef("ran transaction in %.3fs (retries: %d) %# v\nerr: %v",
+				txnLogger.Tracef(ctx, "ran transaction in %.3fs (retries: %d) %# v\nerr: %v",
 					t.Duration.Seconds(), t.Attempt, pretty.Formatter(t.Ops), t.Error)
 			}
 		}
 		if db.runTransactionObserver != nil {
 			observer = func(t jujutxn.Transaction) {
 				if txnLogger.IsLevelEnabled(corelogger.TRACE) {
-					txnLogger.Tracef("ran transaction in %.3fs (retries: %d) %# v\nerr: %v",
+					txnLogger.Tracef(ctx, "ran transaction in %.3fs (retries: %d) %# v\nerr: %v",
 						t.Duration.Seconds(), t.Attempt, pretty.Formatter(t.Ops), t.Error)
 				}
 				db.runTransactionObserver(

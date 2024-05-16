@@ -42,7 +42,7 @@ import (
 // authorizedKeys may be empty, in which case the file
 // will be created and left empty.
 func InitUbuntuUser(host, login, authorizedKeys string, privateKeys string, read io.Reader, write io.Writer) error {
-	logger.Infof("initialising %q, user %q", host, login)
+	logger.Infof(ctx, "initialising %q, user %q", host, login)
 
 	// To avoid unnecessary prompting for the specified login,
 	// initUbuntuUser will first attempt to ssh to the machine
@@ -53,7 +53,7 @@ func InitUbuntuUser(host, login, authorizedKeys string, privateKeys string, read
 	// get a failure if sudo prompts.
 	cmd := ssh.Command("ubuntu@"+host, []string{"sudo", "-n", "true"}, nil)
 	if cmd.Run() == nil {
-		logger.Infof("ubuntu user is already initialised")
+		logger.Infof(ctx, "ubuntu user is already initialised")
 		return nil
 	}
 
@@ -106,7 +106,7 @@ fi`
 var DetectBaseAndHardwareCharacteristics = detectBaseAndHardwareCharacteristics
 
 func detectBaseAndHardwareCharacteristics(host string) (hc instance.HardwareCharacteristics, base corebase.Base, err error) {
-	logger.Infof("Detecting base and characteristics on %s", host)
+	logger.Infof(ctx, "Detecting base and characteristics on %s", host)
 	cmd := ssh.Command("ubuntu@"+host, []string{"/bin/bash"}, nil)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -170,7 +170,7 @@ func detectBaseAndHardwareCharacteristics(host string) (hc instance.HardwareChar
 	}
 
 	// TODO(axw) calculate CpuPower. What algorithm do we use?
-	logger.Infof("base: %s, characteristics: %s", base, hc)
+	logger.Infof(ctx, "base: %s, characteristics: %s", base, hc)
 	return hc, base, nil
 }
 
@@ -179,7 +179,7 @@ func detectBaseAndHardwareCharacteristics(host string) (hc instance.HardwareChar
 var CheckProvisioned = checkProvisioned
 
 func checkProvisioned(host string) (bool, error) {
-	logger.Infof("Checking if %s is already provisioned", host)
+	logger.Infof(ctx, "Checking if %s is already provisioned", host)
 
 	script := service.ListServicesScript()
 

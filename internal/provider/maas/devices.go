@@ -61,7 +61,7 @@ func (env *maasEnviron) deviceInterfaceInfo(
 		}
 
 		if len(nic.Links()) == 0 {
-			logger.Debugf("device %q interface %q has no links", deviceID, nic.Name())
+			logger.Debugf(ctx, "device %q interface %q has no links", deviceID, nic.Name())
 			interfaceInfo = append(interfaceInfo, nicInfo)
 			continue
 		}
@@ -71,7 +71,7 @@ func (env *maasEnviron) deviceInterfaceInfo(
 
 			subnet := link.Subnet()
 			if link.IPAddress() == "" || subnet == nil {
-				logger.Debugf("device %q interface %q has no address", deviceID, nic.Name())
+				logger.Debugf(ctx, "device %q interface %q has no address", deviceID, nic.Name())
 				interfaceInfo = append(interfaceInfo, nicInfo)
 				continue
 			}
@@ -101,7 +101,7 @@ func (env *maasEnviron) deviceInterfaceInfo(
 			interfaceInfo = append(interfaceInfo, nicInfo)
 		}
 	}
-	logger.Debugf("device %q has interface info: %+v", deviceID, interfaceInfo)
+	logger.Debugf(ctx, "device %q has interface info: %+v", deviceID, interfaceInfo)
 	return interfaceInfo, nil
 }
 
@@ -169,22 +169,22 @@ func (env *maasEnviron) createAndPopulateDevice(params deviceCreatorParams) (gom
 				// There is no primary NIC VLAN, so we can't fallback to the
 				// primaryNIC VLAN. Instead we'll emit a warning that no
 				// subnet is found, nor a primary NIC VLAN is available.
-				logger.Warningf("NIC %v has no subnet and no primary NIC VLAN", nic.InterfaceName)
+				logger.Warningf(ctx, "NIC %v has no subnet and no primary NIC VLAN", nic.InterfaceName)
 				continue
 			}
 
-			logger.Warningf("NIC %v has no subnet - setting to manual and using 'primaryNIC' VLAN %d", nic.InterfaceName, primaryNICVLAN.ID())
+			logger.Warningf(ctx, "NIC %v has no subnet - setting to manual and using 'primaryNIC' VLAN %d", nic.InterfaceName, primaryNICVLAN.ID())
 			createArgs.VLAN = primaryNICVLAN
 		} else {
 			createArgs.VLAN = subnet.VLAN()
-			logger.Infof("linking NIC %v to subnet %v - using static IP", nic.InterfaceName, subnet.CIDR())
+			logger.Infof(ctx, "linking NIC %v to subnet %v - using static IP", nic.InterfaceName, subnet.CIDR())
 		}
 
 		createdNIC, err := device.CreateInterface(createArgs)
 		if err != nil {
 			return nil, errors.Annotate(err, "creating device interface")
 		}
-		logger.Debugf("created device interface: %+v", createdNIC)
+		logger.Debugf(ctx, "created device interface: %+v", createdNIC)
 		interfaceCreated = true
 
 		if !knownSubnet {
@@ -201,7 +201,7 @@ func (env *maasEnviron) createAndPopulateDevice(params deviceCreatorParams) (gom
 		if err := createdNIC.LinkSubnet(linkArgs); err != nil {
 			return nil, errors.Annotatef(err, "linking NIC %v to subnet %v", nic.InterfaceName, subnet.CIDR())
 		}
-		logger.Debugf("linked device interface to subnet: %+v", createdNIC)
+		logger.Debugf(ctx, "linked device interface to subnet: %+v", createdNIC)
 	}
 	// If we have created any secondary interfaces we need to reload device from maas
 	// so that the changes are reflected in structure.
@@ -253,17 +253,17 @@ func (env *maasEnviron) lookupStaticRoutes() (map[string][]gomaasapi.StaticRoute
 			if strings.Contains(msg, "404") &&
 				strings.Contains(msg, "Unknown API endpoint:") &&
 				strings.Contains(msg, "/static-routes/") {
-				logger.Debugf("static-routes not supported: %v", err)
+				logger.Debugf(ctx, "static-routes not supported: %v", err)
 				handled = true
 				staticRoutes = nil
 			} else {
-				logger.Warningf("looking up static routes generated IsUnexpectedError, but didn't match: %q %#v", msg, err)
+				logger.Warningf(ctx, "looking up static routes generated IsUnexpectedError, but didn't match: %q %#v", msg, err)
 			}
 		} else {
-			logger.Warningf("not IsUnexpectedError: %#v", err)
+			logger.Warningf(ctx, "not IsUnexpectedError: %#v", err)
 		}
 		if !handled {
-			logger.Warningf("error looking up static-routes: %v", err)
+			logger.Warningf(ctx, "error looking up static-routes: %v", err)
 			return nil, errors.Annotate(err, "unable to look up static-routes")
 		}
 	}
@@ -272,7 +272,7 @@ func (env *maasEnviron) lookupStaticRoutes() (map[string][]gomaasapi.StaticRoute
 		sourceCIDR := source.CIDR()
 		subnetToStaticRoutes[sourceCIDR] = append(subnetToStaticRoutes[sourceCIDR], route)
 	}
-	logger.Debugf("found static routes: %# v", subnetToStaticRoutes)
+	logger.Debugf(ctx, "found static routes: %# v", subnetToStaticRoutes)
 	return subnetToStaticRoutes, nil
 }
 
@@ -308,14 +308,14 @@ func (env *maasEnviron) prepareDeviceDetails(name string, machine gomaasapi.Mach
 	if primaryNICInfo.InterfaceName == "" {
 		return zeroParams, errors.Errorf("cannot find primary interface for container")
 	}
-	logger.Debugf("primary device NIC prepared info: %+v", primaryNICInfo)
+	logger.Debugf(ctx, "primary device NIC prepared info: %+v", primaryNICInfo)
 
 	primaryNICSubnetCIDR := primaryNICInfo.PrimaryAddress().CIDR
 	subnet, hasSubnet := subnetCIDRToSubnet[primaryNICSubnetCIDR]
 	if hasSubnet {
 		params.Subnet = subnet
 	} else {
-		logger.Debugf("primary device NIC %q has no linked subnet - leaving unconfigured", primaryNICInfo.InterfaceName)
+		logger.Debugf(ctx, "primary device NIC %q has no linked subnet - leaving unconfigured", primaryNICInfo.InterfaceName)
 	}
 	params.PrimaryMACAddress = primaryNICInfo.MACAddress
 	return params, nil
@@ -325,7 +325,7 @@ func validateExistingDevice(netInfo corenetwork.InterfaceInfos, device gomaasapi
 	// Compare the desired device characteristics with the actual device
 	interfaces := device.InterfaceSet()
 	if len(interfaces) < len(netInfo) {
-		logger.Debugf("existing device doesn't have enough interfaces, wanted %d, found %d", len(netInfo), len(interfaces))
+		logger.Debugf(ctx, "existing device doesn't have enough interfaces, wanted %d, found %d", len(netInfo), len(interfaces))
 		return false, nil
 	}
 	actualByMAC := make(map[string]gomaasapi.Interface, len(interfaces))
@@ -340,7 +340,7 @@ func validateExistingDevice(netInfo corenetwork.InterfaceInfos, device gomaasapi
 				foundMACs = append(foundMACs, fmt.Sprintf("%s: %s", iface.Name(), iface.MACAddress()))
 			}
 			found := strings.Join(foundMACs, ", ")
-			logger.Debugf("existing device doesn't have device for MAC Address %q, found: %s", desired.MACAddress, found)
+			logger.Debugf(ctx, "existing device doesn't have device for MAC Address %q, found: %s", desired.MACAddress, found)
 			// No such network interface
 			return false, nil
 		}
@@ -356,7 +356,7 @@ func validateExistingDevice(netInfo corenetwork.InterfaceInfos, device gomaasapi
 			}
 		}
 		if !foundCIDR {
-			logger.Debugf("could not find Subnet link for CIDR: %q", desired.PrimaryAddress().CIDR)
+			logger.Debugf(ctx, "could not find Subnet link for CIDR: %q", desired.PrimaryAddress().CIDR)
 			return false, nil
 		}
 	}
@@ -374,16 +374,16 @@ func (env *maasEnviron) checkForExistingDevice(params deviceCreatorParams) (goma
 	}
 	maybeDevices, err := params.Machine.Devices(devicesArgs)
 	if err != nil {
-		logger.Warningf("error while trying to lookup %q: %v", params.Name, err)
+		logger.Warningf(ctx, "error while trying to lookup %q: %v", params.Name, err)
 		// not considered fatal, since we'll attempt to create the device if we didn't find it
 		return nil, nil
 	}
 	if len(maybeDevices) == 0 {
-		logger.Debugf("no existing MAAS devices for container %q, creating", params.Name)
+		logger.Debugf(ctx, "no existing MAAS devices for container %q, creating", params.Name)
 		return nil, nil
 	}
 	if len(maybeDevices) > 1 {
-		logger.Warningf("found more than 1 MAAS devices (%d) for container %q", len(maybeDevices),
+		logger.Warningf(ctx, "found more than 1 MAAS devices (%d) for container %q", len(maybeDevices),
 			params.Name)
 		return nil, errors.Errorf("found more than 1 MAAS device (%d) for container %q",
 			len(maybeDevices), params.Name)
@@ -395,10 +395,10 @@ func (env *maasEnviron) checkForExistingDevice(params deviceCreatorParams) (goma
 		return nil, err
 	}
 	if matches {
-		logger.Debugf("found MAAS device for container %q using existing device", params.Name)
+		logger.Debugf(ctx, "found MAAS device for container %q using existing device", params.Name)
 		return device, nil
 	}
-	logger.Debugf("found existing MAAS device for container %q but interfaces did not match, removing device", params.Name)
+	logger.Debugf(ctx, "found existing MAAS device for container %q but interfaces did not match, removing device", params.Name)
 	// We found a device, but it doesn't match what we need. remove it and we'll create again.
 	_ = device.Delete()
 	return nil, nil

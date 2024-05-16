@@ -45,7 +45,7 @@ func formatCloudDetailsTabular(ctx *cmd.Context, clouds cloudList, credStore juj
 		for _, name := range cloudNames {
 			cred, err := credStore.CredentialForCloud(name)
 			if err != nil && !errors.Is(err, errors.NotFound) {
-				ctx.Warningf("error loading credential for cloud %v: %v", name, err)
+				ctx.Warningf(ctx, "error loading credential for cloud %v: %v", name, err)
 				continue
 			}
 			if err != nil || len(cred.AuthCredentials) == 0 {

@@ -95,7 +95,7 @@ func (c *RenameCommand) Run(ctx *cmd.Context) error {
 			return errors.Annotatef(err, "cannot rename space %q", c.Name)
 		}
 
-		ctx.Infof("renamed space %q to %q", c.Name, c.NewName)
+		ctx.Infof(ctx, "renamed space %q to %q", c.Name, c.NewName)
 		return nil
 	})
 }

@@ -375,7 +375,7 @@ func (s *loggerSink) Enabled(level int) bool {
 // details.
 func (s *loggerSink) Info(level int, msg string, keysAndValues ...any) {
 	format, args := s.formatKeysAndValues([]any{level, msg}, keysAndValues)
-	s.Logger.Infof("%d: %s"+format, args...)
+	s.Logger.Infof(ctx, "%d: %s"+format, args...)
 }
 
 // Error logs an error, with the given message and key/value pairs as

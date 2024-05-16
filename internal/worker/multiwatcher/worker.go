@@ -222,8 +222,8 @@ func (w *Worker) newWatcher(filter func([]multiwatcher.Delta) []multiwatcher.Del
 }
 
 func (w *Worker) loop() error {
-	w.config.Logger.Tracef("worker loop started")
-	defer w.config.Logger.Tracef("worker loop completed")
+	w.config.Logger.Tracef(ctx, "worker loop started")
+	defer w.config.Logger.Tracef(ctx, "worker loop completed")
 	defer func() {
 		if w.config.Cleanup != nil {
 			w.config.Cleanup()
@@ -266,8 +266,8 @@ func (w *Worker) loop() error {
 // We don't want to restart the worker just because the backing has raised an error.
 // If it does, we record the error, and start again with a new store.
 func (w *Worker) inner() error {
-	w.config.Logger.Tracef("worker inner started")
-	defer w.config.Logger.Tracef("worker inner completed")
+	w.config.Logger.Tracef(ctx, "worker inner started")
+	defer w.config.Logger.Tracef(ctx, "worker inner completed")
 
 	// Create the wait group, and set up the defer before the watching
 	// the backing, as we want the backing unwatch to happen before the
@@ -362,15 +362,15 @@ func (w *Worker) process(backing state.AllWatcherBacking, done <-chan struct{}) 
 			return nil
 		case <-w.data:
 			// Has new data been pushed on?
-			w.config.Logger.Tracef("new data pushed on queue")
+			w.config.Logger.Tracef(ctx, "new data pushed on queue")
 		case <-next:
 			// If there was already data, next is a closed channel.
 			// Otherwise it is nil, so won't pass through.
-			w.config.Logger.Tracef("process data on queue")
+			w.config.Logger.Tracef(ctx, "process data on queue")
 		case req := <-w.request:
 			// If we get a watcher request to handle while we are
 			// waiting for changes, handle it, and respond.
-			w.config.Logger.Tracef("handle request: %#v", req)
+			w.config.Logger.Tracef(ctx, "handle request: %#v", req)
 			w.handle(req)
 		}
 		change, empty := w.popOne()
@@ -418,10 +418,10 @@ func (w *Worker) Wait() error {
 
 // handle processes a request from a Multiwatcher.
 func (w *Worker) handle(req *request) {
-	w.config.Logger.Tracef("start handle")
-	defer w.config.Logger.Tracef("finish handle")
+	w.config.Logger.Tracef(ctx, "start handle")
+	defer w.config.Logger.Tracef(ctx, "finish handle")
 	if req.watcher.stopped {
-		w.config.Logger.Tracef("watcher %p is stopped", req.watcher)
+		w.config.Logger.Tracef(ctx, "watcher %p is stopped", req.watcher)
 		// The watcher has previously been stopped.
 		if req.reply != nil {
 			select {
@@ -432,7 +432,7 @@ func (w *Worker) handle(req *request) {
 		return
 	}
 	if req.reply == nil {
-		w.config.Logger.Tracef("request to stop watcher %p", req.watcher)
+		w.config.Logger.Tracef(ctx, "request to stop watcher %p", req.watcher)
 		// This is a request to stop the watcher.
 		for req := w.waiting[req.watcher]; req != nil; req = req.next {
 			select {
@@ -446,22 +446,22 @@ func (w *Worker) handle(req *request) {
 		return
 	}
 	// Add request to head of list.
-	w.config.Logger.Tracef("add watcher %p request to waiting", req.watcher)
+	w.config.Logger.Tracef(ctx, "add watcher %p request to waiting", req.watcher)
 	req.next = w.waiting[req.watcher]
 	w.waiting[req.watcher] = req
 }
 
 // respond responds to all outstanding requests that are satisfiable.
 func (w *Worker) respond() {
-	w.config.Logger.Tracef("start respond")
-	defer w.config.Logger.Tracef("finish respond")
+	w.config.Logger.Tracef(ctx, "start respond")
+	defer w.config.Logger.Tracef(ctx, "finish respond")
 	for watch, req := range w.waiting {
 		revno := watch.revno
 		changes, latestRevno := w.store.ChangesSince(revno)
-		w.config.Logger.Tracef("%d changes since %d for watcher %p", len(changes), revno, watch)
+		w.config.Logger.Tracef(ctx, "%d changes since %d for watcher %p", len(changes), revno, watch)
 		if len(changes) == 0 {
 			if req.noChanges != nil {
-				w.config.Logger.Tracef("sending down noChanges for watcher %p", watch)
+				w.config.Logger.Tracef(ctx, "sending down noChanges for watcher %p", watch)
 				select {
 				case req.noChanges <- struct{}{}:
 				case <-w.tomb.Dying():
@@ -476,7 +476,7 @@ func (w *Worker) respond() {
 		req.changes = changes
 		watch.revno = latestRevno
 
-		w.config.Logger.Tracef("sending changes down reply channel for watcher %p", watch)
+		w.config.Logger.Tracef(ctx, "sending changes down reply channel for watcher %p", watch)
 		select {
 		case req.reply <- true:
 		case <-w.tomb.Dying():

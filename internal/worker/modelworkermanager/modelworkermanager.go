@@ -276,7 +276,7 @@ func (m *modelWorkerManager) starter(cfg NewModelConfig) func() (worker.Worker, 
 	return func() (worker.Worker, error) {
 		modelUUID := cfg.ModelUUID
 		modelName := fmt.Sprintf("%q (%s)", corelogger.ModelFilePrefix(cfg.ModelOwner, cfg.ModelName), cfg.ModelUUID)
-		m.config.Logger.Debugf("starting workers for model %s", modelName)
+		m.config.Logger.Debugf(ctx, "starting workers for model %s", modelName)
 
 		// Get the provider service factory for the model.
 		cfg.ProviderServiceFactoryGetter = m.config.ProviderServiceFactoryGetter

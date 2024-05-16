@@ -146,7 +146,7 @@ func (m jujuMain) Run(args []string) int {
 	if err = juju.InitJujuXDGDataHome(); err != nil {
 		cmd.WriteError(ctx.Stderr, err)
 		if errors.Is(err, errors.NotFound) {
-			ctx.Warningf("Installing Juju in a strictly confined Snap. To ensure correct operation, create the ~/.local/share/juju directory manually.")
+			ctx.Warningf(ctx, "Installing Juju in a strictly confined Snap. To ensure correct operation, create the ~/.local/share/juju directory manually.")
 		}
 		return 2
 	}
@@ -269,7 +269,7 @@ func NewJujuCommandWithStore(
 		FlagKnownAs:         "option",
 		NotifyRun: func(string) {
 			if jujuMsg != "" {
-				ctx.Infof(jujuMsg)
+				ctx.Infof(ctx, jujuMsg)
 			}
 		},
 	})
@@ -324,14 +324,14 @@ type jujuCommandRegistry struct {
 func (r jujuCommandRegistry) Register(c cmd.Command) {
 	cmdName := c.Info().Name
 	if r.whitelist.Size() > 0 && !r.whitelist.Contains(cmdName) {
-		logger.Tracef("command %q not allowed", cmdName)
+		logger.Tracef(ctx, "command %q not allowed", cmdName)
 		r.excluded.Add(cmdName)
 		return
 	}
 	if se, ok := c.(supportsEmbedded); ok {
 		se.SetEmbedded(r.embedded)
 	} else {
-		logger.Tracef("command %q is not embeddable", cmdName)
+		logger.Tracef(ctx, "command %q is not embeddable", cmdName)
 	}
 	if csc, ok := c.(hasClientStore); ok {
 		csc.SetClientStore(r.store)

@@ -168,7 +168,7 @@ func GetPluginDescriptions() []PluginDescription {
 				result.description = strings.SplitN(string(output), "\n", 2)[0]
 			} else {
 				result.description = fmt.Sprintf("error occurred running '%s --description'", plugin)
-				logger.Errorf("'%s --description': %s", plugin, err)
+				logger.Errorf(ctx, "'%s --description': %s", plugin, err)
 			}
 		}(plugin)
 	}

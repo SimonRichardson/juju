@@ -565,7 +565,7 @@ func (cfg *InstanceConfig) APIHosts() []string {
 		for _, addr := range cfg.APIInfo.Addrs {
 			host, _, err := net.SplitHostPort(addr)
 			if err != nil {
-				logger.Errorf("Can't split API address %q to host:port - %q", host, err)
+				logger.Errorf(ctx, "Can't split API address %q to host:port - %q", host, err)
 				continue
 			}
 			hosts = append(hosts, host)
@@ -970,7 +970,7 @@ func FinishInstanceConfig(
 	if icfg.IsController() {
 		// Add NUMACTL preference. Needed to work for both bootstrap and high availability
 		// Only makes sense for controller,
-		logger.Debugf("Setting numa ctl preference to %v", icfg.ControllerConfig.NUMACtlPreference())
+		logger.Debugf(ctx, "Setting numa ctl preference to %v", icfg.ControllerConfig.NUMACtlPreference())
 		// Unfortunately, AgentEnvironment can only take strings as values
 		icfg.AgentEnvironment[agent.NUMACtlPreference] = fmt.Sprintf("%v", icfg.ControllerConfig.NUMACtlPreference())
 	}

@@ -100,7 +100,7 @@ func (c *listCommand) listForModel(ctx *cmd.Context) (err error) {
 		return errors.Trace(err)
 	}
 	if len(result) == 0 && c.out.Name() == "tabular" {
-		ctx.Infof(noBlocks)
+		ctx.Infof(ctx, noBlocks)
 		return nil
 	}
 	return c.out.Write(ctx, formatBlockInfo(result))
@@ -118,7 +118,7 @@ func (c *listCommand) listForController(ctx *cmd.Context) (err error) {
 		return errors.Trace(err)
 	}
 	if len(result) == 0 && c.out.Name() == "tabular" {
-		ctx.Infof(noBlocks)
+		ctx.Infof(ctx, noBlocks)
 		return nil
 	}
 	info, err := FormatModelBlockInfo(result)

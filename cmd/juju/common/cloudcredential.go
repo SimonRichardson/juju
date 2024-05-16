@@ -164,9 +164,9 @@ func OutputUpdateCredentialModelResult(ctx *cmd.Context, models []params.UpdateC
 	}
 
 	if showValid && len(valid) > 0 {
-		ctx.Infof("Credential valid for:")
+		ctx.Infof(ctx, "Credential valid for:")
 		for _, v := range valid {
-			ctx.Infof("  %v", v)
+			ctx.Infof(ctx, "  %v", v)
 		}
 	}
 	if len(invalid) > 0 {
@@ -179,11 +179,11 @@ func OutputUpdateCredentialModelResult(ctx *cmd.Context, models []params.UpdateC
 		}
 		sort.Strings(names)
 
-		ctx.Infof("Credential invalid for:")
+		ctx.Infof(ctx, "Credential invalid for:")
 		for _, v := range names {
-			ctx.Infof("  %v:", v)
+			ctx.Infof(ctx, "  %v:", v)
 			for _, e := range invalid[v] {
-				ctx.Infof("    %v", e)
+				ctx.Infof(ctx, "    %v", e)
 			}
 		}
 	}

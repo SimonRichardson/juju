@@ -63,7 +63,7 @@ func (d *DefaultMapper) AppNameForServiceAccount(id types.UID) (string, error) {
 func (d *DefaultMapper) enqueueServiceAccount(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
-		d.logger.Errorf("failed enqueuing service account: %v", err)
+		d.logger.Errorf(ctx, "failed enqueuing service account: %v", err)
 		return
 	}
 	d.workQueue.Add(key)
@@ -141,14 +141,14 @@ func (d *DefaultMapper) processNextQueueItem() bool {
 	key, ok := obj.(string)
 	if !ok {
 		d.workQueue.Forget(obj)
-		d.logger.Errorf("failed converting service account queue item to string")
+		d.logger.Errorf(ctx, "failed converting service account queue item to string")
 		return true
 	}
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		d.workQueue.Forget(obj)
-		d.logger.Errorf("failed spliting key into namespace and name for service account queue: %v", err)
+		d.logger.Errorf(ctx, "failed spliting key into namespace and name for service account queue: %v", err)
 		return true
 	}
 
@@ -166,7 +166,7 @@ func (d *DefaultMapper) processNextQueueItem() bool {
 	}
 	if err != nil {
 		d.workQueue.Forget(obj)
-		d.logger.Errorf("failed fetching service account for %s/%s", namespace, name)
+		d.logger.Errorf(ctx, "failed fetching service account for %s/%s", namespace, name)
 		return true
 	}
 
@@ -174,7 +174,7 @@ func (d *DefaultMapper) processNextQueueItem() bool {
 	if errors.Is(err, errors.NotFound) {
 		return true
 	} else if err != nil {
-		d.logger.Errorf("failure getting app name for service account: %v", err)
+		d.logger.Errorf(ctx, "failure getting app name for service account: %v", err)
 		return true
 	}
 

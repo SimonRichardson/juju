@@ -29,12 +29,12 @@ func AgentDone(logger logger.Logger, err error) error {
 		if err := ug.ChangeAgentTools(logger); err != nil {
 			// Return and let the init system deal with the restart.
 			err = errors.Annotate(err, "cannot change agent binaries")
-			logger.Infof(err.Error())
+			logger.Infof(ctx, err.Error())
 			return err
 		}
 	}
 	if err == jworker.ErrRestartAgent {
-		logger.Warningf("agent restarting")
+		logger.Warningf(ctx, "agent restarting")
 	}
 	return err
 }

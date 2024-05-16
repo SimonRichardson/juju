@@ -150,19 +150,19 @@ func (c *removeCredentialCommand) Run(ctxt *cmd.Context) error {
 
 	c.checkCloud(ctxt, client)
 	if !c.remoteCloudFound && !c.localCloudFound {
-		ctxt.Infof("No cloud %q is found.\nTo view all available clouds, use 'juju clouds'.\nTo add new cloud, use 'juju add-cloud'.", c.cloud)
+		ctxt.Infof(ctx, "No cloud %q is found.\nTo view all available clouds, use 'juju clouds'.\nTo add new cloud, use 'juju add-cloud'.", c.cloud)
 		return cmd.ErrSilent
 	}
 	var returnErr error
 	if c.Client {
 		if err := c.removeFromLocal(ctxt); err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
 	if c.ControllerName != "" {
 		if err := c.removeFromController(ctxt, client); err != nil {
-			ctxt.Infof("ERROR %v", err)
+			ctxt.Infof(ctx, "ERROR %v", err)
 			returnErr = cmd.ErrSilent
 		}
 	}
@@ -173,14 +173,14 @@ func (c *removeCredentialCommand) checkCloud(ctxt *cmd.Context, client RemoveCre
 	if c.ControllerName != "" {
 		if err := c.maybeRemoteCloud(ctxt, client); err != nil {
 			if !errors.Is(err, errors.NotFound) {
-				logger.Errorf("%v", err)
+				logger.Errorf(ctx, "%v", err)
 			}
 		}
 	}
 	if c.Client {
 		if err := c.maybeLocalCloud(ctxt); err != nil {
 			if !errors.Is(err, errors.NotFound) {
-				logger.Errorf("%v", err)
+				logger.Errorf(ctx, "%v", err)
 			}
 		}
 	}
@@ -190,7 +190,7 @@ func (c *removeCredentialCommand) maybeLocalCloud(ctxt *cmd.Context) error {
 	if _, err := common.CloudOrProvider(c.cloud, c.cloudByNameFunc); err != nil {
 		return err
 	}
-	ctxt.Infof("Found local cloud %q on this client.", c.cloud)
+	ctxt.Infof(ctx, "Found local cloud %q on this client.", c.cloud)
 	c.localCloudFound = true
 	return nil
 }
@@ -202,7 +202,7 @@ func (c *removeCredentialCommand) maybeRemoteCloud(ctxt *cmd.Context, client Rem
 		return err
 	}
 	if _, ok := remoteUserClouds[names.NewCloudTag(c.cloud)]; ok {
-		ctxt.Infof("Found remote cloud %q from the controller.", c.cloud)
+		ctxt.Infof(ctx, "Found remote cloud %q from the controller.", c.cloud)
 		c.remoteCloudFound = true
 		return nil
 	}
@@ -211,7 +211,7 @@ func (c *removeCredentialCommand) maybeRemoteCloud(ctxt *cmd.Context, client Rem
 
 func (c *removeCredentialCommand) removeFromController(ctxt *cmd.Context, client RemoveCredentialAPI) error {
 	if !c.remoteCloudFound {
-		ctxt.Infof("No stored credentials exist since cloud %q is not found on the controller %q.", c.cloud, c.ControllerName)
+		ctxt.Infof(ctx, "No stored credentials exist since cloud %q is not found on the controller %q.", c.cloud, c.ControllerName)
 		return cmd.ErrSilent
 	}
 	accountDetails, err := c.Store.AccountDetails(c.ControllerName)
@@ -220,36 +220,36 @@ func (c *removeCredentialCommand) removeFromController(ctxt *cmd.Context, client
 	}
 	id := fmt.Sprintf("%s/%s/%s", c.cloud, accountDetails.User, c.credential)
 	if !names.IsValidCloudCredential(id) {
-		ctxt.Warningf("Could not remove controller credential %v for user %v on cloud %v: %v", c.credential, accountDetails.User, c.cloud, errors.NotValidf("cloud credential ID %q", id))
+		ctxt.Warningf(ctx, "Could not remove controller credential %v for user %v on cloud %v: %v", c.credential, accountDetails.User, c.cloud, errors.NotValidf("cloud credential ID %q", id))
 		return cmd.ErrSilent
 	}
 	if err := client.RevokeCredential(names.NewCloudCredentialTag(id), c.Force); err != nil {
 		return errors.Annotate(err, "could not remove remote credential")
 	}
-	ctxt.Infof("Credential %q for cloud %q removed from the controller %q.", c.credential, c.cloud, c.ControllerName)
+	ctxt.Infof(ctx, "Credential %q for cloud %q removed from the controller %q.", c.credential, c.cloud, c.ControllerName)
 	return nil
 }
 
 func (c *removeCredentialCommand) removeFromLocal(ctxt *cmd.Context) error {
 	if !c.localCloudFound {
-		ctxt.Infof("No credentials exist on this client since cloud %q is not found.", c.cloud)
+		ctxt.Infof(ctx, "No credentials exist on this client since cloud %q is not found.", c.cloud)
 		return nil
 	}
 	cred, err := c.Store.CredentialForCloud(c.cloud)
 	if errors.Is(err, errors.NotFound) {
-		ctxt.Infof("No stored credentials exist for cloud %q on this client.", c.cloud)
+		ctxt.Infof(ctx, "No stored credentials exist for cloud %q on this client.", c.cloud)
 		return nil
 	} else if err != nil {
 		return err
 	}
 	if _, ok := cred.AuthCredentials[c.credential]; !ok {
-		ctxt.Infof("No credential called %q exists for cloud %q on this client", c.credential, c.cloud)
+		ctxt.Infof(ctx, "No credential called %q exists for cloud %q on this client", c.credential, c.cloud)
 		return nil
 	}
 	delete(cred.AuthCredentials, c.credential)
 	if err := c.Store.UpdateCredential(c.cloud, *cred); err != nil {
 		return errors.Annotate(err, "could not remove credential from this client")
 	}
-	ctxt.Infof("Credential %q for cloud %q removed from this client.", c.credential, c.cloud)
+	ctxt.Infof(ctx, "Credential %q for cloud %q removed from this client.", c.credential, c.cloud)
 	return nil
 }

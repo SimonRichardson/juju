@@ -429,7 +429,7 @@ func (c *Client) modifyModelUser(action params.ModelAction, user, access string,
 
 	for i, r := range result.Results {
 		if r.Error != nil && r.Error.Code == params.CodeAlreadyExists {
-			logger.Warningf("model %q is already shared with %q", modelUUIDs[i], userTag.Id())
+			logger.Warningf(ctx, "model %q is already shared with %q", modelUUIDs[i], userTag.Id())
 			result.Results[i].Error = nil
 		}
 	}

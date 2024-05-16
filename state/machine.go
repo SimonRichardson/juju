@@ -831,7 +831,7 @@ func (m *Machine) IsContainer() bool {
 // whether the machine can have containers when moving to the dying state.
 // Not allowed for moving to dead.
 func (original *Machine) advanceLifecycle(life Life, force, dyingAllowContainers bool, maxWait time.Duration) (err error) {
-	logger.Debugf("%s.advanceLifecycle(%s, %t, %t)", original.Id(), life, force, dyingAllowContainers)
+	logger.Debugf(ctx, "%s.advanceLifecycle(%s, %t, %t)", original.Id(), life, force, dyingAllowContainers)
 
 	if life == Dead && dyingAllowContainers {
 		return errors.BadRequestf("life cannot be Dead if dyingAllowContainers true.")
@@ -965,7 +965,7 @@ func (original *Machine) advanceLifecycle(life Life, force, dyingAllowContainers
 
 			if canDie {
 				ops[0].Assert = append(asserts, advanceLifecycleUnitAsserts(principalUnitNames))
-				txnLogger.Debugf("txn moving machine %q to %s", m.Id(), life)
+				txnLogger.Debugf(ctx, "txn moving machine %q to %s", m.Id(), life)
 				return ops, nil
 			}
 		}
@@ -1256,7 +1256,7 @@ func (m *Machine) removeOps() ([]txn.Op, error) {
 // is not Dead.
 func (m *Machine) Remove(_ objectstore.ObjectStore) (err error) {
 	defer errors.DeferredAnnotatef(&err, "cannot remove machine %s", m.doc.Id)
-	logger.Tracef("removing machine %q", m.Id())
+	logger.Tracef(ctx, "removing machine %q", m.Id())
 	// Local variable so we can re-get the machine without disrupting
 	// the caller.
 	machine := m
@@ -1321,7 +1321,7 @@ func (m *Machine) InstanceNames() (instance.Id, string, error) {
 func (m *Machine) InstanceStatus() (status.StatusInfo, error) {
 	machineStatus, err := getStatus(m.st.db(), m.globalInstanceKey(), "instance")
 	if err != nil {
-		logger.Warningf("error when retrieving instance status for machine: %s, %v", m.Id(), err)
+		logger.Warningf(ctx, "error when retrieving instance status for machine: %s, %v", m.Id(), err)
 		return status.StatusInfo{}, err
 	}
 	return machineStatus, nil
@@ -1361,7 +1361,7 @@ func (m *Machine) InstanceStatusHistory(filter status.StatusHistoryFilter) ([]st
 func (m *Machine) ModificationStatus() (status.StatusInfo, error) {
 	machineStatus, err := getStatus(m.st.db(), m.globalModificationKey(), "modification")
 	if err != nil {
-		logger.Warningf("error when retrieving instance status for machine: %s, %v", m.Id(), err)
+		logger.Warningf(ctx, "error when retrieving instance status for machine: %s, %v", m.Id(), err)
 		return status.StatusInfo{}, err
 	}
 	return machineStatus, nil
@@ -1466,7 +1466,7 @@ func (m *Machine) SetProvisioned(
 		return errors.Trace(err)
 	}
 	if count > 0 {
-		logger.Warningf("duplicate instance id %q already saved", id)
+		logger.Warningf(ctx, "duplicate instance id %q already saved", id)
 	}
 
 	if characteristics == nil {
@@ -1526,7 +1526,7 @@ func (m *Machine) SetInstanceInfo(
 	volumeAttachments map[names.VolumeTag]VolumeAttachmentInfo,
 	charmProfiles []string,
 ) error {
-	logger.Tracef(
+	logger.Tracef(ctx,
 		"setting instance info: machine %v, deviceAddrs: %#v, devicesArgs: %#v",
 		m.Id(), devicesAddrs, devicesArgs)
 
@@ -1698,13 +1698,13 @@ func (m *Machine) setPreferredAddressOps(addr address, isPublic bool) []txn.Op {
 		Update: bson.D{{"$set", bson.D{{fieldName, addr}}}},
 		Assert: assert,
 	}}
-	logger.Tracef("setting preferred address to %v (isPublic %#v)", addr, isPublic)
+	logger.Tracef(ctx, "setting preferred address to %v (isPublic %#v)", addr, isPublic)
 	return ops
 }
 
 func (m *Machine) setPublicAddressOps(providerAddresses []address, machineAddresses []address) ([]txn.Op, *address) {
 	publicAddress := m.doc.PreferredPublicAddress
-	logger.Tracef(
+	logger.Tracef(ctx,
 		"machine %v: current public address: %#v \nprovider addresses: %#v \nmachine addresses: %#v",
 		m.Id(), publicAddress, providerAddresses, machineAddresses)
 
@@ -1817,7 +1817,7 @@ func (m *Machine) setAddresses(controllerConfig controller.Config, machineAddres
 	if newPrivate != nil {
 		oldPrivate := m.doc.PreferredPrivateAddress.networkAddress()
 		m.doc.PreferredPrivateAddress = *newPrivate
-		logger.Infof(
+		logger.Infof(ctx,
 			"machine %q preferred private address changed from %q to %q",
 			m.Id(), oldPrivate, newPrivate.networkAddress(),
 		)
@@ -1825,7 +1825,7 @@ func (m *Machine) setAddresses(controllerConfig controller.Config, machineAddres
 	if newPublic != nil {
 		oldPublic := m.doc.PreferredPublicAddress.networkAddress()
 		m.doc.PreferredPublicAddress = *newPublic
-		logger.Infof(
+		logger.Infof(ctx,
 			"machine %q preferred public address changed from %q to %q",
 			m.Id(), oldPublic, newPublic.networkAddress(),
 		)
@@ -1926,7 +1926,7 @@ func (m *Machine) SetConstraints(cons constraints.Value) (err error) {
 func (m *Machine) setConstraintsOps(cons constraints.Value) ([]txn.Op, error) {
 	unsupported, err := m.st.validateConstraints(cons)
 	if len(unsupported) > 0 {
-		logger.Warningf(
+		logger.Warningf(ctx,
 			"setting constraints on machine %q: unsupported constraints: %v",
 			m.Id(), strings.Join(unsupported, ","),
 		)
@@ -2091,7 +2091,7 @@ func (m *Machine) updateSupportedContainers(supportedContainers []instance.Conta
 	}
 	if err = m.st.db().RunTransaction(ops); err != nil {
 		err = onAbort(err, stateerrors.ErrDead)
-		logger.Errorf("cannot update supported containers of machine %v: %v", m, err)
+		logger.Errorf(ctx, "cannot update supported containers of machine %v: %v", m, err)
 		return err
 	}
 	m.doc.SupportedContainers = supportedContainers
@@ -2110,14 +2110,14 @@ func (m *Machine) markInvalidContainers() error {
 		if !isSupportedContainer(corecontainer.ContainerTypeFromId(containerId), m.doc.SupportedContainers) {
 			container, err := m.st.Machine(containerId)
 			if err != nil {
-				logger.Errorf("loading container %v to mark as invalid: %v", containerId, err)
+				logger.Errorf(ctx, "loading container %v to mark as invalid: %v", containerId, err)
 				continue
 			}
 			// There should never be a circumstance where an unsupported container is started.
 			// Nonetheless, we check and log an error if such a situation arises.
 			statusInfo, err := container.Status()
 			if err != nil {
-				logger.Errorf("finding status of container %v to mark as invalid: %v", containerId, err)
+				logger.Errorf(ctx, "finding status of container %v to mark as invalid: %v", containerId, err)
 				continue
 			}
 			if statusInfo.Status == status.Pending {
@@ -2131,7 +2131,7 @@ func (m *Machine) markInvalidContainers() error {
 				}
 				_ = container.SetStatus(s)
 			} else {
-				logger.Errorf("unsupported container %v has unexpected status %v", containerId, statusInfo.Status)
+				logger.Errorf(ctx, "unsupported container %v has unexpected status %v", containerId, statusInfo.Status)
 			}
 		}
 	}

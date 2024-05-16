@@ -173,7 +173,7 @@ func (a *API) FinishUpgradeSeries(ctx context.Context, args params.UpdateChannel
 			argBase = state.Base{OS: mBase.OS, Channel: arg.Channel}.Normalise()
 		}
 		if argBase.String() == mBase.String() {
-			a.logger.Debugf("%q base is unchanged from %q", arg.Entity.Tag, mBase.DisplayString())
+			a.logger.Debugf(ctx, "%q base is unchanged from %q", arg.Entity.Tag, mBase.DisplayString())
 		} else {
 			if err := machine.UpdateMachineSeries(argBase); err != nil {
 				result.Results[i].Error = apiservererrors.ServerError(err)

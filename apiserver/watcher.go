@@ -196,7 +196,7 @@ func translate(dt DeltaTranslater, deltas []multiwatcher.Delta) []params.Delta {
 func (aw allWatcherDeltaTranslater) TranslateModel(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.ModelInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 
@@ -237,7 +237,7 @@ func (aw allWatcherDeltaTranslater) translateStatus(info multiwatcher.StatusInfo
 func (aw allWatcherDeltaTranslater) TranslateApplication(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.ApplicationInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 
@@ -270,7 +270,7 @@ func (aw allWatcherDeltaTranslater) TranslateApplication(info multiwatcher.Entit
 func (aw allWatcherDeltaTranslater) TranslateMachine(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.MachineInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.MachineInfo{
@@ -316,7 +316,7 @@ func (aw allWatcherDeltaTranslater) translateAddresses(addresses []network.Provi
 func (aw allWatcherDeltaTranslater) TranslateCharm(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.CharmInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.CharmInfo{
@@ -343,7 +343,7 @@ func (aw allWatcherDeltaTranslater) translateProfile(profile *multiwatcher.Profi
 func (aw allWatcherDeltaTranslater) TranslateRemoteApplication(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.RemoteApplicationUpdate)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.RemoteApplicationUpdate{
@@ -358,7 +358,7 @@ func (aw allWatcherDeltaTranslater) TranslateRemoteApplication(info multiwatcher
 func (aw allWatcherDeltaTranslater) TranslateApplicationOffer(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.ApplicationOfferInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.ApplicationOfferInfo{
@@ -375,7 +375,7 @@ func (aw allWatcherDeltaTranslater) TranslateApplicationOffer(info multiwatcher.
 func (aw allWatcherDeltaTranslater) TranslateUnit(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.UnitInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 
@@ -439,7 +439,7 @@ func (aw allWatcherDeltaTranslater) translatePortRanges(portsByEndpoint network.
 func (aw allWatcherDeltaTranslater) TranslateAction(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.ActionInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.ActionInfo{
@@ -458,7 +458,7 @@ func (aw allWatcherDeltaTranslater) TranslateAction(info multiwatcher.EntityInfo
 func (aw allWatcherDeltaTranslater) TranslateRelation(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.RelationInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.RelationInfo{
@@ -493,7 +493,7 @@ func (aw allWatcherDeltaTranslater) translateEndpoints(eps []multiwatcher.Endpoi
 func (aw allWatcherDeltaTranslater) TranslateBlock(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.BlockInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.BlockInfo{
@@ -508,7 +508,7 @@ func (aw allWatcherDeltaTranslater) TranslateBlock(info multiwatcher.EntityInfo)
 func (aw allWatcherDeltaTranslater) TranslateBranch(info multiwatcher.EntityInfo) params.EntityInfo {
 	orig, ok := info.(*multiwatcher.BranchInfo)
 	if !ok {
-		logger.Criticalf("consistency error: %s", pretty.Sprint(info))
+		logger.Criticalf(ctx, "consistency error: %s", pretty.Sprint(info))
 		return nil
 	}
 	return &params.BranchInfo{

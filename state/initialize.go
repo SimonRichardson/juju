@@ -135,7 +135,7 @@ func Initialize(args InitializeParams, providerConfigSchemaGetter config.ConfigS
 	defer func() {
 		if err != nil {
 			if closeErr := ctlr.Close(); closeErr != nil {
-				logger.Errorf("error closing controller while aborting Initialize: %v", closeErr)
+				logger.Errorf(ctx, "error closing controller while aborting Initialize: %v", closeErr)
 			}
 		}
 	}()
@@ -156,7 +156,7 @@ func Initialize(args InitializeParams, providerConfigSchemaGetter config.ConfigS
 		return nil, errors.Trace(err)
 	}
 
-	logger.Infof("initializing controller model %s", modelTag.Id())
+	logger.Infof(ctx, "initializing controller model %s", modelTag.Id())
 
 	modelOps, modelStatusDoc, err := st.modelSetupOps(
 		args.ControllerConfig.ControllerUUID(),

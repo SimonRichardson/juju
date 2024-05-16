@@ -101,7 +101,7 @@ func (d *manifestDeployer) Deploy() (err error) {
 				// manipulate the charm directory -- as a conflict, because it's
 				// actually plausible for a user (or at least a charm author, who
 				// is the real audience for this case) to get in there and fix it.
-				d.logger.Errorf("cannot upgrade charm: %v", *err)
+				d.logger.Errorf(ctx, "cannot upgrade charm: %v", *err)
 				*err = ErrConflict
 			} else {
 				// ...but if we can't install at all, we just fail out as the old
@@ -131,7 +131,7 @@ func (d *manifestDeployer) Deploy() (err error) {
 	}
 
 	// Overwrite whatever's in place with the staged charm.
-	d.logger.Debugf("deploying charm %q", d.staged.url)
+	d.logger.Debugf(ctx, "deploying charm %q", d.staged.url)
 	if err := d.staged.bundle.ExpandTo(d.charmPath); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (d *manifestDeployer) Deploy() (err error) {
 
 // startDeploy persists the fact that we've started deploying the staged bundle.
 func (d *manifestDeployer) startDeploy() error {
-	d.logger.Debugf("preparing to deploy charm %q", d.staged.url)
+	d.logger.Debugf(ctx, "preparing to deploy charm %q", d.staged.url)
 	if err := os.MkdirAll(d.charmPath, 0755); err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (d *manifestDeployer) removeDiff(oldManifest, newManifest set.Strings) erro
 
 // finishDeploy persists the fact that we've finished deploying the staged bundle.
 func (d *manifestDeployer) finishDeploy() error {
-	d.logger.Debugf("finishing deploy of charm %q", d.staged.url)
+	d.logger.Debugf(ctx, "finishing deploy of charm %q", d.staged.url)
 	oldPath := d.CharmPath(deployingURLPath)
 	newPath := d.CharmPath(CharmURLPath)
 	return utils.ReplaceFile(oldPath, newPath)
@@ -181,9 +181,9 @@ func (d *manifestDeployer) finishDeploy() error {
 func (d *manifestDeployer) ensureBaseFiles(baseManifest set.Strings) error {
 	deployingURL, deployingManifest, err := d.loadManifest(deployingURLPath)
 	if err == nil {
-		d.logger.Infof("detected interrupted deploy of charm %q", deployingURL)
+		d.logger.Infof(ctx, "detected interrupted deploy of charm %q", deployingURL)
 		if deployingURL != d.staged.url {
-			d.logger.Infof("removing files from charm %q", deployingURL)
+			d.logger.Infof(ctx, "removing files from charm %q", deployingURL)
 			if err := d.removeDiff(deployingManifest, baseManifest); err != nil {
 				return err
 			}
@@ -217,7 +217,7 @@ func (d *manifestDeployer) loadManifest(urlFilePath string) (string, set.Strings
 	manifest := []string{}
 	err = utils.ReadYaml(path, &manifest)
 	if os.IsNotExist(err) {
-		d.logger.Warningf("manifest not found at %q: files from charm %q may be left unremoved", path, url)
+		d.logger.Warningf(ctx, "manifest not found at %q: files from charm %q may be left unremoved", path, url)
 		err = nil
 	}
 	return url, set.NewStrings(manifest...), err

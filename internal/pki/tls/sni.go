@@ -24,7 +24,7 @@ func AuthoritySNITLSGetter(authority pki.Authority, logger logger.Logger) func(*
 		// empty server name here we assume the the connection is being made
 		// with an ip address as the host.
 		if hello.ServerName == "" {
-			logger.Debugf("tls client hello server name is empty. Attempting to provide ip address certificate")
+			logger.Debugf(ctx, "tls client hello server name is empty. Attempting to provide ip address certificate")
 			leaf, err := authority.LeafForGroup(pki.ControllerIPLeafGroup)
 			if err == nil {
 				cert = leaf.TLSCertificate()
@@ -42,7 +42,7 @@ func AuthoritySNITLSGetter(authority pki.Authority, logger logger.Logger) func(*
 		}
 
 		if cert == nil {
-			logger.Debugf("no matching certificate found for server name %s, using default certificate", hello.ServerName)
+			logger.Debugf(ctx, "no matching certificate found for server name %s, using default certificate", hello.ServerName)
 			leaf, err := authority.LeafForGroup(pki.DefaultLeafGroup)
 			if err != nil {
 				return nil, fmt.Errorf("getting default certificate: %w", err)

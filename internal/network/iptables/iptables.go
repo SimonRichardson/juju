@@ -156,7 +156,7 @@ func ParseIngressRules(r io.Reader) (firewall.IngressRules, error) {
 		line := scanner.Text()
 		rule, ok, err := parseIngressRule(strings.TrimSpace(line))
 		if err != nil {
-			logger.Warningf("failed to parse iptables line %q: %v", line, err)
+			logger.Warningf(ctx, "failed to parse iptables line %q: %v", line, err)
 			continue
 		}
 		if !ok {

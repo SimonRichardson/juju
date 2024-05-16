@@ -266,7 +266,7 @@ func (c *RunCommand) getSocket(op *caas.OperatorClientInfo) (sockets.Socket, err
 
 func (c *RunCommand) executeInUnitContext() (*exec.ExecResponse, error) {
 	unitDir := agent.Dir(config.DataDir, c.unit)
-	logger.Debugf("looking for unit dir %s", unitDir)
+	logger.Debugf(ctx, "looking for unit dir %s", unitDir)
 	// make sure the unit exists
 	_, err := os.Stat(unitDir)
 	if os.IsNotExist(err) {

@@ -778,7 +778,7 @@ func (sb *storageBackend) DestroyFilesystem(tag names.FilesystemTag, force bool)
 			if !force {
 				return nil, err
 			}
-			logger.Warningf("%s", err.Error())
+			logger.Warningf(ctx, "%s", err.Error())
 		}
 
 		var assertNoStorageAssignment bson.D

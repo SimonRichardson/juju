@@ -135,7 +135,7 @@ func (c *setApplicationBase) Run(ctx *cmd.Context) error {
 			// Remove warning once improvements to develop are made, where by
 			// set-application-base downloads the new charm. Or this command is removed.
 			// subordinate
-			ctx.Warningf("To ensure the correct charm binaries are installed when add-unit is next called, please first run `juju refresh` for this application and any related subordinates.")
+			ctx.Warningf(ctx, "To ensure the correct charm binaries are installed when add-unit is next called, please first run `juju refresh` for this application and any related subordinates.")
 		}
 		return err
 	}

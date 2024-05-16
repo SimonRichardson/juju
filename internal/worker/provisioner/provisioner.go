@@ -201,7 +201,7 @@ func NewEnvironProvisioner(
 	}
 	p.Provisioner = p
 	p.broker = environ
-	logger.Tracef("Starting environ provisioner for %q", p.agentConfig.Tag())
+	logger.Tracef(ctx, "Starting environ provisioner for %q", p.agentConfig.Tag())
 
 	err := catacomb.Invoke(catacomb.Plan{
 		Site: &p.catacomb,
@@ -311,7 +311,7 @@ func NewContainerProvisioner(
 		containerType: containerType,
 	}
 	p.Provisioner = p
-	logger.Tracef("Starting %s provisioner for %q", p.containerType, p.agentConfig.Tag())
+	logger.Tracef(ctx, "Starting %s provisioner for %q", p.containerType, p.agentConfig.Tag())
 
 	err := catacomb.Invoke(catacomb.Plan{
 		Site: &p.catacomb,
@@ -376,11 +376,11 @@ func (p *containerProvisioner) getMachine(ctx context.Context) (apiprovisioner.M
 		}
 		result, err := p.machinesAPI.Machines(ctx, machineTag)
 		if err != nil {
-			p.logger.Errorf("error retrieving %s from state", machineTag)
+			p.logger.Errorf(ctx, "error retrieving %s from state", machineTag)
 			return nil, err
 		}
 		if result[0].Err != nil {
-			p.logger.Errorf("%s is not in state", machineTag)
+			p.logger.Errorf(ctx, "%s is not in state", machineTag)
 			return nil, err
 		}
 		p.machine = result[0].Machine

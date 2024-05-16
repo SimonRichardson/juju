@@ -147,11 +147,11 @@ func (c *modelCommand) Run(ctx *cmd.Context) (err error) {
 
 		switch c.model.Life {
 		case life.Dead:
-			ctx.Infof("model %q has been removed", c.name)
+			ctx.Infof(ctx, "model %q has been removed", c.name)
 		case life.Dying:
-			ctx.Infof("model %q is being removed", c.name)
+			ctx.Infof(ctx, "model %q is being removed", c.name)
 		default:
-			ctx.Infof("model %q is running", c.name)
+			ctx.Infof(ctx, "model %q is running", c.name)
 			outputModelSummary(ctx.Stdout, scopedContext, c.model, c.applications, c.units, c.machines)
 		}
 	}()
@@ -168,7 +168,7 @@ func (c *modelCommand) Run(ctx *cmd.Context) (err error) {
 	})
 	err = strategy.Run(ctx, c.name, c.query, c.waitFor(c.query, scopedContext, ctx), func(err error, attempt int) {
 		if errors.Is(err, errors.NotFound) {
-			ctx.Infof("model %q not found, waiting...", c.name)
+			ctx.Infof(ctx, "model %q not found, waiting...", c.name)
 		}
 	})
 	return errors.Trace(err)
@@ -263,11 +263,11 @@ func (c *modelCommand) waitFor(input string, ctx ScopeContext, logger Logger) fu
 				return true, nil
 			}
 		} else {
-			logger.Infof("model %q not found, waiting...", name)
+			logger.Infof(ctx, "model %q not found, waiting...", name)
 			return false, nil
 		}
 
-		logger.Infof("model %q found, waiting...", name)
+		logger.Infof(ctx, "model %q found, waiting...", name)
 		return false, nil
 	}
 }

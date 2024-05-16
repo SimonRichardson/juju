@@ -153,7 +153,7 @@ func NewModelManagerAPI(
 // are an administrator acting on behalf of another user.
 func (m *ModelManagerAPI) authCheck(user names.UserTag) error {
 	if m.isAdmin {
-		logger.Tracef("%q is a controller admin", m.apiUser.Id())
+		logger.Tracef(ctx, "%q is a controller admin", m.apiUser.Id())
 		return nil
 	}
 
@@ -373,7 +373,7 @@ func (m *ModelManagerAPI) createModelNew(
 func reloadSpaces(ctx context.Context, modelNetworkService NetworkService) error {
 	if err := modelNetworkService.ReloadSpaces(ctx); err != nil {
 		if errors.Is(err, errors.NotSupported) {
-			logger.Debugf("Not performing spaces load on a non-networking environment")
+			logger.Debugf(ctx, "Not performing spaces load on a non-networking environment")
 		} else {
 			return errors.Annotate(err, "Failed to perform spaces discovery")
 		}
@@ -667,7 +667,7 @@ func (m *ModelManagerAPI) newIAASModel(
 	if err != nil {
 		// Clean up the environ.
 		if e := env.Destroy(callCtx); e != nil {
-			logger.Warningf("failed to destroy environ, error %v", e)
+			logger.Warningf(ctx, "failed to destroy environ, error %v", e)
 		}
 		return nil, errors.Annotate(err, "failed to create new model")
 	}
@@ -675,7 +675,7 @@ func (m *ModelManagerAPI) newIAASModel(
 
 	if err = model.AutoConfigureContainerNetworking(env, m.configSchemaSource); err != nil {
 		if errors.Is(err, errors.NotSupported) {
-			logger.Debugf("Not performing container networking autoconfiguration on a non-networking environment")
+			logger.Debugf(ctx, "Not performing container networking autoconfiguration on a non-networking environment")
 		} else {
 			return nil, errors.Annotate(err, "Failed to perform container networking autoconfiguration")
 		}
@@ -900,7 +900,7 @@ func (m *ModelManagerAPI) fillInStatusBasedOnCloudCredentialValidity(ctx context
 		indexByUUID[model.UUID] = i
 		tag, err := names.ParseCloudCredentialTag(model.CloudCredentialTag)
 		if err != nil {
-			logger.Warningf("could not parse cloud credential tag %v for model%v: %v", model.CloudCredentialTag, model.UUID, err)
+			logger.Warningf(ctx, "could not parse cloud credential tag %v for model%v: %v", model.CloudCredentialTag, model.UUID, err)
 			// Don't stop the rest of the models
 			continue
 		}
@@ -974,7 +974,7 @@ func (m *ModelManagerAPI) ListModels(ctx context.Context, user params.Entity) (p
 		if names.IsValidUser(mi.OwnerName) {
 			ownerTag = names.NewUserTag(mi.OwnerName)
 		} else {
-			logger.Warningf("for model %v, got an invalid owner: %q", mi.UUID, mi.Owner)
+			logger.Warningf(ctx, "for model %v, got an invalid owner: %q", mi.UUID, mi.Owner)
 		}
 
 		t := time.Now()

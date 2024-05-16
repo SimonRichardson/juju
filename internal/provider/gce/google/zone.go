@@ -46,9 +46,9 @@ func (z AvailabilityZone) Status() string {
 func (z AvailabilityZone) Deprecated() bool {
 	deprecated := z.zone.Deprecated != nil
 	if deprecated {
-		logger.Warningf("zone %q is %q", z.Name(), z.zone.Deprecated.State)
+		logger.Warningf(ctx, "zone %q is %q", z.Name(), z.zone.Deprecated.State)
 		if z.zone.Deprecated.Replacement != "" {
-			logger.Warningf("zone %q is the replacement for zone %q", z.zone.Deprecated.Replacement, z.Name())
+			logger.Warningf(ctx, "zone %q is the replacement for zone %q", z.zone.Deprecated.Replacement, z.Name())
 		}
 	}
 	return deprecated

@@ -81,11 +81,11 @@ func (mi *maasInstance) Addresses(ctx envcontext.ProviderCallContext) (corenetwo
 		if primAddr := iface.PrimaryAddress(); primAddr.Value != "" {
 			addresses = append(addresses, primAddr)
 		} else {
-			logger.Debugf("no address found on interface %q", iface.InterfaceName)
+			logger.Debugf(ctx, "no address found on interface %q", iface.InterfaceName)
 		}
 	}
 
-	logger.Debugf("%q has addresses %q", mi.machine.Hostname(), addresses)
+	logger.Debugf(ctx, "%q has addresses %q", mi.machine.Hostname(), addresses)
 	return addresses, nil
 }
 
@@ -105,7 +105,7 @@ func convertInstanceStatus(statusMsg, substatus string, id instance.Id) instance
 	maasInstanceStatus := status.Empty
 	switch normalizeStatus(statusMsg) {
 	case "":
-		logger.Debugf("unable to obtain status of instance %s", id)
+		logger.Debugf(ctx, "unable to obtain status of instance %s", id)
 		statusMsg = "error in getting status"
 	case "deployed":
 		maasInstanceStatus = status.Running
@@ -136,16 +136,16 @@ func normalizeStatus(statusMsg string) string {
 // MAAS does not do firewalling so these port methods do nothing.
 
 func (mi *maasInstance) OpenPorts(_ envcontext.ProviderCallContext, _ string, _ firewall.IngressRules) error {
-	logger.Debugf("unimplemented OpenPorts() called")
+	logger.Debugf(ctx, "unimplemented OpenPorts() called")
 	return nil
 }
 
 func (mi *maasInstance) ClosePorts(_ envcontext.ProviderCallContext, _ string, _ firewall.IngressRules) error {
-	logger.Debugf("unimplemented ClosePorts() called")
+	logger.Debugf(ctx, "unimplemented ClosePorts() called")
 	return nil
 }
 
 func (mi *maasInstance) IngressRules(_ envcontext.ProviderCallContext, _ string) (firewall.IngressRules, error) {
-	logger.Debugf("unimplemented IngressRules() called")
+	logger.Debugf(ctx, "unimplemented IngressRules() called")
 	return nil, nil
 }

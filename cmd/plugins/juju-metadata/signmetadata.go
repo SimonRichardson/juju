@@ -78,17 +78,17 @@ func (c *signMetadataCommand) Run(context *cmd.Context) error {
 }
 
 func process(dir, key, passphrase string) error {
-	logger.Debugf("processing directory %q", dir)
+	logger.Debugf(ctx, "processing directory %q", dir)
 	// Do any json files in dir
 	filenames, err := filepath.Glob(filepath.Join(dir, "*"+simplestreams.UnsignedSuffix))
 	if err != nil {
 		return err
 	}
 	if len(filenames) > 0 {
-		logger.Infof("signing %d file(s) in %q", len(filenames), dir)
+		logger.Infof(ctx, "signing %d file(s) in %q", len(filenames), dir)
 	}
 	for _, filename := range filenames {
-		logger.Infof("signing file %q", filename)
+		logger.Infof(ctx, "signing file %q", filename)
 		f, err := os.Open(filename)
 		if err != nil {
 			return errors.Errorf("opening file %q: %v", filename, err)

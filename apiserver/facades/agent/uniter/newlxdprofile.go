@@ -75,7 +75,7 @@ func NewLXDProfileAPIv2(
 	accessUnit common.GetAuthFunc,
 	logger corelogger.Logger,
 ) *LXDProfileAPIv2 {
-	logger.Tracef("LXDProfileAPIv2 called with %s", authorizer.GetAuthTag())
+	logger.Tracef(ctx, "LXDProfileAPIv2 called with %s", authorizer.GetAuthTag())
 	return &LXDProfileAPIv2{
 		backend:    backend,
 		resources:  resources,
@@ -148,13 +148,13 @@ func NewExternalLXDProfileAPIv2(
 // WatchInstanceData returns a NotifyWatcher for observing
 // changes to the lxd profile for one unit.
 func (u *LXDProfileAPIv2) WatchInstanceData(args params.Entities) (params.NotifyWatchResults, error) {
-	u.logger.Tracef("Starting WatchInstanceData with %+v", args)
+	u.logger.Tracef(ctx, "Starting WatchInstanceData with %+v", args)
 	result := params.NotifyWatchResults{
 		Results: make([]params.NotifyWatchResult, len(args.Entities)),
 	}
 	canAccess, err := u.accessUnit()
 	if err != nil {
-		u.logger.Tracef("WatchInstanceData error %+v", err)
+		u.logger.Tracef(ctx, "WatchInstanceData error %+v", err)
 		return params.NotifyWatchResults{}, err
 	}
 	for i, entity := range args.Entities {
@@ -181,7 +181,7 @@ func (u *LXDProfileAPIv2) WatchInstanceData(args params.Entities) (params.Notify
 		result.Results[i].NotifyWatcherId = watcherId
 
 	}
-	u.logger.Tracef("WatchInstanceData returning %+v", result)
+	u.logger.Tracef(ctx, "WatchInstanceData returning %+v", result)
 	return result, nil
 }
 
@@ -196,7 +196,7 @@ func (u *LXDProfileAPIv2) watchOneInstanceData(machine LXDProfileMachineV2) (str
 // LXDProfileName returns the name of the lxd profile applied to the unit's
 // machine for the current charm version.
 func (u *LXDProfileAPIv2) LXDProfileName(args params.Entities) (params.StringResults, error) {
-	u.logger.Tracef("Starting LXDProfileName with %+v", args)
+	u.logger.Tracef(ctx, "Starting LXDProfileName with %+v", args)
 	result := params.StringResults{
 		Results: make([]params.StringResult, len(args.Entities)),
 	}
@@ -246,7 +246,7 @@ func (u *LXDProfileAPIv2) getOneLXDProfileName(unit LXDProfileUnitV2, machine LX
 //   - the unit is not on a manual machine,
 //   - the provider type is "lxd" or it's an lxd container.
 func (u *LXDProfileAPIv2) CanApplyLXDProfile(ctx context.Context, args params.Entities) (params.BoolResults, error) {
-	u.logger.Tracef("Starting CanApplyLXDProfile with %+v", args)
+	u.logger.Tracef(ctx, "Starting CanApplyLXDProfile with %+v", args)
 	result := params.BoolResults{
 		Results: make([]params.BoolResult, len(args.Entities)),
 	}
@@ -321,7 +321,7 @@ func (u *LXDProfileAPIv2) getModelTypeProviderType(ctx context.Context) (string,
 
 // LXDProfileRequired returns true if charm has an lxd profile in it.
 func (u *LXDProfileAPIv2) LXDProfileRequired(args params.CharmURLs) (params.BoolResults, error) {
-	u.logger.Tracef("Starting LXDProfileRequired with %+v", args)
+	u.logger.Tracef(ctx, "Starting LXDProfileRequired with %+v", args)
 	result := params.BoolResults{
 		Results: make([]params.BoolResult, len(args.URLs)),
 	}

@@ -363,7 +363,7 @@ func (conn *Conn) Close() error {
 
 	// Closing the codec should cause the input loop to terminate.
 	if err := conn.codec.Close(); err != nil {
-		logger.Debugf("error closing codec: %v", err)
+		logger.Debugf(ctx, "error closing codec: %v", err)
 	}
 	<-conn.dead
 
@@ -509,7 +509,7 @@ func (conn *Conn) handleRequest(hdr *Header) error {
 		body = arg.Interface()
 	}
 	if err := recorder.HandleRequest(hdr, body); err != nil {
-		logger.Errorf("error recording request %+v with arg %+v: %T %+v", req, arg, err, err)
+		logger.Errorf(ctx, "error recording request %+v with arg %+v: %T %+v", req, arg, err, err)
 		return conn.writeErrorResponse(hdr, req.transformErrors(err), recorder)
 	}
 	conn.mutex.Lock()
@@ -546,7 +546,7 @@ func (conn *Conn) writeErrorResponse(reqHdr *Header, err error, recorder Recorde
 		hdr.ErrorInfo = err.ErrorInfo()
 	}
 	if err := recorder.HandleReply(reqHdr.Request, hdr, struct{}{}); err != nil {
-		logger.Errorf("error recording reply %+v: %T %+v", hdr, err, err)
+		logger.Errorf(ctx, "error recording reply %+v: %T %+v", hdr, err, err)
 	}
 
 	return conn.codec.WriteMessage(hdr, struct{}{})
@@ -601,7 +601,7 @@ func (conn *Conn) runRequest(
 	// If the request causes a panic, ensure we log that before closing the connection.
 	defer func() {
 		if panicResult := recover(); panicResult != nil {
-			logger.Criticalf(
+			logger.Criticalf(ctx,
 				"panic running request %+v with arg %+v: %v\n%v", req, arg, panicResult, string(debug.Stack()))
 			_ = conn.writeErrorResponse(&req.hdr, errors.Errorf("%v", panicResult), recorder)
 		}
@@ -648,7 +648,7 @@ func (conn *Conn) runRequest(
 			rvi = struct{}{}
 		}
 		if err := recorder.HandleReply(req.hdr.Request, hdr, rvi); err != nil {
-			logger.Errorf("error recording reply %+v: %T %+v", hdr, err, err)
+			logger.Errorf(ctx, "error recording reply %+v: %T %+v", hdr, err, err)
 		}
 		conn.sending.Lock()
 		err = conn.codec.WriteMessage(hdr, rvi)
@@ -666,7 +666,7 @@ func (conn *Conn) runRequest(
 			// Record the second error, this is the one that will be recorded if
 			// we can't write the response to the client.
 			span.RecordError(err)
-			logger.Errorf("error writing response: %T %+v", err, err)
+			logger.Errorf(ctx, "error writing response: %T %+v", err, err)
 		}
 	}
 }

@@ -84,7 +84,7 @@ func (c *sshInstanceConfigurator) DropAllPorts(exceptPorts []int, addr string) e
 	if err != nil {
 		return errors.Errorf("failed to drop all ports: %s", output)
 	}
-	logger.Tracef("drop all ports output: %s", output)
+	logger.Tracef(ctx, "drop all ports output: %s", output)
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (c *sshInstanceConfigurator) ChangeIngressRules(ipAddress string, insert bo
 	if err != nil {
 		return errors.Annotatef(err, "configuring ports for address %q: %s", ipAddress, output)
 	}
-	logger.Tracef("change ports output: %s", output)
+	logger.Tracef(ctx, "change ports output: %s", output)
 	return nil
 }
 
@@ -113,6 +113,6 @@ func (c *sshInstanceConfigurator) FindIngressRules() (firewall.IngressRules, err
 	if err != nil {
 		return nil, errors.Errorf("failed to list open ports: %s", output)
 	}
-	logger.Tracef("find open ports output: %s", output)
+	logger.Tracef(ctx, "find open ports output: %s", output)
 	return iptables.ParseIngressRules(strings.NewReader(output))
 }

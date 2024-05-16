@@ -186,7 +186,7 @@ func DetectCredential(cloudName string, provider environs.EnvironProvider) (*clo
 			err, "detecting credentials for %q cloud provider", cloudName,
 		)
 	}
-	logger.Tracef("provider detected credentials: %v", detected)
+	logger.Tracef(ctx, "provider detected credentials: %v", detected)
 	if len(detected.AuthCredentials) == 0 {
 		return nil, errors.NotFoundf("credentials for cloud %q", cloudName)
 	}
@@ -212,7 +212,7 @@ func RegisterCredentials(provider environs.EnvironProvider, args RegisterCredent
 				err, "registering credentials for provider",
 			)
 		}
-		logger.Tracef("provider registered credentials: %v", found)
+		logger.Tracef(ctx, "provider registered credentials: %v", found)
 		if len(found) == 0 {
 			return nil, errors.NotFoundf("credentials for provider")
 		}

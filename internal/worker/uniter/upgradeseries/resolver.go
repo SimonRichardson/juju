@@ -31,7 +31,7 @@ func (r *upgradeSeriesResolver) NextOp(
 	// If the unit is in the validate state, just sit and idle until validation
 	// has been completed.
 	if remoteState.UpgradeMachineStatus == model.UpgradeSeriesValidate {
-		r.logger.Debugf("unit validating, waiting for prepare started")
+		r.logger.Debugf(ctx, "unit validating, waiting for prepare started")
 		return nil, resolver.ErrDoNotProceed
 	}
 
@@ -39,11 +39,11 @@ func (r *upgradeSeriesResolver) NextOp(
 	// (as noted by its state) then the uniter should idle in the face of all
 	// remote state changes.
 	if remoteState.UpgradeMachineStatus == model.UpgradeSeriesPrepareCompleted {
-		r.logger.Debugf("unit prepared, waiting for complete request")
+		r.logger.Debugf(ctx, "unit prepared, waiting for complete request")
 		return nil, resolver.ErrDoNotProceed
 	}
 
-	r.logger.Tracef("localState.Kind=%q, localState.UpgradeMachineStatus=%q, remoteState.UpgradeMachineStatus=%q",
+	r.logger.Tracef(ctx, "localState.Kind=%q, localState.UpgradeMachineStatus=%q, remoteState.UpgradeMachineStatus=%q",
 		localState.Kind, localState.UpgradeMachineStatus, remoteState.UpgradeMachineStatus)
 
 	if localState.Kind == operation.Continue {

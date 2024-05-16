@@ -440,17 +440,17 @@ func (st *State) startWorkers(hub *pubsub.SimpleHub) (err error) {
 			return
 		}
 		if err2 := st.Close(); err2 != nil {
-			logger.Errorf("closing State for %s: %v", st.modelTag, err2)
+			logger.Errorf(ctx, "closing State for %s: %v", st.modelTag, err2)
 		}
 	}()
 
-	logger.Infof("starting standard state workers")
+	logger.Infof(ctx, "starting standard state workers")
 	workers, err := newWorkers(st, hub)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	st.workers = workers
-	logger.Infof("started state workers for %s successfully", st.modelTag)
+	logger.Infof(ctx, "started state workers for %s successfully", st.modelTag)
 	return nil
 }
 
@@ -713,7 +713,7 @@ func (st *State) ModelConstraints() (constraints.Value, error) {
 func (st *State) SetModelConstraints(cons constraints.Value) error {
 	unsupported, err := st.validateConstraints(cons)
 	if len(unsupported) > 0 {
-		logger.Warningf(
+		logger.Warningf(ctx,
 			"setting model constraints: unsupported constraints: %v", strings.Join(unsupported, ","))
 	} else if err != nil {
 		return errors.Trace(err)
@@ -885,12 +885,12 @@ func (st *State) FindEntity(tag names.Tag) (Entity, error) {
 			// We should not accept model tags that do not match the
 			// model's UUID. We accept anything for now, to cater
 			// both for past usage, and for potentially supporting aliases.
-			logger.Warningf("model-tag does not match current model UUID: %q != %q", id, model.UUID())
+			logger.Warningf(ctx, "model-tag does not match current model UUID: %q != %q", id, model.UUID())
 			conf, err := model.ModelConfig(context.Background())
 			if err != nil {
-				logger.Warningf("ModelConfig failed: %v", err)
+				logger.Warningf(ctx, "ModelConfig failed: %v", err)
 			} else if id != conf.Name() {
-				logger.Warningf("model-tag does not match current model name: %q != %q", id, conf.Name())
+				logger.Warningf(ctx, "model-tag does not match current model name: %q != %q", id, conf.Name())
 			}
 		}
 		return model, nil
@@ -1488,7 +1488,7 @@ func (st *State) processCommonModelApplicationArgs(args *AddApplicationArgs) (Ba
 	}
 	unsupported, err := st.validateConstraints(cons)
 	if len(unsupported) > 0 {
-		logger.Warningf(
+		logger.Warningf(ctx,
 			"deploying %q: unsupported constraints: %v", args.Name, strings.Join(unsupported, ","))
 	}
 	return Base{appBase.OS, appBase.Channel.String()}, errors.Trace(err)

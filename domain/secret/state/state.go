@@ -760,7 +760,7 @@ func (st State) pruneUnusedRevisions(ctx context.Context, tx *sqlair.TX, uri *co
 	//if err != nil {
 	//	// We don't want to fail the update if we can't prune the unused secret revisions because they will be picked up later
 	//	// when the secret has any new obsolete revisions.
-	//	s.logger.Warningf("failed to prune unused secret revisions for %q: %v", uri, err)
+	//	s.logger.Warningf(ctx, "failed to prune unused secret revisions for %q: %v", uri, err)
 	//}
 	//return md, nil
 }
@@ -3123,7 +3123,7 @@ FROM secret_revision_obsolete sro
 	if len(conditions) > 0 {
 		q += fmt.Sprintf("\nWHERE %s", strings.Join(conditions, "\n"))
 	}
-	st.logger.Tracef(
+	st.logger.Tracef(ctx,
 		"revisionUUIDs %+v, appOwners: %+v, unitOwners: %+v, query: \n%s",
 		revUUIDs, appOwners, unitOwners, q,
 	)

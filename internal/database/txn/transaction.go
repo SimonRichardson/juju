@@ -160,7 +160,7 @@ func (t *RetryingTxnRunner) Txn(ctx context.Context, db *sqlair.DB, fn func(cont
 
 		if err := fn(ctx, tx); err != nil {
 			if rErr := t.retryStrategy(ctx, tx.Rollback); rErr != nil {
-				t.logger.Warningf("failed to rollback transaction: %v", rErr)
+				t.logger.Warningf(ctx, "failed to rollback transaction: %v", rErr)
 			}
 			return errors.Trace(err)
 		}
@@ -186,7 +186,7 @@ func (t *RetryingTxnRunner) StdTxn(ctx context.Context, db *sql.DB, fn func(cont
 
 		if err := fn(ctx, tx); err != nil {
 			if rErr := t.retryStrategy(ctx, tx.Rollback); rErr != nil {
-				t.logger.Warningf("failed to rollback transaction: %v", rErr)
+				t.logger.Warningf(ctx, "failed to rollback transaction: %v", rErr)
 			}
 			return errors.Trace(err)
 		}
@@ -276,7 +276,7 @@ func defaultRetryStrategy(clock clock.Clock, log logger.Logger) func(context.Con
 				// If the error is potentially retryable then keep going.
 				if IsErrRetryable(err) {
 					if log.IsLevelEnabled(logger.TRACE) {
-						log.Tracef("retrying transaction: %v", err)
+						log.Tracef(ctx, "retrying transaction: %v", err)
 					}
 					return false
 				}

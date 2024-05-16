@@ -92,7 +92,7 @@ func (dl *Download) run(req Request) {
 	if err != nil {
 		err = errors.Trace(err)
 	} else {
-		logger.Infof("download complete (%q)", req.URL)
+		logger.Infof(ctx, "download complete (%q)", req.URL)
 		err = verifyDownload(filename, req)
 		if err != nil {
 			_ = os.Remove(filename)
@@ -109,7 +109,7 @@ func (dl *Download) run(req Request) {
 }
 
 func (dl *Download) download(req Request) (filename string, err error) {
-	logger.Infof("downloading from %s", req.URL)
+	logger.Infof(ctx, "downloading from %s", req.URL)
 
 	dir := req.TargetDir
 	if dir == "" {
@@ -172,6 +172,6 @@ func verifyDownload(filename string, req Request) error {
 	if err := req.Verify(file); err != nil {
 		return errors.Trace(err)
 	}
-	logger.Infof("download verified (%q)", req.URL)
+	logger.Infof(ctx, "download verified (%q)", req.URL)
 	return nil
 }

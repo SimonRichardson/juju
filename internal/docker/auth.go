@@ -244,7 +244,7 @@ func NewImageRepoDetails(repo string) (o ImageRepoDetails, err error) {
 	data := []byte(repo)
 	err = json.Unmarshal(data, &o)
 	if err != nil {
-		logger.Tracef("unmarshalling %q, err %#v", repo, err)
+		logger.Tracef(ctx, "unmarshalling %q, err %#v", repo, err)
 		return ImageRepoDetails{Repository: repo}, nil
 	}
 	if err = o.Validate(); err != nil {
@@ -261,7 +261,7 @@ func LoadImageRepoDetails(contentOrPath string) (o ImageRepoDetails, err error) 
 	data := []byte(contentOrPath)
 	isPath, err := fileExists(contentOrPath)
 	if err == nil && isPath {
-		logger.Debugf("reading image repository information from %q", contentOrPath)
+		logger.Debugf(ctx, "reading image repository information from %q", contentOrPath)
 		data, err = os.ReadFile(contentOrPath)
 		if err != nil {
 			return o, errors.Trace(err)

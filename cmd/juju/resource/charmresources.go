@@ -151,7 +151,7 @@ func (c *baseCharmResourcesCommand) baseRun(ctx *cmd.Context) error {
 	charmURL, err := resolveCharm(c.charm)
 	if errors.Is(err, errors.NotSupported) {
 		if c.out.Name() == "tabular" {
-			ctx.Infof("Bundles have no resources to display.")
+			ctx.Infof(ctx, "Bundles have no resources to display.")
 			return nil
 		}
 		return c.out.Write(ctx, struct{}{})
@@ -192,7 +192,7 @@ func (c *baseCharmResourcesCommand) baseRun(ctx *cmd.Context) error {
 	res := resources[0]
 
 	if len(res) == 0 && c.out.Name() == "tabular" {
-		ctx.Infof("No resources to display.")
+		ctx.Infof(ctx, "No resources to display.")
 		return nil
 	}
 

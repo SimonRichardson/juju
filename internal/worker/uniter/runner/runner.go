@@ -281,7 +281,7 @@ func (runner *runner) runCommandsWithTimeout(ctx stdcontext.Context, commands st
 // runJujuExecAction is the function that executes when a juju-exec action is ran.
 func (runner *runner) runJujuExecAction(ctx stdcontext.Context) (err error) {
 	logger := runner.logger()
-	logger.Debugf("juju-exec action is running")
+	logger.Debugf(ctx, "juju-exec action is running")
 	data, err := runner.context.ActionData()
 	if err != nil {
 		return errors.Trace(err)
@@ -296,7 +296,7 @@ func (runner *runner) runJujuExecAction(ctx stdcontext.Context) (err error) {
 	// But due to serialization it comes out as float64
 	timeout, ok := params["timeout"].(float64)
 	if !ok {
-		logger.Debugf("unable to read juju-exec action timeout, will continue running action without one")
+		logger.Debugf(ctx, "unable to read juju-exec action timeout, will continue running action without one")
 	}
 
 	runLocation := Operator
@@ -394,7 +394,7 @@ func (runner *runner) RunAction(ctx stdcontext.Context, actionName string) (Hook
 	if err != nil {
 		return InvalidHookHandler, errors.Trace(err)
 	}
-	runner.logger().Debugf("running action %q on %v", actionName, rMode)
+	runner.logger().Debugf(ctx, "running action %q on %v", actionName, rMode)
 	return runner.runCharmHookWithLocation(ctx, actionName, "actions", rMode)
 }
 
@@ -467,12 +467,12 @@ func (runner *runner) runCharmHookWithLocation(ctx stdcontext.Context, hookName,
 			hookName, runner.paths.GetCharmDir(), charmLocation)
 		if session.DebugAt() != "" {
 			if hookHandlerType == InvalidHookHandler {
-				logger.Infof("debug-code active, but hook %s not implemented (skipping)", hookName)
+				logger.Infof(ctx, "debug-code active, but hook %s not implemented (skipping)", hookName)
 				return InvalidHookHandler, err
 			}
-			logger.Infof("executing %s via debug-code; %s", hookName, hookHandlerType)
+			logger.Infof(ctx, "executing %s via debug-code; %s", hookName, hookHandlerType)
 		} else {
-			logger.Infof("executing %s via debug-hooks; %s", hookName, hookHandlerType)
+			logger.Infof(ctx, "executing %s via debug-hooks; %s", hookName, hookHandlerType)
 		}
 		return hookHandlerType, session.RunHook(hookName, runner.paths.GetCharmDir(), env, hookScript)
 	}
@@ -735,7 +735,7 @@ func (runner *runner) startJujucServer(token string, rMode runMode) (*jujuc.Serv
 	}
 
 	socket := runner.paths.GetJujucServerSocket(rMode == runOnRemote)
-	runner.logger().Debugf("starting jujuc server %s %v", token, socket)
+	runner.logger().Debugf(ctx, "starting jujuc server %s %v", token, socket)
 	srv, err := jujuc.NewServer(getCmd, socket, token)
 	if err != nil {
 		return nil, errors.Annotate(err, "starting jujuc server")
@@ -788,7 +788,7 @@ func (runner *runner) getRemoteEnviron(abort <-chan struct{}) (map[string]string
 		unquotedValue := unquoted[0]
 		env[key] = unquotedValue
 	}
-	runner.logger().Debugf("fetched remote env %+q", env)
+	runner.logger().Debugf(ctx, "fetched remote env %+q", env)
 	return env, nil
 }
 

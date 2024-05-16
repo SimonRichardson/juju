@@ -62,16 +62,16 @@ func (c baseClient) fetchTags(url string, res tagsGetter) (versions tools.Versio
 		for _, tag := range tags {
 			v, err := version.Parse(tag)
 			if err != nil {
-				logger.Warningf("ignoring invalid image tag %q", tag)
+				logger.Warningf(ctx, "ignoring invalid image tag %q", tag)
 				continue
 			}
 			versions = append(versions, image.NewImageInfo(v))
 		}
 	}
 	for {
-		logger.Tracef("fetching tags %q", url)
+		logger.Tracef(ctx, "fetching tags %q", url)
 		url, err = c.getPaginatedJSON(url, &res)
-		logger.Tracef("response %#v, err %v", res, err)
+		logger.Tracef(ctx, "response %#v, err %v", res, err)
 		switch err {
 		case errNoMorePages:
 			pushVersions(res.GetTags())

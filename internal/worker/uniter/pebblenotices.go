@@ -73,8 +73,8 @@ func (n *pebbleNoticer) run(containerName string) (err error) {
 		errorDelay  = time.Second
 	)
 
-	n.logger.Debugf("container %q: pebbleNoticer starting", containerName)
-	defer n.logger.Debugf("container %q: pebbleNoticer stopped, error %v", containerName, err)
+	n.logger.Debugf(ctx, "container %q: pebbleNoticer starting", containerName)
+	defer n.logger.Debugf(ctx, "container %q: pebbleNoticer stopped, error %v", containerName, err)
 
 	config := newPebbleConfig(containerName)
 	pebbleClient, err := n.newPebbleClient(config)
@@ -103,10 +103,10 @@ func (n *pebbleNoticer) run(containerName string) (err error) {
 			var socketNotFound *client.SocketNotFoundError
 			if errors.As(err, &socketNotFound) {
 				// Pebble has probably not started yet -- not an error.
-				n.logger.Debugf("container %q: socket %q not found, waiting %s",
+				n.logger.Debugf(ctx, "container %q: socket %q not found, waiting %s",
 					containerName, socketNotFound.Path, errorDelay)
 			} else {
-				n.logger.Errorf("container %q: WaitNotices error, waiting %s: %v",
+				n.logger.Errorf(ctx, "container %q: WaitNotices error, waiting %s: %v",
 					containerName, errorDelay, err)
 			}
 			select {
@@ -138,11 +138,11 @@ func (n *pebbleNoticer) processNotice(containerName string, notice *client.Notic
 	case client.CustomNotice:
 		eventType = container.CustomNoticeEvent
 	default:
-		n.logger.Debugf("container %q: ignoring %s notice", containerName, notice.Type)
+		n.logger.Debugf(ctx, "container %q: ignoring %s notice", containerName, notice.Type)
 		return nil
 	}
 
-	n.logger.Debugf("container %q: processing %s notice, key %q", containerName, notice.Type, notice.Key)
+	n.logger.Debugf(ctx, "container %q: processing %s notice, key %q", containerName, notice.Type, notice.Key)
 
 	errChan := make(chan error, 1)
 	eventID := n.workloadEvents.AddWorkloadEvent(container.WorkloadEvent{

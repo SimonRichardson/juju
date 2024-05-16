@@ -49,7 +49,7 @@ type Conn struct {
 func Serve(w http.ResponseWriter, req *http.Request, handler func(ws *Conn)) {
 	conn, err := websocketUpgrader.Upgrade(w, req, nil)
 	if err != nil {
-		logger.Errorf("problem initiating websocket: %v", err)
+		logger.Errorf(ctx, "problem initiating websocket: %v", err)
 		return
 	}
 	handler(&Conn{conn})

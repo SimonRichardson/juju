@@ -62,7 +62,7 @@ func (ctrl *Controller) Import(
 	}
 	modelUUID := model.Tag().Id()
 	logger := internallogger.GetLogger("juju.state.import-model")
-	logger.Debugf("import starting for model %s", modelUUID)
+	logger.Debugf(ctx, "import starting for model %s", modelUUID)
 
 	// At this stage, attempting to import a model with the same
 	// UUID as an existing model will error.
@@ -117,7 +117,7 @@ func (ctrl *Controller) Import(
 	if err != nil {
 		return nil, nil, errors.Trace(err)
 	}
-	logger.Debugf("model created %s/%s", dbModel.Owner().Id(), dbModel.Name())
+	logger.Debugf(ctx, "model created %s/%s", dbModel.Owner().Id(), dbModel.Name())
 	defer func() {
 		if err != nil {
 			newSt.Close()
@@ -213,7 +213,7 @@ func (ctrl *Controller) Import(
 	// we don't start model workers for it before the migration process
 	// is complete.
 
-	logger.Debugf("import success")
+	logger.Debugf(ctx, "import success")
 	return dbModel, newSt, nil
 }
 
@@ -339,7 +339,7 @@ func (i *importer) sequences() error {
 }
 
 func (i *importer) modelUsers() error {
-	i.logger.Debugf("importing users")
+	i.logger.Debugf(ctx, "importing users")
 
 	// The user that was auto-added when we created the model will have
 	// the wrong DateCreated, so we remove it, and add in all the users we
@@ -367,7 +367,7 @@ func (i *importer) modelUsers() error {
 	}
 	// Now set their last connection times.
 	for _, user := range users {
-		i.logger.Debugf("user %s", user.Name())
+		i.logger.Debugf(ctx, "user %s", user.Name())
 		lastConnection := user.LastConnection()
 		if lastConnection.IsZero() {
 			continue
@@ -381,21 +381,21 @@ func (i *importer) modelUsers() error {
 }
 
 func (i *importer) machines() error {
-	i.logger.Debugf("importing machines")
+	i.logger.Debugf(ctx, "importing machines")
 	for _, m := range i.model.Machines() {
 		if err := i.machine(m); err != nil {
-			i.logger.Errorf("error importing machine: %s", err)
+			i.logger.Errorf(ctx, "error importing machine: %s", err)
 			return errors.Annotate(err, m.Id())
 		}
 	}
 
-	i.logger.Debugf("importing machines succeeded")
+	i.logger.Debugf(ctx, "importing machines succeeded")
 	return nil
 }
 
 func (i *importer) machine(m description.Machine) error {
 	// Import this machine, then import its containers.
-	i.logger.Debugf("importing machine %s", m.Id())
+	i.logger.Debugf(ctx, "importing machine %s", m.Id())
 
 	// 1. construct a machineDoc
 	mdoc, err := i.makeMachineDoc(m)
@@ -747,7 +747,7 @@ func (i *importer) makeAddresses(addrs []description.Address) []address {
 }
 
 func (i *importer) applications(controllerConfig controller.Config) error {
-	i.logger.Debugf("importing applications")
+	i.logger.Debugf(ctx, "importing applications")
 
 	// Ensure we import principal applications first, so that
 	// subordinate units can refer to the principal ones.
@@ -764,7 +764,7 @@ func (i *importer) applications(controllerConfig controller.Config) error {
 
 	for _, s := range append(principals, subordinates...) {
 		if err := i.application(s, controllerConfig); err != nil {
-			i.logger.Errorf("error importing application %s: %s", s.Name(), err)
+			i.logger.Errorf(ctx, "error importing application %s: %s", s.Name(), err)
 			return errors.Annotate(err, s.Name())
 		}
 	}
@@ -772,7 +772,7 @@ func (i *importer) applications(controllerConfig controller.Config) error {
 	if err := i.loadUnits(); err != nil {
 		return errors.Annotate(err, "loading new units from db")
 	}
-	i.logger.Debugf("importing applications succeeded")
+	i.logger.Debugf(ctx, "importing applications succeeded")
 	return nil
 }
 
@@ -822,7 +822,7 @@ func (i *importer) makeStatusDoc(statusVal description.Status) statusDoc {
 
 func (i *importer) application(a description.Application, ctrlCfg controller.Config) error {
 	// Import this application, then its units.
-	i.logger.Debugf("importing application %s", a.Name())
+	i.logger.Debugf(ctx, "importing application %s", a.Name())
 
 	// 1. construct an applicationDoc
 	appDoc, err := i.makeApplicationDoc(a)
@@ -910,7 +910,7 @@ func (i *importer) application(a description.Application, ctrlCfg controller.Con
 	}
 
 	if err := i.applicationOffers(a); err != nil {
-		i.logger.Errorf("error importing application %s: %s", app.Name(), err)
+		i.logger.Errorf(ctx, "error importing application %s: %s", app.Name(), err)
 		return errors.Annotate(err, app.Name())
 	}
 
@@ -918,7 +918,7 @@ func (i *importer) application(a description.Application, ctrlCfg controller.Con
 }
 
 func (i *importer) applicationOffers(app ApplicationDescription) error {
-	i.logger.Debugf("importing application offer")
+	i.logger.Debugf(ctx, "importing application offer")
 	migration := &ImportStateMigration{
 		src: i.model,
 		dst: i.st.db(),
@@ -942,7 +942,7 @@ func (i *importer) applicationOffers(app ApplicationDescription) error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing application offer succeeded")
+	i.logger.Debugf(ctx, "importing application offer succeeded")
 	return nil
 }
 
@@ -1056,7 +1056,7 @@ func (i *importer) storageConstraints(cons map[string]description.StorageDirecti
 }
 
 func (i *importer) unit(s description.Application, u description.Unit, ctrlCfg controller.Config) error {
-	i.logger.Debugf("importing unit %s", u.Name())
+	i.logger.Debugf(ctx, "importing unit %s", u.Name())
 
 	// 1. construct a unitDoc
 	udoc, err := i.makeUnitDoc(s, u)
@@ -1130,7 +1130,7 @@ func (i *importer) unit(s description.Application, u description.Unit, ctrlCfg c
 	}
 
 	if err := i.st.db().RunTransaction(ops); err != nil {
-		i.logger.Debugf("failed ops: %#v", ops)
+		i.logger.Debugf(ctx, "failed ops: %#v", ops)
 		return errors.Trace(err)
 	}
 
@@ -1365,7 +1365,7 @@ func (i *importer) makeCharmOrigin(a description.Application) (*CharmOrigin, err
 	}
 
 	if !reflect.DeepEqual(sourceOrigin, origin) {
-		i.logger.Warningf("Source origin for application %q is invalid. Normalising", a.Name())
+		i.logger.Warningf(ctx, "Source origin for application %q is invalid. Normalising", a.Name())
 	}
 
 	i.charmOrigins[curl.String()] = origin
@@ -1400,7 +1400,7 @@ func (i *importer) getPrincipalMachineID(principal names.UnitTag) string {
 	}
 	// We should never get here, but if we do, just return an empty
 	// machine ID.
-	i.logger.Warningf("unable to find principal %q", principal.Id())
+	i.logger.Warningf(ctx, "unable to find principal %q", principal.Id())
 	return ""
 }
 
@@ -1464,7 +1464,7 @@ func (i *importer) unitStorageAttachmentCount(unit names.UnitTag) int {
 }
 
 func (i *importer) remoteApplications() error {
-	i.logger.Debugf("importing remote applications")
+	i.logger.Debugf(ctx, "importing remote applications")
 	migration := &ImportStateMigration{
 		src: i.model,
 		dst: i.st.db(),
@@ -1482,12 +1482,12 @@ func (i *importer) remoteApplications() error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing remote applications succeeded")
+	i.logger.Debugf(ctx, "importing remote applications succeeded")
 	return nil
 }
 
 func (i *importer) firewallRules() error {
-	i.logger.Debugf("importing firewall rules")
+	i.logger.Debugf(ctx, "importing firewall rules")
 	migration := &ImportStateMigration{
 		src: i.model,
 		dst: i.st.db(),
@@ -1503,7 +1503,7 @@ func (i *importer) firewallRules() error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing firewall rules succeeded")
+	i.logger.Debugf(ctx, "importing firewall rules succeeded")
 	return nil
 }
 
@@ -1534,15 +1534,15 @@ func (i *importer) makeRemoteApplicationDoc(app description.RemoteApplication) *
 }
 
 func (i *importer) relations() error {
-	i.logger.Debugf("importing relations")
+	i.logger.Debugf(ctx, "importing relations")
 	for _, r := range i.model.Relations() {
 		if err := i.relation(r); err != nil {
-			i.logger.Errorf("error importing relation %s: %s", r.Key(), err)
+			i.logger.Errorf(ctx, "error importing relation %s: %s", r.Key(), err)
 			return errors.Annotate(err, r.Key())
 		}
 	}
 
-	i.logger.Debugf("importing relations succeeded")
+	i.logger.Debugf(ctx, "importing relations succeeded")
 	return nil
 }
 
@@ -1654,7 +1654,7 @@ func (i *importer) makeRelationDoc(rel description.Relation) *relationDoc {
 }
 
 func (i *importer) remoteEntities() error {
-	i.logger.Debugf("importing remote entities")
+	i.logger.Debugf(ctx, "importing remote entities")
 	migration := &ImportStateMigration{
 		src: i.model,
 		dst: i.st.db(),
@@ -1677,12 +1677,12 @@ func (i *importer) remoteEntities() error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing remote entities succeeded")
+	i.logger.Debugf(ctx, "importing remote entities succeeded")
 	return nil
 }
 
 func (i *importer) relationNetworks() error {
-	i.logger.Debugf("importing relation networks")
+	i.logger.Debugf(ctx, "importing relation networks")
 	migration := &ImportStateMigration{
 		src: i.model,
 		dst: i.st.db(),
@@ -1697,20 +1697,20 @@ func (i *importer) relationNetworks() error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing relation networks succeeded")
+	i.logger.Debugf(ctx, "importing relation networks succeeded")
 	return nil
 }
 
 func (i *importer) linklayerdevices() error {
-	i.logger.Debugf("importing linklayerdevices")
+	i.logger.Debugf(ctx, "importing linklayerdevices")
 	for _, device := range i.model.LinkLayerDevices() {
 		err := i.addLinkLayerDevice(device)
 		if err != nil {
-			i.logger.Errorf("error importing ip device %v: %s", device, err)
+			i.logger.Errorf(ctx, "error importing ip device %v: %s", device, err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing linklayerdevices succeeded")
+	i.logger.Debugf(ctx, "importing linklayerdevices succeeded")
 	return nil
 }
 
@@ -1750,15 +1750,15 @@ func (i *importer) addLinkLayerDevice(device description.LinkLayerDevice) error 
 }
 
 func (i *importer) ipAddresses() error {
-	i.logger.Debugf("importing IP addresses")
+	i.logger.Debugf(ctx, "importing IP addresses")
 	for _, addr := range i.model.IPAddresses() {
 		err := i.addIPAddress(addr)
 		if err != nil {
-			i.logger.Errorf("error importing IP address %v: %s", addr, err)
+			i.logger.Errorf(ctx, "error importing IP address %v: %s", addr, err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing IP addresses succeeded")
+	i.logger.Debugf(ctx, "importing IP addresses succeeded")
 	return nil
 }
 
@@ -1815,21 +1815,21 @@ func (i *importer) addIPAddress(addr description.IPAddress) error {
 }
 
 func (i *importer) sshHostKeys() error {
-	i.logger.Debugf("importing ssh host keys")
+	i.logger.Debugf(ctx, "importing ssh host keys")
 	for _, key := range i.model.SSHHostKeys() {
 		name := names.NewMachineTag(key.MachineID())
 		err := i.st.SetSSHHostKeys(name, key.Keys())
 		if err != nil {
-			i.logger.Errorf("error importing ssh host keys %v: %s", key, err)
+			i.logger.Errorf(ctx, "error importing ssh host keys %v: %s", key, err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing ssh host keys succeeded")
+	i.logger.Debugf(ctx, "importing ssh host keys succeeded")
 	return nil
 }
 
 func (i *importer) cloudimagemetadata() error {
-	i.logger.Debugf("importing cloudimagemetadata")
+	i.logger.Debugf(ctx, "importing cloudimagemetadata")
 	images := i.model.CloudImageMetadata()
 	var metadatas []cloudimagemetadata.Metadata
 	for _, image := range images {
@@ -1861,23 +1861,23 @@ func (i *importer) cloudimagemetadata() error {
 	}
 	err := i.st.CloudImageMetadataStorage.SaveMetadata(metadatas)
 	if err != nil {
-		i.logger.Errorf("error importing cloudimagemetadata %v: %s", images, err)
+		i.logger.Errorf(ctx, "error importing cloudimagemetadata %v: %s", images, err)
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing cloudimagemetadata succeeded")
+	i.logger.Debugf(ctx, "importing cloudimagemetadata succeeded")
 	return nil
 }
 
 func (i *importer) actions() error {
-	i.logger.Debugf("importing actions")
+	i.logger.Debugf(ctx, "importing actions")
 	for _, action := range i.model.Actions() {
 		err := i.addAction(action)
 		if err != nil {
-			i.logger.Errorf("error importing action %v: %s", action, err)
+			i.logger.Errorf(ctx, "error importing action %v: %s", action, err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing actions succeeded")
+	i.logger.Debugf(ctx, "importing actions succeeded")
 	return nil
 }
 
@@ -1930,15 +1930,15 @@ func (i *importer) addAction(action description.Action) error {
 // operations takes the imported operations data and writes it to
 // the new model.
 func (i *importer) operations() error {
-	i.logger.Debugf("importing operations")
+	i.logger.Debugf(ctx, "importing operations")
 	for _, op := range i.model.Operations() {
 		err := i.addOperation(op)
 		if err != nil {
-			i.logger.Errorf("error importing operation %v: %s", op, err)
+			i.logger.Errorf(ctx, "error importing operation %v: %s", op, err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing operations succeeded")
+	i.logger.Debugf(ctx, "importing operations succeeded")
 	return nil
 }
 
@@ -2068,15 +2068,15 @@ func (i *importer) storage() error {
 }
 
 func (i *importer) storageInstances() error {
-	i.logger.Debugf("importing storage instances")
+	i.logger.Debugf(ctx, "importing storage instances")
 	for _, storage := range i.model.Storages() {
 		err := i.addStorageInstance(storage)
 		if err != nil {
-			i.logger.Errorf("error importing storage %s: %s", storage.Tag(), err)
+			i.logger.Errorf(ctx, "error importing storage %s: %s", storage.Tag(), err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing storage instances succeeded")
+	i.logger.Debugf(ctx, "importing storage instances succeeded")
 	return nil
 }
 
@@ -2186,7 +2186,7 @@ func (i *importer) storageInstanceConstraints(storage description.Storage) stora
 				break
 			}
 		}
-		logger.Warningf(
+		logger.Warningf(ctx,
 			"no volume or filesystem found, using application storage constraints for %s",
 			names.ReadableString(storage.Tag()),
 		)
@@ -2195,7 +2195,7 @@ func (i *importer) storageInstanceConstraints(storage description.Storage) stora
 }
 
 func (i *importer) volumes() error {
-	i.logger.Debugf("importing volumes")
+	i.logger.Debugf(ctx, "importing volumes")
 	sb, err := NewStorageBackend(i.st)
 	if err != nil {
 		return errors.Trace(err)
@@ -2203,11 +2203,11 @@ func (i *importer) volumes() error {
 	for _, volume := range i.model.Volumes() {
 		err := i.addVolume(volume, sb)
 		if err != nil {
-			i.logger.Errorf("error importing volume %s: %s", volume.Tag(), err)
+			i.logger.Errorf(ctx, "error importing volume %s: %s", volume.Tag(), err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing volumes succeeded")
+	i.logger.Debugf(ctx, "importing volumes succeeded")
 	return nil
 }
 
@@ -2353,7 +2353,7 @@ func (i *importer) addVolumeAttachmentOp(volID string, attachment description.Vo
 }
 
 func (i *importer) filesystems() error {
-	i.logger.Debugf("importing filesystems")
+	i.logger.Debugf(ctx, "importing filesystems")
 	sb, err := NewStorageBackend(i.st)
 	if err != nil {
 		return errors.Trace(err)
@@ -2361,11 +2361,11 @@ func (i *importer) filesystems() error {
 	for _, fs := range i.model.Filesystems() {
 		err := i.addFilesystem(fs, sb)
 		if err != nil {
-			i.logger.Errorf("error importing filesystem %s: %s", fs.Tag(), err)
+			i.logger.Errorf(ctx, "error importing filesystem %s: %s", fs.Tag(), err)
 			return errors.Trace(err)
 		}
 	}
-	i.logger.Debugf("importing filesystems succeeded")
+	i.logger.Debugf(ctx, "importing filesystems succeeded")
 	return nil
 }
 
@@ -2464,7 +2464,7 @@ func (i *importer) secretBackend() error {
 		// So we suggest to upgrade the source controller if no backend ID in the exported data(because the source model is too old).
 		return errors.NotFoundf("secret backend config %q in model export", mSecretBackendName)
 	}
-	i.logger.Debugf("importing secret backend")
+	i.logger.Debugf(ctx, "importing secret backend")
 	backends := NewSecretBackends(i.st)
 	mBackend, err := backends.GetSecretBackendByID(backendID)
 	if err != nil {
@@ -2475,7 +2475,7 @@ func (i *importer) secretBackend() error {
 }
 
 func (i *importer) secrets() error {
-	i.logger.Debugf("importing secrets")
+	i.logger.Debugf(ctx, "importing secrets")
 	backends := NewSecretBackends(i.st)
 	allBackends, err := backends.ListSecretBackends()
 	if err != nil {
@@ -2504,12 +2504,12 @@ func (i *importer) secrets() error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing secrets succeeded")
+	i.logger.Debugf(ctx, "importing secrets succeeded")
 	return nil
 }
 
 func (i *importer) remoteSecrets() error {
-	i.logger.Debugf("importing remote secret references")
+	i.logger.Debugf(ctx, "importing remote secret references")
 	migration := &ImportStateMigration{
 		src: i.model,
 		dst: i.st.db(),
@@ -2526,6 +2526,6 @@ func (i *importer) remoteSecrets() error {
 	if err := migration.Run(); err != nil {
 		return errors.Trace(err)
 	}
-	i.logger.Debugf("importing remote secret references succeeded")
+	i.logger.Debugf(ctx, "importing remote secret references succeeded")
 	return nil
 }

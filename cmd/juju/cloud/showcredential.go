@@ -103,7 +103,7 @@ func (c *showCredentialCommand) Run(ctxt *cmd.Context) error {
 	if c.Client {
 		result, err := c.localCredentials(ctxt)
 		if err != nil {
-			ctxt.Infof("ERROR client credential content lookup failed: %v", err)
+			ctxt.Infof(ctx, "ERROR client credential content lookup failed: %v", err)
 			returnErr = cmd.ErrSilent
 		} else {
 			all.Client = c.parseContents(ctxt, result)
@@ -112,14 +112,14 @@ func (c *showCredentialCommand) Run(ctxt *cmd.Context) error {
 	if c.ControllerName != "" {
 		remoteContents, err := c.remoteCredentials(ctxt)
 		if err != nil {
-			ctxt.Infof("ERROR credential content lookup on the controller failed: %v", err)
+			ctxt.Infof(ctx, "ERROR credential content lookup on the controller failed: %v", err)
 			returnErr = cmd.ErrSilent
 		} else {
 			all.Controller = c.parseContents(ctxt, remoteContents)
 		}
 	}
 	if len(all.Client) == 0 && len(all.Controller) == 0 {
-		ctxt.Infof("No credentials from this client or from a controller to display.")
+		ctxt.Infof(ctx, "No credentials from this client or from a controller to display.")
 		return nil
 	}
 	if err := c.out.Write(ctxt, all); err != nil {
@@ -160,7 +160,7 @@ func (c *showCredentialCommand) localCredentials(ctxt *cmd.Context) ([]params.Cr
 	for cloudName, cloudLocal := range locals {
 		if !c.ShowSecrets {
 			if err := removeSecrets(cloudName, &cloudLocal, cloud.CloudByName); err != nil {
-				ctxt.Warningf("removing secrets from credentials for cloud %v: %v", c.CloudName, err)
+				ctxt.Warningf(ctx, "removing secrets from credentials for cloud %v: %v", c.CloudName, err)
 				continue
 			}
 		}
@@ -222,7 +222,7 @@ func (c *showCredentialCommand) parseContents(ctxt *cmd.Context, in []params.Cre
 	out := CloudCredentials{}
 	for _, result := range in {
 		if result.Error != nil {
-			ctxt.Infof("%v", result.Error)
+			ctxt.Infof(ctx, "%v", result.Error)
 			continue
 		}
 

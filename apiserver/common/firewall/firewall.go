@@ -26,7 +26,7 @@ func WatchEgressAddressesForRelations(resources facade.Resources, st State, mode
 	}
 
 	one := func(tag string) (id string, changes []string, _ error) {
-		logger.Debugf("Watching egress addresses for %+v", tag)
+		logger.Debugf(ctx, "Watching egress addresses for %+v", tag)
 
 		relationTag, err := names.ParseRelationTag(tag)
 		if err != nil {
@@ -49,7 +49,7 @@ func WatchEgressAddressesForRelations(resources facade.Resources, st State, mode
 		//filter := func(id interface{}) bool {
 		//	include, err := includeAsIngressSubnet(id.(string))
 		//	if err != nil {
-		//		logger.Warningf("invalid CIDR %q", id)
+		//		logger.Warningf(ctx, "invalid CIDR %q", id)
 		//	}
 		//	return include
 		//}

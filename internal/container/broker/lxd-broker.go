@@ -140,7 +140,7 @@ func (broker *lxdBroker) StartInstance(ctx envcontext.ProviderCallContext, args 
 func (broker *lxdBroker) StopInstances(ctx envcontext.ProviderCallContext, ids ...instance.Id) error {
 	// TODO: potentially parallelise.
 	for _, id := range ids {
-		lxdLogger.Infof("stopping lxd container for instance: %s", id)
+		lxdLogger.Infof(ctx, "stopping lxd container for instance: %s", id)
 		if err := broker.manager.DestroyContainer(id); err != nil {
 			lxdLogger.Errorf("container did not stop: %v", err)
 			return err

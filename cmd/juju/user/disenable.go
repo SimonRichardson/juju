@@ -134,7 +134,7 @@ func (c *disableCommand) Run(ctx *cmd.Context) error {
 	if err := c.api.DisableUser(c.User); err != nil {
 		return block.ProcessBlockedError(err, block.BlockChange)
 	}
-	ctx.Infof("User %q disabled", c.User)
+	ctx.Infof(ctx, "User %q disabled", c.User)
 	return nil
 }
 
@@ -152,6 +152,6 @@ func (c *enableCommand) Run(ctx *cmd.Context) error {
 	if err := c.api.EnableUser(c.User); err != nil {
 		return block.ProcessBlockedError(err, block.BlockChange)
 	}
-	ctx.Infof("User %q enabled", c.User)
+	ctx.Infof(ctx, "User %q enabled", c.User)
 	return nil
 }

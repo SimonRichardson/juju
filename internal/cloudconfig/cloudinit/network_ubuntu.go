@@ -32,7 +32,7 @@ func GenerateENITemplate(interfaces corenetwork.InterfaceInfos) (string, error) 
 	if len(interfaces) == 0 {
 		return "", errors.Errorf("missing container network config")
 	}
-	logger.Debugf("generating /e/n/i template from %#v", interfaces)
+	logger.Debugf(ctx, "generating /e/n/i template from %#v", interfaces)
 
 	prepared, err := PrepareNetworkConfigFromInterfaces(interfaces)
 	if err != nil {
@@ -125,14 +125,14 @@ func GenerateENITemplate(interfaces corenetwork.InterfaceInfos) (string, error) 
 	}
 
 	generatedConfig := output.String()
-	logger.Debugf("generated network config:\n%s", generatedConfig)
+	logger.Debugf(ctx, "generated network config:\n%s", generatedConfig)
 
 	if hasV4Interface && !gateway4Handled {
-		logger.Infof("generated network config has no ipv4 gateway")
+		logger.Infof(ctx, "generated network config has no ipv4 gateway")
 	}
 
 	if hasV6Interface && !gateway6Handled {
-		logger.Infof("generated network config has no ipv6 gateway")
+		logger.Infof(ctx, "generated network config has no ipv6 gateway")
 	}
 
 	return generatedConfig, nil
@@ -146,7 +146,7 @@ func GenerateNetplan(interfaces corenetwork.InterfaceInfos, matchHWAddr bool) (s
 	if len(interfaces) == 0 {
 		return "", errors.Errorf("missing container network config")
 	}
-	logger.Debugf("generating netplan from %#v", interfaces)
+	logger.Debugf(ctx, "generating netplan from %#v", interfaces)
 	var netPlan netplan.Netplan
 	netPlan.Network.Ethernets = make(map[string]netplan.Ethernet)
 	netPlan.Network.Version = 2
@@ -307,7 +307,7 @@ func PrepareNetworkConfigFromInterfaces(interfaces corenetwork.InterfaceInfos) (
 		Gateway6Address:  gateway6Address,
 	}
 
-	logger.Debugf("prepared network config for rendering: %+v", prepared)
+	logger.Debugf(ctx, "prepared network config for rendering: %+v", prepared)
 	return prepared, nil
 }
 

@@ -211,14 +211,14 @@ func (w *configWorker) loop() error {
 		case <-w.reloadRequested:
 			w.reportInternalState(stateReload)
 
-			w.cfg.Logger.Infof("reload config request received, reloading config")
+			w.cfg.Logger.Infof(ctx, "reload config request received, reloading config")
 
 			for _, name := range w.runner.WorkerNames() {
 				runnerWorker, err := w.runner.Worker(name, w.catacomb.Dying())
 				if err != nil {
 					if errors.Is(err, errors.NotFound) {
 
-						w.cfg.Logger.Debugf("worker %q not found, skipping", name)
+						w.cfg.Logger.Debugf(ctx, "worker %q not found, skipping", name)
 						continue
 					}
 					// If the runner is dead, we should stop.

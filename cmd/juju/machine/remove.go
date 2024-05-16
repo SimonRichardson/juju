@@ -182,7 +182,7 @@ func (c *removeCommand) Run(ctx *cmd.Context) error {
 	if needsConfirmation {
 		err := c.performDryRun(ctx, client)
 		if err == errDryRunNotSupported {
-			ctx.Warningf(removeMachineMsgNoDryRun, strings.Join(c.MachineIds, ", "))
+			ctx.Warningf(ctx, removeMachineMsgNoDryRun, strings.Join(c.MachineIds, ", "))
 		} else if err != nil {
 			return err
 		}
@@ -216,10 +216,10 @@ func (c *removeCommand) performDryRun(ctx *cmd.Context, client RemoveMachineAPI)
 	if err := c.logErrors(ctx, results); err != nil {
 		return err
 	}
-	ctx.Warningf(removeMachineMsgPrefix)
+	ctx.Warningf(ctx, removeMachineMsgPrefix)
 	_ = c.logResults(ctx, results)
 	if c.runNeedsForce(results) && !c.Force {
-		ctx.Infof("\nThis will require `--force`")
+		ctx.Infof(ctx, "\nThis will require `--force`")
 	}
 	return nil
 }
@@ -279,7 +279,7 @@ func (c *removeCommand) logRemovedMachine(ctx *cmd.Context, info *params.Destroy
 	for _, entity := range info.DestroyedUnits {
 		unitTag, err := names.ParseUnitTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will remove %s\n", names.ReadableString(unitTag))
@@ -287,7 +287,7 @@ func (c *removeCommand) logRemovedMachine(ctx *cmd.Context, info *params.Destroy
 	for _, entity := range info.DestroyedStorage {
 		storageTag, err := names.ParseStorageTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will remove %s\n", names.ReadableString(storageTag))
@@ -295,7 +295,7 @@ func (c *removeCommand) logRemovedMachine(ctx *cmd.Context, info *params.Destroy
 	for _, entity := range info.DetachedStorage {
 		storageTag, err := names.ParseStorageTag(entity.Tag)
 		if err != nil {
-			ctx.Warningf("%s", err)
+			ctx.Warningf(ctx, "%s", err)
 			continue
 		}
 		_, _ = fmt.Fprintf(ctx.Stdout, "- will detach %s\n", names.ReadableString(storageTag))

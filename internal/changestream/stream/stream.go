@@ -228,7 +228,7 @@ func (s *Stream) loop() error {
 				continue
 			}
 
-			s.logger.Infof("Change stream has been blocked")
+			s.logger.Infof(ctx, "Change stream has been blocked")
 
 			// Create an inner loop, that will block the outer loop until we
 			// receive a change fileCreated event from the file notifier.
@@ -244,11 +244,11 @@ func (s *Stream) loop() error {
 					// If we get a fileCreated event, and we're already waiting
 					// for a fileRemoved event, then we're in the middle of a
 					// block, so just continue.
-					s.logger.Debugf("ignoring file change event")
+					s.logger.Debugf(ctx, "ignoring file change event")
 				}
 			}
 
-			s.logger.Infof("Change stream has been unblocked")
+			s.logger.Infof(ctx, "Change stream has been unblocked")
 
 		case <-watermarkTimer.Chan():
 			// Every interval we'll write the last ID to the database. This
@@ -259,7 +259,7 @@ func (s *Stream) loop() error {
 			// The addition of a witness_at timestamp allows us to see how
 			// far each controller is behind the current time.
 			if err := s.updateWatermark(); err != nil {
-				s.logger.Infof("failed to record last ID: %v", err)
+				s.logger.Infof(ctx, "failed to record last ID: %v", err)
 			}
 
 			watermarkTimer.Reset(defaultWatermarkInterval)
@@ -316,7 +316,7 @@ func (s *Stream) loop() error {
 			)
 			for _, change := range changes {
 				if traceEnabled {
-					s.logger.Tracef("change event: %v", change)
+					s.logger.Tracef(ctx, "change event: %v", change)
 				}
 				term.changes = append(term.changes, change)
 
@@ -329,7 +329,7 @@ func (s *Stream) loop() error {
 			}
 			if lower == math.MaxInt64 || upper == math.MinInt64 {
 				// This should never happen, but if it does, just continue.
-				s.logger.Infof("invalid lower or upper bound: lower: %d, upper: %d", lower, upper)
+				s.logger.Infof(ctx, "invalid lower or upper bound: lower: %d, upper: %d", lower, upper)
 				continue
 			}
 
@@ -361,7 +361,7 @@ func (s *Stream) loop() error {
 					// aborted, so we just continue. This is likely the case
 					// when the worker is dying. We don't want to block the
 					// change stream, so we just continue.
-					s.logger.Infof("term has been aborted")
+					s.logger.Infof(ctx, "term has been aborted")
 					continue
 				}
 

@@ -87,7 +87,7 @@ func mergePayloadMaps(payloads, updates map[string]corepayloads.Payload) map[str
 // GetPayload returns the payload info corresponding to the given ID.
 func (c *PayloadsHookContext) GetPayload(class, id string) (*corepayloads.Payload, error) {
 	fullID := corepayloads.BuildID(class, id)
-	logger.Tracef("getting %q from hook context", fullID)
+	logger.Tracef(ctx, "getting %q from hook context", fullID)
 
 	actual, ok := c.updates[fullID]
 	if !ok {
@@ -101,7 +101,7 @@ func (c *PayloadsHookContext) GetPayload(class, id string) (*corepayloads.Payloa
 
 // ListPayloads returns the sorted names of all registered payloads.
 func (c *PayloadsHookContext) ListPayloads() ([]string, error) {
-	logger.Tracef("listing all payloads in hook context")
+	logger.Tracef(ctx, "listing all payloads in hook context")
 
 	payloads, err := c.Payloads()
 	if err != nil {
@@ -120,7 +120,7 @@ func (c *PayloadsHookContext) ListPayloads() ([]string, error) {
 
 // TrackPayload records the payload info in the hook context.
 func (c *PayloadsHookContext) TrackPayload(pl corepayloads.Payload) error {
-	logger.Tracef("adding %q to hook context: %#v", pl.FullID(), pl)
+	logger.Tracef(ctx, "adding %q to hook context: %#v", pl.FullID(), pl)
 
 	if err := pl.Validate(); err != nil {
 		return errors.Trace(err)
@@ -135,7 +135,7 @@ func (c *PayloadsHookContext) TrackPayload(pl corepayloads.Payload) error {
 // UntrackPayload tells juju to stop tracking this payload.
 func (c *PayloadsHookContext) UntrackPayload(class, id string) error {
 	fullID := corepayloads.BuildID(class, id)
-	logger.Tracef("Calling untrack on payload context %q", fullID)
+	logger.Tracef(ctx, "Calling untrack on payload context %q", fullID)
 
 	res, err := c.client.Untrack(fullID)
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *PayloadsHookContext) UntrackPayload(class, id string) error {
 // SetPayloadStatus sets the identified payload's status.
 func (c *PayloadsHookContext) SetPayloadStatus(class, id, status string) error {
 	fullID := corepayloads.BuildID(class, id)
-	logger.Tracef("Calling status-set on payload context %q", fullID)
+	logger.Tracef(ctx, "Calling status-set on payload context %q", fullID)
 
 	res, err := c.client.SetStatus(status, fullID)
 	if err != nil {
@@ -181,7 +181,7 @@ func (c *PayloadsHookContext) SetPayloadStatus(class, id, status string) error {
 // added and updated payloads.Payload in the hook context are pushed to
 // Juju state via the API.
 func (c *PayloadsHookContext) FlushPayloads() error {
-	logger.Tracef("flushing from hook context to state")
+	logger.Tracef(ctx, "flushing from hook context to state")
 	// TODO(natefinch): make this a noop and move this code into set.
 
 	if len(c.updates) > 0 {

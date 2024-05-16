@@ -121,7 +121,7 @@ func updateToolsAvailability(ctx context.Context, modelGetter ModelGetter, newEn
 		return errors.Annotate(err, "cannot get latest version")
 	}
 	if ver == version.Zero {
-		logger.Debugf("The lookup of agent binaries returned version Zero. This should only happen during bootstrap.")
+		logger.Debugf(ctx, "The lookup of agent binaries returned version Zero. This should only happen during bootstrap.")
 		return nil
 	}
 	return update(model, ver)

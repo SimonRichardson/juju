@@ -42,7 +42,7 @@ type ConfigureParams struct {
 // SSH, and executes the provided script which is expected
 // to have been returned by cloudinit ConfigureScript.
 func RunConfigureScript(script string, params ConfigureParams) error {
-	logger.Tracef("Running script on %s: %s", params.Host, script)
+	logger.Tracef(ctx, "Running script on %s: %s", params.Host, script)
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(`
 set -e

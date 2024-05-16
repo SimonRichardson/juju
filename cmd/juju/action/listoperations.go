@@ -186,7 +186,7 @@ func (c *listOperationsCommand) Run(ctx *cmd.Context) error {
 	out := make(map[string]interface{})
 	var operationResults byId = results.Operations
 	if len(operationResults) == 0 {
-		ctx.Infof("no matching operations")
+		ctx.Infof(ctx, "no matching operations")
 		return nil
 	}
 

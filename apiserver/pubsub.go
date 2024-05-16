@@ -41,7 +41,7 @@ type pubsubHandler struct {
 // ServeHTTP implements the http.Handler interface.
 func (h *pubsubHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	handler := func(socket *websocket.Conn) {
-		h.logger.Debugf("start of *pubsubHandler.ServeHTTP")
+		h.logger.Debugf(ctx, "start of *pubsubHandler.ServeHTTP")
 		defer socket.Close()
 
 		// If we get to here, no more errors to report, so we report a nil
@@ -70,14 +70,14 @@ func (h *pubsubHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				if err := socket.WriteControl(gorillaws.PingMessage, []byte{}, deadline); err != nil {
 					// This error is expected if the other end goes away. By
 					// returning we close the socket through the defer call.
-					h.logger.Debugf("failed to write ping: %s", err)
+					h.logger.Debugf(ctx, "failed to write ping: %s", err)
 					return
 				}
 			case m := <-messageCh:
-				h.logger.Tracef("topic: %q, data: %v", m.Topic, m.Data)
+				h.logger.Tracef(ctx, "topic: %q, data: %v", m.Topic, m.Data)
 				_, err := h.hub.Publish(m.Topic, m.Data)
 				if err != nil {
-					h.logger.Errorf("publish failed: %v", err)
+					h.logger.Errorf(ctx, "publish failed: %v", err)
 				}
 			}
 		}
@@ -100,9 +100,9 @@ func (h *pubsubHandler) receiveMessages(socket *websocket.Conn) <-chan params.Pu
 				// Since we don't give a list of expected error codes,
 				// any CloseError type is considered unexpected.
 				if gorillaws.IsUnexpectedCloseError(err) {
-					h.logger.Tracef("websocket closed")
+					h.logger.Tracef(ctx, "websocket closed")
 				} else {
-					h.logger.Errorf("pubsub receive error: %v", err)
+					h.logger.Errorf(ctx, "pubsub receive error: %v", err)
 				}
 				return
 			}
@@ -124,10 +124,10 @@ func (h *pubsubHandler) sendError(ws *websocket.Conn, req *http.Request, err err
 	// There is no need to log the error for normal operators as there is nothing
 	// they can action. This is for developers.
 	if err != nil && featureflag.Enabled(feature.DeveloperMode) {
-		h.logger.Errorf("returning error from %s %s: %s", req.Method, req.URL.Path, errors.Details(err))
+		h.logger.Errorf(ctx, "returning error from %s %s: %s", req.Method, req.URL.Path, errors.Details(err))
 	}
 	if sendErr := ws.SendInitialErrorV0(err); sendErr != nil {
-		h.logger.Errorf("closing websocket, %v", err)
+		h.logger.Errorf(ctx, "closing websocket, %v", err)
 		ws.Close()
 		return
 	}

@@ -108,7 +108,7 @@ type secretBackendDisplayDetails struct {
 // Run implements cmd.Run.
 func (c *listSecretBackendsCommand) Run(ctxt *cmd.Context) error {
 	if c.revealSecrets && c.out.Name() == "tabular" {
-		ctxt.Infof("sensitive config values are not shown in tabular format")
+		ctxt.Infof(ctx, "sensitive config values are not shown in tabular format")
 		c.revealSecrets = false
 	}
 
@@ -124,7 +124,7 @@ func (c *listSecretBackendsCommand) Run(ctxt *cmd.Context) error {
 	}
 	details := gatherSecretBackendInfo(result)
 	if len(details) == 0 {
-		ctxt.Infof("no secret backends have been added to this controller\n")
+		ctxt.Infof(ctx, "no secret backends have been added to this controller\n")
 		return nil
 	}
 	return c.out.Write(ctxt, details)

@@ -90,7 +90,7 @@ func ubuntuSKU(ctx envcontext.ProviderCallContext, base jujubase.Base, stream, l
 	}
 	offer := offerForUbuntuSeries(series)
 	version := strings.ReplaceAll(base.Channel.Track, ".", "_")
-	logger.Debugf("listing SKUs: Location=%s, Publisher=%s, Offer=%s", location, ubuntuPublisher, offer)
+	logger.Debugf(ctx, "listing SKUs: Location=%s, Publisher=%s, Offer=%s", location, ubuntuPublisher, offer)
 	result, err := client.ListSKUs(ctx, location, ubuntuPublisher, offer, nil)
 	if err != nil {
 		return "", "", errorutils.HandleCredentialError(errors.Annotate(err, "listing Ubuntu SKUs"), ctx)
@@ -99,17 +99,17 @@ func ubuntuSKU(ctx envcontext.ProviderCallContext, base jujubase.Base, stream, l
 	var versions ubuntuVersions
 	for _, img := range result.VirtualMachineImageResourceArray {
 		skuName := *img.Name
-		logger.Debugf("Found Azure SKU Name: %v", skuName)
+		logger.Debugf(ctx, "Found Azure SKU Name: %v", skuName)
 		if !strings.HasPrefix(skuName, version) {
-			logger.Debugf("ignoring SKU %q (does not match base %q with version %q)", skuName, base, version)
+			logger.Debugf(ctx, "ignoring SKU %q (does not match base %q with version %q)", skuName, base, version)
 			continue
 		}
 		version, tag, err := parseUbuntuSKU(skuName)
 		if err != nil {
-			logger.Errorf("ignoring SKU %q (failed to parse: %s)", skuName, err)
+			logger.Errorf(ctx, "ignoring SKU %q (failed to parse: %s)", skuName, err)
 			continue
 		}
-		logger.Debugf("SKU has version %#v and tag %q", version, tag)
+		logger.Debugf(ctx, "SKU has version %#v and tag %q", version, tag)
 		var skuStream string
 		switch tag {
 		case "", "LTS":
@@ -118,7 +118,7 @@ func ubuntuSKU(ctx envcontext.ProviderCallContext, base jujubase.Base, stream, l
 			skuStream = dailyStream
 		}
 		if skuStream == "" || skuStream != stream {
-			logger.Debugf("ignoring SKU %q (not in %q stream)", skuName, stream)
+			logger.Debugf(ctx, "ignoring SKU %q (not in %q stream)", skuName, stream)
 			continue
 		}
 		skuNamesByVersion[version] = skuName

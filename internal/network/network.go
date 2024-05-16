@@ -75,7 +75,7 @@ func addrMapToIPNetAndName(bridgeToAddrs map[string][]string) []ipNetAndName {
 				ip = net.ParseIP(addr)
 			}
 			if ip == nil {
-				logger.Debugf("cannot parse %q as IP, ignoring", addr)
+				logger.Debugf(ctx, "cannot parse %q as IP, ignoring", addr)
 				continue
 			}
 			if ipNet == nil {
@@ -83,15 +83,15 @@ func addrMapToIPNetAndName(bridgeToAddrs map[string][]string) []ipNetAndName {
 				if ip.To4() != nil {
 					_, ipNet, err = net.ParseCIDR(ip.String() + "/32")
 					if err != nil {
-						logger.Debugf("error creating a /32 CIDR for %q", addr)
+						logger.Debugf(ctx, "error creating a /32 CIDR for %q", addr)
 					}
 				} else if ip.To16() != nil {
 					_, ipNet, err = net.ParseCIDR(ip.String() + "/128")
 					if err != nil {
-						logger.Debugf("error creating a /128 CIDR for %q", addr)
+						logger.Debugf(ctx, "error creating a /128 CIDR for %q", addr)
 					}
 				} else {
-					logger.Debugf("failed to convert %q to a v4 or v6 address, ignoring", addr)
+					logger.Debugf(ctx, "failed to convert %q to a v4 or v6 address, ignoring", addr)
 				}
 			}
 			ipNets = append(ipNets, ipNetAndName{ipnet: ipNet, name: bridgeName})
@@ -115,7 +115,7 @@ func filterAddrs(
 		// Then check if it is in one of the CIDRs
 		ip := net.ParseIP(addr.Value)
 		if ip == nil {
-			logger.Debugf("not filtering invalid IP: %q", addr.Value)
+			logger.Debugf(ctx, "not filtering invalid IP: %q", addr.Value)
 		} else {
 			for _, ipNetName := range ipNets {
 				if ipNetName.ipnet.Contains(ip) {
@@ -125,10 +125,10 @@ func filterAddrs(
 			}
 		}
 		if bridgeName == "" {
-			logger.Debugf("including address %v for machine", addr)
+			logger.Debugf(ctx, "including address %v for machine", addr)
 			filtered = append(filtered, addr)
 		} else {
-			logger.Debugf("filtering %q address %s for machine", bridgeName, addr.String())
+			logger.Debugf(ctx, "filtering %q address %s for machine", bridgeName, addr.String())
 		}
 	}
 	return filtered
@@ -137,10 +137,10 @@ func filterAddrs(
 func gatherBridgeAddresses(bridgeName string, toRemove map[string][]string) {
 	addrs, err := AddressesForInterfaceName(bridgeName)
 	if err != nil {
-		logger.Debugf("cannot get %q addresses: %v (ignoring)", bridgeName, err)
+		logger.Debugf(ctx, "cannot get %q addresses: %v (ignoring)", bridgeName, err)
 		return
 	}
-	logger.Debugf("%q has addresses %v", bridgeName, addrs)
+	logger.Debugf(ctx, "%q has addresses %v", bridgeName, addrs)
 	toRemove[bridgeName] = addrs
 }
 
@@ -152,7 +152,7 @@ func FilterBridgeAddresses(addresses corenetwork.ProviderAddresses) corenetwork.
 	addressesToRemove := make(map[string][]string)
 	gatherBridgeAddresses(DefaultLXDBridge, addressesToRemove)
 	filtered := filterAddrs(addresses, addressesToRemove)
-	logger.Debugf("addresses after filtering: %v", filtered)
+	logger.Debugf(ctx, "addresses after filtering: %v", filtered)
 	return filtered
 }
 

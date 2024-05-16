@@ -149,7 +149,7 @@ func (c *listCommand) modelUsers(ctx *cmd.Context) error {
 		return err
 	}
 	if len(result) == 0 {
-		ctx.Infof("No users to display.")
+		ctx.Infof(ctx, "No users to display.")
 		return nil
 	}
 	return c.out.Write(ctx, common.ModelUserInfoFromParams(result, c.clock.Now()))
@@ -170,7 +170,7 @@ func (c *listCommand) controllerUsers(ctx *cmd.Context) error {
 	}
 
 	if len(result) == 0 {
-		ctx.Infof("No users to display.")
+		ctx.Infof(ctx, "No users to display.")
 		return nil
 	}
 

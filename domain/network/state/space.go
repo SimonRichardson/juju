@@ -250,7 +250,7 @@ func (st *State) GetAllSpaces(
 	}); errors.Is(err, sqlair.ErrNoRows) || len(rows) == 0 {
 		return nil, nil
 	} else if err != nil {
-		st.logger.Errorf("querying all spaces, %v", err)
+		st.logger.Errorf(ctx, "querying all spaces, %v", err)
 		return nil, errors.Annotate(domain.CoerceError(err), "querying all spaces")
 	}
 

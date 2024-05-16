@@ -254,7 +254,7 @@ func (w *trackedDBWorker) loop() error {
 		}
 		err := w.db.PlainDB().Close()
 		if err != nil {
-			w.logger.Debugf("Closed database connection: %v", err)
+			w.logger.Debugf(ctx, "Closed database connection: %v", err)
 		}
 	}()
 
@@ -281,7 +281,7 @@ func (w *trackedDBWorker) loop() error {
 				// If we get an error, ensure we close the underlying db and
 				// mark the tracked db in an error state.
 				if err := currentDB.Close(); err != nil {
-					w.logger.Errorf("error closing database: %v", err)
+					w.logger.Errorf(ctx, "error closing database: %v", err)
 				}
 				w.mutex.Lock()
 				w.err = errors.Trace(err)
@@ -298,7 +298,7 @@ func (w *trackedDBWorker) loop() error {
 			if newDB != currentDB {
 				w.mutex.Lock()
 				if err := currentDB.Close(); err != nil {
-					w.logger.Errorf("error closing database: %v", err)
+					w.logger.Errorf(ctx, "error closing database: %v", err)
 				}
 				w.db = sqlair.NewDB(newDB)
 				w.report.Set(func(r *report) {
@@ -328,7 +328,7 @@ func (w *trackedDBWorker) ensureDBAliveAndOpenIfRequired(db *sql.DB) (*sql.DB, e
 	defer cancel()
 
 	if w.logger.IsLevelEnabled(logger.TRACE) {
-		w.logger.Tracef("ensuring database %q is alive", w.namespace)
+		w.logger.Tracef(ctx, "ensuring database %q is alive", w.namespace)
 	}
 
 	// There are multiple levels of retries here.
@@ -348,7 +348,7 @@ func (w *trackedDBWorker) ensureDBAliveAndOpenIfRequired(db *sql.DB) (*sql.DB, e
 		var pingAttempts uint32 = 0
 		err := database.Retry(ctx, func() error {
 			if w.logger.IsLevelEnabled(logger.TRACE) {
-				w.logger.Tracef("pinging database %q", w.namespace)
+				w.logger.Tracef(ctx, "pinging database %q", w.namespace)
 			}
 			pingAttempts++
 			return w.pingDBFunc(ctx, db)
@@ -378,7 +378,7 @@ func (w *trackedDBWorker) ensureDBAliveAndOpenIfRequired(db *sql.DB) (*sql.DB, e
 
 		// We got an error that is non-retryable, attempt to open a new database
 		// connection and see if that works.
-		w.logger.Warningf("unable to ping database %q: attempting to reopen the database before trying again: %v",
+		w.logger.Warningf(ctx, "unable to ping database %q: attempting to reopen the database before trying again: %v",
 			w.namespace, err)
 
 		// Attempt to open a new database. If there is an error, just crash

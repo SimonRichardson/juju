@@ -438,7 +438,7 @@ func probablyUpdateStatusHistory(db Database,
 			bson.D{{"_id", currentID}},
 			bson.D{{"$set", bson.D{{"updated", doc.Updated}}}})
 		if err != nil {
-			logger.Errorf("failed to update status history: %v", err)
+			logger.Errorf(ctx, "failed to update status history: %v", err)
 			return false, err
 		}
 		return false, nil
@@ -447,7 +447,7 @@ func probablyUpdateStatusHistory(db Database,
 	historyW := history.Writeable()
 	err := historyW.Insert(historyDoc)
 	if err != nil {
-		logger.Errorf("failed to write status history: %v", err)
+		logger.Errorf(ctx, "failed to write status history: %v", err)
 		return false, err
 	}
 	return true, nil
@@ -520,7 +520,7 @@ func eraseStatusHistory(stop <-chan struct{}, mb modelBackend, globalKey string)
 		return errors.Trace(err)
 	}
 	if deleted > 0 {
-		logger.Debugf(logFormat, deleted)
+		logger.Debugf(ctx, logFormat, deleted)
 	}
 	return nil
 }

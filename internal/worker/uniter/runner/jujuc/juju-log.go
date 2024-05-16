@@ -74,7 +74,7 @@ func (c *JujuLogCommand) Run(ctx *cmd.Context) error {
 		var ok bool
 		logLevel, ok = corelogger.ParseLevelFromString(c.Level)
 		if !ok {
-			logger.Warningf("Specified log level of %q is not valid", c.Level)
+			logger.Warningf(ctx, "Specified log level of %q is not valid", c.Level)
 			logLevel = corelogger.INFO
 		}
 	}

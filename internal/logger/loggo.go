@@ -28,7 +28,7 @@ func (c loggoLogger) Criticalf(ctx context.Context, msg string, args ...any) {
 
 // Error logs a message at the error level.
 func (c loggoLogger) Errorf(ctx context.Context, msg string, args ...any) {
-	c.logger.Errorf(msg, args...)
+	c.logger.Errorf(ctx, msg, args...)
 }
 
 // Warning logs a message at the warning level.

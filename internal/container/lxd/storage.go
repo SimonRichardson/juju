@@ -82,6 +82,6 @@ func (s *Server) EnsureDefaultStorage(profile *api.Profile, eTag string) error {
 	if err := s.UpdateProfile(profile.Name, profile.Writable(), eTag); err != nil {
 		return errors.Trace(err)
 	}
-	logger.Debugf("created new disk device \"root\" in profile %q", profile.Name)
+	logger.Debugf(ctx, "created new disk device \"root\" in profile %q", profile.Name)
 	return nil
 }

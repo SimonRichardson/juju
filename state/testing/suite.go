@@ -137,7 +137,7 @@ func (s *StateSuite) hubWatcherIdleFunc(modelUUID string) {
 func (s *StateSuite) WaitForModelWatchersIdle(c *gc.C, modelUUID string) {
 	// Use a logger rather than c.Log so we get timestamps.
 	logger := loggertesting.WrapCheckLog(c)
-	logger.Infof("waiting for model %s to be idle", modelUUID)
+	logger.Infof(ctx, "waiting for model %s to be idle", modelUUID)
 	// Create idle channel after the sync so as to be sure that at least
 	// one sync is complete before signalling the idle timer.
 	s.modelWatcherMutex.Lock()
@@ -168,7 +168,7 @@ func (s *StateSuite) WaitForModelWatchersIdle(c *gc.C, modelUUID string) {
 			if uuid == modelUUID {
 				return
 			} else {
-				logger.Infof("model %s is idle", uuid)
+				logger.Infof(ctx, "model %s is idle", uuid)
 			}
 		case <-timeout:
 			c.Fatal("no sync event sent, is the watcher dead?")

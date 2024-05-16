@@ -78,7 +78,7 @@ func (h *charmsHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err := sendJSONError(w, r, errors.Trace(err)); err != nil {
-			logger.Errorf("%v", errors.Annotate(err, "cannot return error to user"))
+			logger.Errorf(ctx, "%v", errors.Annotate(err, "cannot return error to user"))
 		}
 	}
 }
@@ -102,7 +102,7 @@ func (h *charmsHandler) ServeUnsupported(w http.ResponseWriter, r *http.Request)
 
 func (h *charmsHandler) ServePost(w http.ResponseWriter, r *http.Request) error {
 	if h.logger.IsLevelEnabled(corelogger.TRACE) {
-		h.logger.Tracef("ServePost(%s)", r.URL)
+		h.logger.Tracef(ctx, "ServePost(%s)", r.URL)
 	}
 
 	if r.Method != "POST" {
@@ -131,7 +131,7 @@ func (h *charmsHandler) ServePost(w http.ResponseWriter, r *http.Request) error 
 
 func (h *charmsHandler) ServeGet(w http.ResponseWriter, r *http.Request) error {
 	if h.logger.IsLevelEnabled(corelogger.TRACE) {
-		h.logger.Tracef("ServeGet(%s)", r.URL)
+		h.logger.Tracef(ctx, "ServeGet(%s)", r.URL)
 	}
 
 	if r.Method != "GET" {
@@ -583,9 +583,9 @@ func sendJSONError(w http.ResponseWriter, req *http.Request, err error) error {
 		//
 		// We should log this at debug level to avoid unnecessary noise
 		// in the logs.
-		logger.Debugf("returning error from %s %s: %s", req.Method, req.URL, errors.Details(err))
+		logger.Debugf(ctx, "returning error from %s %s: %s", req.Method, req.URL, errors.Details(err))
 	} else {
-		logger.Errorf("returning error from %s %s: %s", req.Method, req.URL, errors.Details(err))
+		logger.Errorf(ctx, "returning error from %s %s: %s", req.Method, req.URL, errors.Details(err))
 	}
 
 	perr, status := apiservererrors.ServerErrorAndStatus(err)
@@ -605,7 +605,7 @@ func sendBundleContent(
 	archivePath string,
 	sender bundleContentSenderFunc,
 ) error {
-	logger.Child("charmhttp").Tracef("sendBundleContent %q", archivePath)
+	logger.Child("charmhttp").Tracef(ctx, "sendBundleContent %q", archivePath)
 	bundle, err := charm.ReadCharmArchive(archivePath)
 	if err != nil {
 		return errors.Annotatef(err, "unable to read archive in %q", archivePath)

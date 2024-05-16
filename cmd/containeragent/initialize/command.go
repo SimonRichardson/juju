@@ -118,7 +118,7 @@ func (c *initCommand) Init(args []string) error {
 }
 
 func (c *initCommand) Run(ctx *cmd.Context) (err error) {
-	ctx.Infof("starting containeragent init command")
+	ctx.Infof(ctx, "starting containeragent init command")
 
 	defer func() {
 		if err == nil {
@@ -164,7 +164,7 @@ func (c *initCommand) Run(ctx *cmd.Context) (err error) {
 		Delay:    10 * time.Second,
 		MaxDelay: 30 * time.Second,
 		NotifyFunc: func(lastError error, attempt int) {
-			ctx.Infof("failed to introduce pod %s: %v...", identity.PodName, lastError)
+			ctx.Infof(ctx, "failed to introduce pod %s: %v...", identity.PodName, lastError)
 		},
 		Clock: c.clock,
 	})

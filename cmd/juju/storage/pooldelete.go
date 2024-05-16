@@ -78,7 +78,7 @@ func (c *poolRemoveCommand) Run(ctx *cmd.Context) (err error) {
 	defer api.Close()
 	err = api.RemovePool(c.poolName)
 	if params.IsCodeNotFound(err) {
-		ctx.Infof("removing storage pool %s failed: %s", c.poolName, err)
+		ctx.Infof(ctx, "removing storage pool %s failed: %s", c.poolName, err)
 		return cmd.ErrSilent
 	}
 	return err

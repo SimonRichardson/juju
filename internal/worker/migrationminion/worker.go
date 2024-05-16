@@ -141,7 +141,7 @@ func (w *Worker) loop() error {
 }
 
 func (w *Worker) handle(ctx context.Context, status watcher.MigrationStatus) error {
-	w.config.Logger.Infof("migration phase is now: %s", status.Phase)
+	w.config.Logger.Infof(ctx, "migration phase is now: %s", status.Phase)
 
 	if !status.Phase.IsRunning() {
 		return w.config.Guard.Unlock()
@@ -193,7 +193,7 @@ func (w *Worker) doVALIDATION(ctx context.Context, status watcher.MigrationStatu
 			break
 		}
 		if attempt.More() {
-			w.config.Logger.Debugf("validation failed (retrying): %v", err)
+			w.config.Logger.Debugf(ctx, "validation failed (retrying): %v", err)
 		}
 	}
 	if errors.Is(err, apiservererrors.ErrTryAgain) || params.IsCodeTryAgain(err) {
@@ -262,7 +262,7 @@ func (w *Worker) doSUCCESS(status watcher.MigrationStatus) error {
 }
 
 func (w *Worker) report(status watcher.MigrationStatus, success bool) error {
-	w.config.Logger.Debugf("reporting back for phase %s: %v", status.Phase, success)
+	w.config.Logger.Debugf(ctx, "reporting back for phase %s: %v", status.Phase, success)
 	err := w.config.Facade.Report(status.MigrationId, status.Phase, success)
 	return errors.Annotate(err, "failed to report phase progress")
 }

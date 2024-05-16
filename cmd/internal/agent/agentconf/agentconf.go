@@ -62,25 +62,25 @@ func (c *agentConf) CheckArgs(args []string) error {
 func SetupAgentLogging(context corelogger.LoggerContext, config agent.Config) {
 	logger := context.GetLogger("juju.agent.setup")
 	if loggingOverride := config.Value(agent.LoggingOverride); loggingOverride != "" {
-		logger.Infof("logging override set for this agent: %q", loggingOverride)
+		logger.Infof(ctx, "logging override set for this agent: %q", loggingOverride)
 		context.ResetLoggerLevels()
 		err := context.ConfigureLoggers(loggingOverride)
 		if err != nil {
-			logger.Errorf("setting logging override %v", err)
+			logger.Errorf(ctx, "setting logging override %v", err)
 		}
 	} else if loggingConfig := config.LoggingConfig(); loggingConfig != "" {
-		logger.Infof("setting logging config to %q", loggingConfig)
+		logger.Infof(ctx, "setting logging config to %q", loggingConfig)
 		// There should only be valid logging configuration strings saved
 		// in the logging config section in the agent.conf file.
 		context.ResetLoggerLevels()
 		err := context.ConfigureLoggers(loggingConfig)
 		if err != nil {
-			logger.Errorf("problem setting logging config %v", err)
+			logger.Errorf(ctx, "problem setting logging config %v", err)
 		}
 		mgo.ConfigureMgoLogging()
 	}
 
 	if flags := featureflag.String(); flags != "" {
-		logger.Warningf("developer feature flags enabled: %s", flags)
+		logger.Warningf(ctx, "developer feature flags enabled: %s", flags)
 	}
 }

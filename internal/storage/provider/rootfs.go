@@ -245,7 +245,7 @@ func (s *rootfsFilesystemSource) mount(tag names.FilesystemTag, target string) e
 	if target == fsPath {
 		return nil
 	}
-	logger.Debugf("mounting filesystem %q at %q", fsPath, target)
+	logger.Debugf(ctx, "mounting filesystem %q at %q", fsPath, target)
 
 	if err := ensureDir(s.dirFuncs, target); err != nil {
 		return errors.Trace(err)
@@ -296,7 +296,7 @@ func (s *rootfsFilesystemSource) tryBindMount(source, target string) (bool, erro
 		return true, nil
 	}
 	if err := s.dirFuncs.bindMount(source, target); err != nil {
-		logger.Debugf("cannot bind-mount: %v", err)
+		logger.Debugf(ctx, "cannot bind-mount: %v", err)
 	} else {
 		return true, nil
 	}

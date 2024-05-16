@@ -101,7 +101,7 @@ func (s *State) Validate(hi hook.Info) (err error) {
 func (s *State) UpdateStateForHook(hi hook.Info, log logger.Logger) {
 	if log.IsLevelEnabled(logger.TRACE) {
 		defer func() {
-			log.Tracef("updated relation state %# v\nfor hook %# v", pretty.Formatter(s), pretty.Formatter(hi))
+			log.Tracef(ctx, "updated relation state %# v\nfor hook %# v", pretty.Formatter(s), pretty.Formatter(hi))
 		}()
 	}
 	if hi.Kind == hooks.RelationBroken {

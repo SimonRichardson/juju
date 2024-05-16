@@ -115,7 +115,7 @@ func NewRunListener(socket sockets.Socket, logger logger.Logger) (*RunListener, 
 // Run accepts new connections until it encounters an error, or until Close is
 // called, and then blocks until all existing connections have been closed.
 func (r *RunListener) Run() (err error) {
-	r.logger.Debugf("juju-exec listener running")
+	r.logger.Debugf(ctx, "juju-exec listener running")
 	var conn net.Conn
 	for {
 		conn, err = r.listener.Accept()
@@ -128,7 +128,7 @@ func (r *RunListener) Run() (err error) {
 			r.wg.Done()
 		}(conn)
 	}
-	r.logger.Debugf("juju-exec listener stopping")
+	r.logger.Debugf(ctx, "juju-exec listener stopping")
 	select {
 	case <-r.closing:
 		// Someone has called Close(), so it is overwhelmingly likely that
@@ -147,7 +147,7 @@ func (r *RunListener) Run() (err error) {
 func (r *RunListener) Close() error {
 	defer func() {
 		<-r.closed
-		r.logger.Debugf("juju-exec listener stopped")
+		r.logger.Debugf(ctx, "juju-exec listener stopped")
 	}()
 	close(r.closing)
 	return r.listener.Close()
@@ -169,7 +169,7 @@ func (r *RunListener) UnregisterRunner(unitName string) {
 
 // RunCommands executes the supplied commands in a hook context.
 func (r *RunListener) RunCommands(args RunCommandsArgs) (results *exec.ExecResponse, err error) {
-	r.logger.Debugf("run commands on unit %v: %s", args.UnitName, args.Commands)
+	r.logger.Debugf(ctx, "run commands on unit %v: %s", args.UnitName, args.Commands)
 	if args.UnitName == "" {
 		return nil, errors.New("missing unit name running command")
 	}
@@ -223,7 +223,7 @@ type runListenerWrapper struct {
 
 func (rlw *runListenerWrapper) tearDown() {
 	if err := rlw.rl.Close(); err != nil {
-		rlw.logger.Warningf("error closing runlistener: %v", err)
+		rlw.logger.Warningf(ctx, "error closing runlistener: %v", err)
 	}
 }
 
@@ -247,7 +247,7 @@ type JujuExecServer struct {
 // RunCommands delegates the actual running to the runner and populates the
 // response structure.
 func (r *JujuExecServer) RunCommands(args RunCommandsArgs, result *exec.ExecResponse) error {
-	r.logger.Debugf("RunCommands: %+v", args)
+	r.logger.Debugf(ctx, "RunCommands: %+v", args)
 	runResult, err := r.runner.RunCommands(args)
 	if err != nil {
 		return errors.Annotate(err, "r.runner.RunCommands")

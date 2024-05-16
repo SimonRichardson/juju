@@ -150,7 +150,7 @@ func (c *migrateCommand) Run(ctx *cmd.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx.Infof("Migration started with ID %q", id)
+	ctx.Infof(ctx, "Migration started with ID %q", id)
 	return nil
 }
 

@@ -40,7 +40,7 @@ type FanConfigurerConfig struct {
 
 // processNewConfig acts on a new fan config.
 func (fc *FanConfigurer) processNewConfig(ctx context.Context) error {
-	logger.Debugf("Processing new fan config")
+	logger.Debugf(ctx, "Processing new fan config")
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
@@ -49,16 +49,16 @@ func (fc *FanConfigurer) processNewConfig(ctx context.Context) error {
 		return err
 	}
 	if len(fanConfig) == 0 {
-		logger.Debugf("Fan not enabled")
+		logger.Debugf(ctx, "Fan not enabled")
 		// TODO(wpk) 2017-08-05 We have to clean this up!
 		return nil
 	}
 
 	for i, fan := range fanConfig {
-		logger.Debugf("Adding config for %d: %s %s", i, fan.Underlay, fan.Overlay)
+		logger.Debugf(ctx, "Adding config for %d: %s %s", i, fan.Underlay, fan.Overlay)
 		line := fmt.Sprintf("fanatic enable-fan -u %s -o %s", fan.Underlay, fan.Overlay)
 		result, err := scriptrunner.RunCommand(line, os.Environ(), fc.clock, 5000*time.Millisecond)
-		logger.Debugf("Launched %s - result %v %v %d", line, string(result.Stdout), string(result.Stderr), result.Code)
+		logger.Debugf(ctx, "Launched %s - result %v %v %d", line, string(result.Stdout), string(result.Stderr), result.Code)
 		if err != nil {
 			return err
 		}
@@ -66,7 +66,7 @@ func (fc *FanConfigurer) processNewConfig(ctx context.Context) error {
 	// TODO(wpk) 2017-09-28 Although officially not needed we do fanctl up -a just to be sure -
 	// fanatic sometimes fails to bring up interface because of some weird interactions with iptables.
 	result, err := scriptrunner.RunCommand("fanctl up -a", os.Environ(), fc.clock, 5000*time.Millisecond)
-	logger.Debugf("Launched fanctl up -a - result %v %v %d", string(result.Stdout), string(result.Stderr), result.Code)
+	logger.Debugf(ctx, "Launched fanctl up -a - result %v %v %d", string(result.Stdout), string(result.Stderr), result.Code)
 
 	return err
 }

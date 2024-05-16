@@ -109,7 +109,7 @@ func PerformUpgradeSteps(from version.Number, targets []Target, context Context)
 	if err := runUpgradeSteps(ops, targets, context.APIContext()); err != nil {
 		return errors.Trace(err)
 	}
-	logger.Infof("All upgrade steps completed successfully")
+	logger.Infof(ctx, "All upgrade steps completed successfully")
 	return nil
 }
 
@@ -124,9 +124,9 @@ func runUpgradeSteps(ops *opsIterator, targets []Target, context Context) error 
 	for ops.Next() {
 		for _, step := range ops.Get().Steps() {
 			if targetsMatch(targets, step.Targets()) {
-				logger.Infof("running upgrade step: %v", step.Description())
+				logger.Infof(ctx, "running upgrade step: %v", step.Description())
 				if err := step.Run(context); err != nil {
-					logger.Errorf("upgrade step %q failed: %v", step.Description(), err)
+					logger.Errorf(ctx, "upgrade step %q failed: %v", step.Description(), err)
 					return &upgradeError{
 						description: step.Description(),
 						err:         err,
