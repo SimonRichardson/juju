@@ -40,6 +40,7 @@ func ModelDDL() *schema.Schema {
 		objectStoreMetadataSchema,
 		applicationSchema,
 		charmSchema,
+		bundleSchema,
 		nodeSchema,
 		unitSchema,
 		spaceSchema,
@@ -670,6 +671,297 @@ SELECT CONCAT(cs.name, ':', c.name, '-', IFNULL(co.revision, 0)) AS url, c.uuid 
 FROM charm c
 INNER JOIN charm_origin co ON c.uuid = co.charm_uuid
 LEFT JOIN charm_source cs ON cs.id = co.source_id;
+`)
+}
+
+func bundleSchema() schema.Patch {
+	return schema.MakePatch(`
+CREATE TABLE bundle (
+    uuid                TEXT PRIMARY KEY,
+    type                TEXT,
+    default_base        TEXT,
+    description         TEXT
+);
+
+CREATE TABLE bundle_hash (
+    bundle_uuid         TEXT NOT NULL,
+    hash_kind_id        TEXT NOT NULL,
+    hash                TEXT NOT NULL,
+    CONSTRAINT          fk_bundle_hash_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_hash_kind
+        FOREIGN KEY     (hash_kind_id)
+        REFERENCES      hash_kind(id)
+);
+
+CREATE TABLE bundle_tag (
+    bundle_uuid         TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, value),
+    CONSTRAINT          fk_bundle_tags_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid)
+);
+
+CREATE TABLE bundle_saas (
+    bundle_uuid         TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    endpoint            TEXT,
+    PRIMARY KEY         (bundle_uuid, name),
+    CONSTRAINT          fk_bundle_tags_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid)
+);
+
+CREATE TABLE bundle_relation (
+    bundle_uuid         TEXT NOT NULL,
+    relation1           TEXT NOT NULL,
+    relation2           TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, relation1, relation2),
+    CONSTRAINT          fk_bundle_relation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid)
+);
+
+CREATE TABLE bundle_machine (
+    bundle_uuid         TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    constraints         TEXT,
+    base                TEXT,
+    PRIMARY KEY         (bundle_uuid, name),
+    CONSTRAINT          fk_bundle_machine_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid)
+);
+
+CREATE TABLE bundle_machine_annotation (
+    bundle_uuid         TEXT NOT NULL,
+    machine_name        TEXT NOT NULL,
+    key                 TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, key),
+    CONSTRAINT          fk_bundle_annotation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_machine_annotation_bundle_machine
+        FOREIGN KEY     (machine_name)
+        REFERENCES      bundle_machine(name)
+);
+
+-- Bundle application names can differ from the underlying charm name.
+CREATE TABLE bundle_application (
+    bundle_uuid         TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    charm_uuid          TEXT NOT NULL,
+    constraints         TEXT,
+    num_units           INT,
+    expose              BOOLEAN,
+    plan                TEXT,
+    requires_trust      BOOLEAN,
+    PRIMARY KEY         (bundle_uuid, name),
+    CONSTRAINT          fk_bundle_application_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_charm
+        FOREIGN KEY     (charm_uuid)
+        REFERENCES      charm(uuid)
+);
+
+CREATE UNIQUE INDEX idx_bundle_application_bundle_uuid
+    ON bundle_application (bundle_uuid);
+
+CREATE UNIQUE INDEX idx_bundle_application_charm_uuid
+    ON bundle_application (charm_uuid);
+
+CREATE TABLE bundle_application_caas (
+    bundle_uuid         TEXT NOT NULL,
+    charm_uuid          TEXT NOT NULL,
+    scale               INT,
+    placement           TEXT,
+    PRIMARY KEY         (bundle_uuid, charm_uuid),
+    CONSTRAINT          fk_bundle_application_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_charm
+        FOREIGN KEY     (charm_uuid)
+        REFERENCES      charm(uuid)
+);
+
+CREATE UNIQUE INDEX idx_bundle_application_caas_bundle_uuid
+    ON bundle_application_caas (bundle_uuid);
+
+CREATE UNIQUE INDEX idx_bundle_application_caas_charm_uuid
+    ON bundle_application_caas (charm_uuid);
+
+CREATE TABLE bundle_application_resources (
+    bundle_uuid         TEXT NOT NULL,
+    charm_uuid          TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    resource            TEXT,
+    PRIMARY KEY         (bundle_uuid, charm_uuid, name),
+    CONSTRAINT          fk_bundle_application_resources_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_resources_charm
+        FOREIGN KEY     (charm_uuid)
+        REFERENCES      charm(uuid)
+);
+
+CREATE UNIQUE INDEX idx_bundle_resources_bundle_uuid
+    ON bundle_resources (bundle_uuid);
+
+CREATE UNIQUE INDEX idx_bundle_resources_charm_uuid
+    ON bundle_resources (charm_uuid);
+
+-- This is the information for --to placement, not to be confused with
+-- the placement directive for CAAS applications.
+CREATE TABLE bundle_application_placement (
+    bundle_uuid         TEXT NOT NULL,
+    charm_uuid          TEXT NOT NULL,
+    placement           TEXT,
+    CONSTRAINT          fk_bundle_application_placement_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_placement_charm
+        FOREIGN KEY     (charm_uuid)
+        REFERENCES      charm(uuid)
+);
+
+CREATE UNIQUE INDEX idx_bundle_application_placement_bundle_uuid
+    ON bundle_application_placement (bundle_uuid);
+
+CREATE UNIQUE INDEX idx_bundle_application_placement_charm_uuid
+    ON bundle_application_placement (charm_uuid);
+
+CREATE TABLE bundle_application_annotation (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    key                 TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, key),
+    CONSTRAINT          fk_bundle_annotation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_annotation_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
+
+CREATE TABLE bundle_application_config (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    key                 TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, key),
+    CONSTRAINT          fk_bundle_annotation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_config_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
+
+CREATE TABLE bundle_application_storage (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    key                 TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, key),
+    CONSTRAINT          fk_bundle_annotation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_storage_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
+
+CREATE TABLE bundle_application_device (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    key                 TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, key),
+    CONSTRAINT          fk_bundle_annotation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_device_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
+
+CREATE TABLE bundle_application_endpoint_bindings (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    key                 TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, key),
+    CONSTRAINT          fk_bundle_annotation_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle(uuid),
+    CONSTRAINT          fk_bundle_application_endpoint_bindings_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
+
+CREATE TABLE bundle_application_exposed_endpoint_kind (
+    id       INT PRIMARY KEY,
+    name     TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_bundle_application_exposed_endpoint_kind_name
+    ON bundle_application_exposed_endpoint_kind (name);
+
+INSERT INTO bundle_application_exposed_endpoint_kind VALUES
+    (0, 'space'),
+    (1, 'cidr');
+
+CREATE TABLE bundle_application_exposed_endpoint (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    kind_id             INT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, application_name, name, kind_id),
+    CONSTRAINT          fk_bundle_application_exposed_endpoint_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle_uuid(uuid),
+    CONSTRAINT          fk_bundle_application_exposed_endpoint_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name),
+    CONSTRAINT          fk_bundle_application_exposed_endpoint_kind
+        FOREIGN KEY     (kind_id)
+        REFERENCES      bundle_application_exposed_endpoint_kind(id)
+);
+
+CREATE TABLE bundle_application_offer_endpoint (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    value               TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, application_name, name),
+        CONSTRAINT          fk_bundle_application_offer_endpoint_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle_uuid(uuid),
+    CONSTRAINT          fk_bundle_application_offer_endpoint_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
+
+CREATE TABLE bundle_application_offer_acl (
+    bundle_uuid         TEXT NOT NULL,
+    application_name    TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    user                TEXT NOT NULL,
+    permission          TEXT NOT NULL,
+    PRIMARY KEY         (bundle_uuid, application_name, name, user),
+        CONSTRAINT          fk_bundle_application_offer_endpoint_bundle
+        FOREIGN KEY     (bundle_uuid)
+        REFERENCES      bundle_uuid(uuid),
+    CONSTRAINT          fk_bundle_application_offer_endpoint_bundle_application
+        FOREIGN KEY     (application_name)
+        REFERENCES      bundle_application(name)
+);
 `)
 }
 
