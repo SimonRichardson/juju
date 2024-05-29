@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/juju/errors"
 	"github.com/juju/names/v5"
@@ -131,29 +132,55 @@ type Scope interface {
 }
 
 // Name is the name of the span.
-type Name string
+// The name is lazy evaluated, this is useful for generating a name for a span
+// that is only evaluated upon use.
+type Name struct {
+	once func() string
+}
 
 func (n Name) String() string {
-	return string(n)
+	return n.once()
+}
+
+// ConstName returns a constant name.
+func ConstName(name string) Name {
+	return Name{
+		once: func() string {
+			return name
+		},
+	}
 }
 
 // NameFromFunc will return the name from the function. This is useful for
 // automatically generating a name for a span.
 func NameFromFunc() Name {
 	// Get caller frame.
-	var pcs [1]uintptr
+	var pcs [2]uintptr
 	n := runtime.Callers(2, pcs[:])
-	if n < 1 {
-		return "unknown"
+	if n == 0 {
+		return ConstName("unknown")
 	}
 
-	fn := runtime.FuncForPC(pcs[0])
-	name := fn.Name()
-	if lastSlash := strings.LastIndexByte(name, '/'); lastSlash > 0 {
-		name = name[lastSlash+1:]
+	return Name{
+		once: sync.OnceValue[string](func() string {
+			// Using CallersFrames instead of FuncForPC because FuncForPC
+			// will return the name of the NameFromFunc function instead of
+			// the caller name.
+			frames := runtime.CallersFrames(pcs[:n])
+			for {
+				frame, more := frames.Next()
+				if !more {
+					break
+				}
+				name := frame.Function
+				if lastSlash := strings.LastIndexByte(name, '/'); lastSlash > 0 {
+					name = name[lastSlash+1:]
+				}
+				return name
+			}
+			return "unknown"
+		}),
 	}
-
-	return Name(name)
 }
 
 // Start returns a new context with the given trace.

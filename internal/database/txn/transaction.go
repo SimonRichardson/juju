@@ -312,7 +312,7 @@ const (
 )
 
 func traceName(name string) trace.Name {
-	return trace.Name(rootTraceName + name)
+	return trace.ConstName(rootTraceName + name)
 }
 
 // dqliteTracer is a pooled object for implementing a dqlite tracing from a

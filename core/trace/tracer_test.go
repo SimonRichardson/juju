@@ -20,7 +20,7 @@ var _ = gc.Suite(&nameSuite{})
 
 func (nameSuite) TestNameFromFuncMethod(c *gc.C) {
 	name := NameFromFunc()
-	c.Assert(name, gc.Equals, Name("trace.nameSuite.TestNameFromFuncMethod"))
+	c.Assert(name.String(), gc.Equals, "trace.nameSuite.TestNameFromFuncMethod")
 }
 
 func (nameSuite) TestControllerNamespaceConstant(c *gc.C) {
