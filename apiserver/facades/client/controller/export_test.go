@@ -5,6 +5,7 @@ package controller
 
 import (
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/core/leadership"
 	"github.com/juju/juju/core/migration"
 	"github.com/juju/juju/state"
 )
@@ -13,8 +14,8 @@ type patcher interface {
 	PatchValue(destination, source interface{})
 }
 
-func SetPrecheckResult(p patcher, err error) {
-	p.PatchValue(&runMigrationPrechecks, func(*state.State, *state.State, *migration.TargetInfo, facade.Presence) error {
+func SetPreCheckResult(p patcher, err error) {
+	p.PatchValue(&runMigrationPreChecks, func(*state.State, *state.State, *migration.TargetInfo, facade.Presence, leadership.Reader) error {
 		return err
 	})
 }

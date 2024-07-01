@@ -490,7 +490,7 @@ func (s *controllerSuite) TestInitiateMigration(c *gc.C) {
 	macsJSON, err := json.Marshal([]macaroon.Slice{{mac}})
 	c.Assert(err, jc.ErrorIsNil)
 
-	controller.SetPrecheckResult(s, nil)
+	controller.SetPreCheckResult(s, nil)
 
 	// Kick off migrations
 	args := params.InitiateMigrationArgs{
@@ -584,7 +584,7 @@ func (s *controllerSuite) TestInitiateMigrationSpecError(c *gc.C) {
 func (s *controllerSuite) TestInitiateMigrationPartialFailure(c *gc.C) {
 	st := s.Factory.MakeModel(c, nil)
 	defer st.Close()
-	controller.SetPrecheckResult(s, nil)
+	controller.SetPreCheckResult(s, nil)
 
 	m, err := st.Model()
 	c.Assert(err, jc.ErrorIsNil)
@@ -649,7 +649,7 @@ func (s *controllerSuite) TestInitiateMigrationPrecheckFail(c *gc.C) {
 	st := s.Factory.MakeModel(c, nil)
 	defer st.Close()
 
-	controller.SetPrecheckResult(s, errors.New("boom"))
+	controller.SetPreCheckResult(s, errors.New("boom"))
 
 	m, err := st.Model()
 	c.Assert(err, jc.ErrorIsNil)
@@ -932,7 +932,7 @@ func (s *controllerSuite) TestGetControllerAccessPermissions(c *gc.C) {
 
 func (s *controllerSuite) TestModelStatus(c *gc.C) {
 	// Check that we don't err out immediately if a model errs.
-	results, err := s.controller.ModelStatus(params.Entities{[]params.Entity{{
+	results, err := s.controller.ModelStatus(params.Entities{Entities: []params.Entity{{
 		Tag: "bad-tag",
 	}, {
 		Tag: s.Model.ModelTag().String(),
@@ -942,7 +942,7 @@ func (s *controllerSuite) TestModelStatus(c *gc.C) {
 	c.Assert(results.Results[0].Error, gc.ErrorMatches, `"bad-tag" is not a valid tag`)
 
 	// Check that we don't err out if a model errs even if some firsts in collection pass.
-	results, err = s.controller.ModelStatus(params.Entities{[]params.Entity{{
+	results, err = s.controller.ModelStatus(params.Entities{Entities: []params.Entity{{
 		Tag: s.Model.ModelTag().String(),
 	}, {
 		Tag: "bad-tag",
@@ -952,7 +952,7 @@ func (s *controllerSuite) TestModelStatus(c *gc.C) {
 	c.Assert(results.Results[1].Error, gc.ErrorMatches, `"bad-tag" is not a valid tag`)
 
 	// Check that we return successfully if no errors.
-	results, err = s.controller.ModelStatus(params.Entities{[]params.Entity{{
+	results, err = s.controller.ModelStatus(params.Entities{Entities: []params.Entity{{
 		Tag: s.Model.ModelTag().String(),
 	}}})
 	c.Assert(err, jc.ErrorIsNil)
