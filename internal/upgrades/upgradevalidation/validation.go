@@ -17,10 +17,13 @@ import (
 	corelogger "github.com/juju/juju/core/logger"
 	environscloudspec "github.com/juju/juju/environs/cloudspec"
 	jujuhttp "github.com/juju/juju/internal/http"
+	internallogger "github.com/juju/juju/internal/logger"
 	"github.com/juju/juju/internal/provider/lxd"
 	"github.com/juju/juju/internal/provider/lxd/lxdnames"
 	"github.com/juju/juju/state"
 )
+
+var logger = internallogger.GetLogger("juju.upgrades.validations")
 
 // Validator returns a blocker.
 type Validator func(modelUUID string, pool StatePool, st State, model Model) (*Blocker, error)
@@ -187,7 +190,7 @@ func getCheckTargetVersionForControllerModel(
 		}
 
 		return NewBlocker(
-			"upgrading a controller to a newer major.minor version %d.%d not supported", targetVersion.Major, targetVersion.Minor,
+			"upgrading to a newer major.minor version %d.%d not supported, only patch and build upgrades supported", targetVersion.Major, targetVersion.Minor,
 		), nil
 	}
 }

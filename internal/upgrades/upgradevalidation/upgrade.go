@@ -27,7 +27,7 @@ func ValidatorsForControllerUpgrade(
 	}
 
 	validators := []Validator{
-		getCheckTargetVersionForModel(targetVersion, UpgradeControllerAllowed),
+		getCheckTargetVersionForControllerModel(targetVersion),
 		checkModelMigrationModeForControllerUpgrade,
 		checkForDeprecatedUbuntuSeriesForModel,
 		getCheckForLXDVersion(cloudspec),
