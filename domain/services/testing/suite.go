@@ -16,6 +16,7 @@ import (
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/credential"
+	"github.com/juju/juju/core/lease"
 	"github.com/juju/juju/core/model"
 	coremodel "github.com/juju/juju/core/model"
 	modeltesting "github.com/juju/juju/core/model/testing"
@@ -94,19 +95,19 @@ func (s stubDBDeleter) DeleteDB(namespace string) error {
 // ControllerDomainServices conveniently constructs a domain services for the
 // controller model.
 func (s *DomainServicesSuite) ControllerDomainServices(c *gc.C) services.DomainServices {
-	return s.DomainServicesGetter(c, TestingObjectStore{})(s.ControllerModelUUID)
+	return s.DomainServicesGetter(c, TestingObjectStore{}, TestingLeaseManager{})(s.ControllerModelUUID)
 }
 
 // DefaultModelDomainServices conveniently constructs a domain services for the
 // default model.
 func (s *DomainServicesSuite) DefaultModelDomainServices(c *gc.C) services.DomainServices {
-	return s.DomainServicesGetter(c, TestingObjectStore{})(s.ControllerModelUUID)
+	return s.DomainServicesGetter(c, TestingObjectStore{}, TestingLeaseManager{})(s.ControllerModelUUID)
 }
 
 // ModelDomainServices conveniently constructs a domain services for the
 // default model.
 func (s *DomainServicesSuite) ModelDomainServices(c *gc.C, modelUUID model.UUID) services.DomainServices {
-	return s.DomainServicesGetter(c, TestingObjectStore{})(modelUUID)
+	return s.DomainServicesGetter(c, TestingObjectStore{}, TestingLeaseManager{})(modelUUID)
 }
 
 func (s *DomainServicesSuite) SeedControllerConfig(c *gc.C) {
@@ -231,7 +232,7 @@ func (s *DomainServicesSuite) SeedModelDatabases(c *gc.C) {
 
 // DomainServicesGetter provides an implementation of the DomainServicesGetter
 // interface to use in tests.
-func (s *DomainServicesSuite) DomainServicesGetter(c *gc.C, objectStore coreobjectstore.ObjectStore) DomainServicesGetterFunc {
+func (s *DomainServicesSuite) DomainServicesGetter(c *gc.C, objectStore coreobjectstore.ObjectStore, leaseManager lease.LeaseCheckerWaiter) DomainServicesGetterFunc {
 	return func(modelUUID coremodel.UUID) services.DomainServices {
 		return domainservicefactory.NewDomainServices(
 			databasetesting.ConstFactory(s.TxnRunner()),
@@ -244,6 +245,9 @@ func (s *DomainServicesSuite) DomainServicesGetter(c *gc.C, objectStore coreobje
 			}),
 			modelStorageRegistryGetter(func(ctx context.Context) (storage.ProviderRegistry, error) {
 				return provider.CommonStorageProviders(), nil
+			}),
+			modelApplicationLeaseManagerGetter(func() lease.LeaseCheckerWaiter {
+				return leaseManager
 			}),
 			clock.WallClock,
 			loggertesting.WrapCheckLog(c),
@@ -267,6 +271,11 @@ func (s *DomainServicesSuite) ObjectStoreServicesGetter(c *gc.C) ObjectStoreServ
 // This is useful when the test does not require any object store functionality.
 func (s *DomainServicesSuite) NoopObjectStore(c *gc.C) coreobjectstore.ObjectStore {
 	return TestingObjectStore{}
+}
+
+// NoopLeaseManager returns a no-op implementation of the LeaseCheckerWaiter.
+func (s *DomainServicesSuite) NoopLeaseManager(c *gc.C) lease.LeaseCheckerWaiter {
+	return TestingLeaseManager{}
 }
 
 // SetUpTest creates the controller and default model unique identifiers if they
@@ -318,6 +327,12 @@ func (s modelStorageRegistryGetter) GetStorageRegistry(ctx context.Context) (sto
 	return s(ctx)
 }
 
+type modelApplicationLeaseManagerGetter func() lease.LeaseCheckerWaiter
+
+func (s modelApplicationLeaseManagerGetter) GetLeaseManager() (lease.LeaseCheckerWaiter, error) {
+	return s(), nil
+}
+
 // TestingObjectStore is a testing implementation of the ObjectStore interface.
 type TestingObjectStore struct{}
 
@@ -341,4 +356,33 @@ func (TestingObjectStore) PutAndCheckHash(ctx context.Context, path string, r io
 // Remove removes data at path, namespaced to the model.
 func (TestingObjectStore) Remove(ctx context.Context, path string) error {
 	return nil
+}
+
+// TestingLeaseManager is a testing implementation of the LeaseCheckerWaiter
+// interface. It returns canned responses for the methods.
+type TestingLeaseManager struct{}
+
+// WaitUntilExpired returns nil when the named lease is no longer held. If
+// it returns any error, no reasonable inferences may be made. The supplied
+// context can be used to cancel the request; in this case, the method will
+// return ErrWaitCancelled.
+// The started channel when non-nil is closed when the wait begins.
+func (TestingLeaseManager) WaitUntilExpired(ctx context.Context, leaseName string, started chan<- struct{}) error {
+	close(started)
+
+	return nil
+}
+
+// Token returns a Token that can be interrogated at any time to discover
+// whether the supplied lease is currently held by the supplied holder.
+func (TestingLeaseManager) Token(leaseName, holderName string) lease.Token {
+	return TestingLeaseManagerToken{}
+}
+
+// TestingLeaseManagerToken is a testing implementation of the Token interface.
+type TestingLeaseManagerToken struct{}
+
+// Check will always return lease.ErrNotHeld.
+func (TestingLeaseManagerToken) Check() error {
+	return lease.ErrNotHeld
 }

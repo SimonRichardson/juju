@@ -13,6 +13,7 @@ import (
 
 	"github.com/juju/juju/core/changestream"
 	coredatabase "github.com/juju/juju/core/database"
+	"github.com/juju/juju/core/lease"
 	"github.com/juju/juju/core/logger"
 	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/objectstore"
@@ -31,6 +32,7 @@ type ManifoldConfig struct {
 	ProviderFactoryName         string
 	ObjectStoreName             string
 	StorageRegistryName         string
+	LeaseManagerName            string
 	Logger                      logger.Logger
 	Clock                       clock.Clock
 	NewWorker                   func(Config) (worker.Worker, error)
@@ -47,6 +49,7 @@ type DomainServicesGetterFn func(
 	providertracker.ProviderFactory,
 	objectstore.ObjectStoreGetter,
 	storage.StorageRegistryGetter,
+	lease.Manager,
 	clock.Clock,
 	logger.Logger,
 ) services.DomainServicesGetter
@@ -67,6 +70,7 @@ type ModelDomainServicesFn func(
 	providertracker.ProviderFactory,
 	objectstore.ModelObjectStoreGetter,
 	storage.ModelStorageRegistryGetter,
+	lease.ModelApplicationLeaseManagerGetter,
 	clock.Clock,
 	logger.Logger,
 ) services.ModelDomainServices
@@ -87,6 +91,9 @@ func (config ManifoldConfig) Validate() error {
 	}
 	if config.StorageRegistryName == "" {
 		return errors.NotValidf("empty StorageRegistryName")
+	}
+	if config.LeaseManagerName == "" {
+		return errors.NotValidf("empty LeaseManagerName")
 	}
 	if config.NewWorker == nil {
 		return errors.NotValidf("nil NewWorker")
@@ -119,6 +126,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			config.ProviderFactoryName,
 			config.ObjectStoreName,
 			config.StorageRegistryName,
+			config.LeaseManagerName,
 		},
 		Start:  config.start,
 		Output: config.output,
@@ -156,12 +164,18 @@ func (config ManifoldConfig) start(context context.Context, getter dependency.Ge
 		return nil, errors.Trace(err)
 	}
 
+	var leaseManager lease.Manager
+	if err := getter.Get(config.LeaseManagerName, &leaseManager); err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	return config.NewWorker(Config{
 		DBGetter:                    dbGetter,
 		DBDeleter:                   dbDeleter,
 		ProviderFactory:             providerFactory,
 		ObjectStoreGetter:           objectStoreGetter,
 		StorageRegistryGetter:       storageRegistryGetter,
+		LeaseManager:                leaseManager,
 		Logger:                      config.Logger,
 		Clock:                       config.Clock,
 		NewDomainServicesGetter:     config.NewDomainServicesGetter,
@@ -215,6 +229,7 @@ func NewProviderTrackerModelDomainServices(
 	providerFactory providertracker.ProviderFactory,
 	objectStore objectstore.ModelObjectStoreGetter,
 	storageRegistry storage.ModelStorageRegistryGetter,
+	leaseManager lease.ModelApplicationLeaseManagerGetter,
 	clock clock.Clock,
 	logger logger.Logger,
 ) services.ModelDomainServices {
@@ -225,6 +240,7 @@ func NewProviderTrackerModelDomainServices(
 		providerFactory,
 		objectStore,
 		storageRegistry,
+		leaseManager,
 		clock,
 		logger,
 	)
@@ -238,6 +254,7 @@ func NewDomainServicesGetter(
 	providerFactory providertracker.ProviderFactory,
 	objectStoreGetter objectstore.ObjectStoreGetter,
 	storageRegistryGetter storage.StorageRegistryGetter,
+	leaseManager lease.Manager,
 	clock clock.Clock,
 	logger logger.Logger,
 ) services.DomainServicesGetter {
@@ -250,6 +267,7 @@ func NewDomainServicesGetter(
 		providerFactory:        providerFactory,
 		objectStoreGetter:      objectStoreGetter,
 		storageRegistryGetter:  storageRegistryGetter,
+		leaseManager:           leaseManager,
 	}
 }
 

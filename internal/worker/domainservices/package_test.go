@@ -12,6 +12,7 @@ import (
 
 	changestream "github.com/juju/juju/core/changestream"
 	coredatabase "github.com/juju/juju/core/database"
+	"github.com/juju/juju/core/lease"
 	"github.com/juju/juju/core/logger"
 	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/objectstore"
@@ -28,6 +29,7 @@ import (
 //go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination providertracker_mock_test.go github.com/juju/juju/core/providertracker Provider,ProviderFactory
 //go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination objectstore_mock_test.go github.com/juju/juju/core/objectstore ObjectStore,ObjectStoreGetter,ModelObjectStoreGetter
 //go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination storage_mock_test.go github.com/juju/juju/core/storage StorageRegistryGetter,ModelStorageRegistryGetter
+//go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination lease_mock_test.go github.com/juju/juju/core/lease LeaseCheckerWaiter,Manager,ApplicationLeaseManagerGetter,ModelApplicationLeaseManagerGetter
 
 func TestPackage(t *testing.T) {
 	gc.TestingT(t)
@@ -54,6 +56,10 @@ type baseSuite struct {
 
 	storageRegistryGetter      *MockStorageRegistryGetter
 	modelStorageRegistryGetter *MockModelStorageRegistryGetter
+
+	leaseManager                       *MockManager
+	applicationLeaseManagerGetter      *MockApplicationLeaseManagerGetter
+	modelApplicationLeaseManagerGetter *MockModelApplicationLeaseManagerGetter
 }
 
 func (s *baseSuite) setupMocks(c *gc.C) *gomock.Controller {
@@ -78,6 +84,10 @@ func (s *baseSuite) setupMocks(c *gc.C) *gomock.Controller {
 	s.storageRegistryGetter = NewMockStorageRegistryGetter(ctrl)
 	s.modelStorageRegistryGetter = NewMockModelStorageRegistryGetter(ctrl)
 
+	s.leaseManager = NewMockManager(ctrl)
+	s.applicationLeaseManagerGetter = NewMockApplicationLeaseManagerGetter(ctrl)
+	s.modelApplicationLeaseManagerGetter = NewMockModelApplicationLeaseManagerGetter(ctrl)
+
 	return ctrl
 }
 
@@ -89,6 +99,7 @@ func NewModelDomainServices(
 	dbGetter changestream.WatchableDBGetter,
 	objectStore objectstore.ModelObjectStoreGetter,
 	storageRegistry storage.ModelStorageRegistryGetter,
+	leaseManager lease.ModelApplicationLeaseManagerGetter,
 	clock clock.Clock,
 	logger logger.Logger,
 ) services.ModelDomainServices {
@@ -99,6 +110,7 @@ func NewModelDomainServices(
 		NoopProviderFactory{},
 		objectStore,
 		storageRegistry,
+		leaseManager,
 		clock,
 		logger,
 	)

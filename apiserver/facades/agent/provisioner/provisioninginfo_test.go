@@ -33,7 +33,7 @@ func (s *withoutControllerSuite) TestProvisioningInfoWithStorage(c *gc.C) {
 		dummystorage.StorageProviders(),
 		provider.CommonStorageProviders(),
 	}
-	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c))
+	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 
 	st := s.ControllerModel(c).State()
 	storageService := domainServicesGetter.ServicesForModel(model.UUID(st.ModelUUID())).Storage(registry)
@@ -137,7 +137,7 @@ func (s *withoutControllerSuite) TestProvisioningInfoRootDiskVolume(c *gc.C) {
 		dummystorage.StorageProviders(),
 		provider.CommonStorageProviders(),
 	}
-	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c))
+	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 
 	st := s.ControllerModel(c).State()
 	storageService := domainServicesGetter.ServicesForModel(model.UUID(st.ModelUUID())).Storage(registry)

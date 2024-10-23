@@ -536,7 +536,7 @@ func (s *withoutControllerSuite) TestSetModificationStatus(c *gc.C) {
 
 func (s *withoutControllerSuite) TestMachinesWithTransientErrors(c *gc.C) {
 	st := s.ControllerModel(c).State()
-	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c))
+	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 	machineService := domainServicesGetter.ServicesForModel(model.UUID(st.ModelUUID())).Machine()
 
 	now := time.Now()
@@ -1014,7 +1014,7 @@ func (s *withoutControllerSuite) TestDistributionGroup(c *gc.C) {
 	defer release()
 
 	st := s.ControllerModel(c).State()
-	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c))
+	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 	machineService := domainServicesGetter.ServicesForModel(model.UUID(st.ModelUUID())).Machine()
 
 	addUnits := func(name string, machines ...*state.Machine) (units []*state.Unit) {
@@ -1331,7 +1331,7 @@ func (s *withoutControllerSuite) TestSetInstanceInfo(c *gc.C) {
 		dummystorage.StorageProviders(),
 		provider.CommonStorageProviders(),
 	}
-	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c))
+	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 
 	st := s.ControllerModel(c).State()
 	storageService := domainServicesGetter.ServicesForModel(model.UUID(st.ModelUUID())).Storage(registry)
@@ -1462,7 +1462,7 @@ func (s *withoutControllerSuite) TestSetInstanceInfo(c *gc.C) {
 func (s *withoutControllerSuite) TestInstanceId(c *gc.C) {
 	st := s.ControllerModel(c).State()
 
-	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c))
+	domainServicesGetter := s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 	machineService := domainServicesGetter.ServicesForModel(model.UUID(st.ModelUUID())).Machine()
 	// Provision 2 machines first.
 	machine0UUID, err := machineService.GetMachineUUID(context.Background(), coremachine.Name(s.machines[0].Id()))

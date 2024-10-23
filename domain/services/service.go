@@ -8,6 +8,7 @@ import (
 
 	"github.com/juju/juju/core/changestream"
 	"github.com/juju/juju/core/database"
+	"github.com/juju/juju/core/lease"
 	"github.com/juju/juju/core/logger"
 	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/objectstore"
@@ -31,6 +32,7 @@ func NewDomainServices(
 	providerTracker providertracker.ProviderFactory,
 	objectStore objectstore.ModelObjectStoreGetter,
 	storageRegistry storage.ModelStorageRegistryGetter,
+	leaseManager lease.ModelApplicationLeaseManagerGetter,
 	clock clock.Clock,
 	logger logger.Logger,
 ) *DomainServices {
@@ -44,6 +46,7 @@ func NewDomainServices(
 			providerTracker,
 			objectStore,
 			storageRegistry,
+			leaseManager,
 			clock,
 			logger,
 		),

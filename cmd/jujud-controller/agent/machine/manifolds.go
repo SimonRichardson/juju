@@ -733,6 +733,7 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			ProviderFactoryName:         providerTrackerName,
 			ObjectStoreName:             objectStoreName,
 			StorageRegistryName:         storageRegistryName,
+			LeaseManagerName:            leaseManagerName,
 			Logger:                      internallogger.GetLogger("juju.worker.services"),
 			Clock:                       config.Clock,
 			NewWorker:                   workerdomainservices.NewWorker,
