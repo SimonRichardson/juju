@@ -70,6 +70,7 @@ type ModelFactory struct {
 	providerFactory providertracker.ProviderFactory
 	objectstore     objectstore.ModelObjectStoreGetter
 	storageRegistry corestorage.ModelStorageRegistryGetter
+	leaseManager    lease.ModelApplicationLeaseManagerGetter
 }
 
 // NewModelFactory returns a new registry which uses the provided modelDB
@@ -94,6 +95,7 @@ func NewModelFactory(
 		providerFactory: providerFactory,
 		objectstore:     objectStore,
 		storageRegistry: storageRegistry,
+		leaseManager:    leaseManager,
 	}
 }
 
