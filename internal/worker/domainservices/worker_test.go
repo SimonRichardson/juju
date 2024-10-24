@@ -116,7 +116,7 @@ func (s *workerSuite) getConfig() Config {
 			providertracker.ProviderFactory,
 			objectstore.ModelObjectStoreGetter,
 			storage.ModelStorageRegistryGetter,
-			lease.ModelApplicationLeaseManagerGetter,
+			lease.ModelLeaseManagerGetter,
 			clock.Clock,
 			logger.Logger,
 		) services.ModelDomainServices {

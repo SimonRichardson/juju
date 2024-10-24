@@ -70,7 +70,7 @@ type ModelFactory struct {
 	providerFactory providertracker.ProviderFactory
 	objectstore     objectstore.ModelObjectStoreGetter
 	storageRegistry corestorage.ModelStorageRegistryGetter
-	leaseManager    lease.ModelApplicationLeaseManagerGetter
+	leaseManager    lease.ModelLeaseManagerGetter
 }
 
 // NewModelFactory returns a new registry which uses the provided modelDB
@@ -82,7 +82,7 @@ func NewModelFactory(
 	providerFactory providertracker.ProviderFactory,
 	objectStore objectstore.ModelObjectStoreGetter,
 	storageRegistry corestorage.ModelStorageRegistryGetter,
-	leaseManager lease.ModelApplicationLeaseManagerGetter,
+	leaseManager lease.ModelLeaseManagerGetter,
 	clock clock.Clock,
 	logger logger.Logger,
 ) *ModelFactory {

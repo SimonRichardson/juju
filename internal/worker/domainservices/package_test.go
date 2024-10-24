@@ -29,7 +29,7 @@ import (
 //go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination providertracker_mock_test.go github.com/juju/juju/core/providertracker Provider,ProviderFactory
 //go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination objectstore_mock_test.go github.com/juju/juju/core/objectstore ObjectStore,ObjectStoreGetter,ModelObjectStoreGetter
 //go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination storage_mock_test.go github.com/juju/juju/core/storage StorageRegistryGetter,ModelStorageRegistryGetter
-//go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination lease_mock_test.go github.com/juju/juju/core/lease LeaseCheckerWaiter,Manager,ApplicationLeaseManagerGetter,ModelApplicationLeaseManagerGetter
+//go:generate go run go.uber.org/mock/mockgen -typed -package domainservices -destination lease_mock_test.go github.com/juju/juju/core/lease LeaseCheckerWaiter,Manager,LeaseManagerGetter,ModelLeaseManagerGetter
 
 func TestPackage(t *testing.T) {
 	gc.TestingT(t)
@@ -57,9 +57,9 @@ type baseSuite struct {
 	storageRegistryGetter      *MockStorageRegistryGetter
 	modelStorageRegistryGetter *MockModelStorageRegistryGetter
 
-	leaseManager                       *MockManager
-	applicationLeaseManagerGetter      *MockApplicationLeaseManagerGetter
-	modelApplicationLeaseManagerGetter *MockModelApplicationLeaseManagerGetter
+	leaseManager            *MockManager
+	leaseManagerGetter      *MockLeaseManagerGetter
+	modelLeaseManagerGetter *MockModelLeaseManagerGetter
 }
 
 func (s *baseSuite) setupMocks(c *gc.C) *gomock.Controller {
@@ -85,8 +85,8 @@ func (s *baseSuite) setupMocks(c *gc.C) *gomock.Controller {
 	s.modelStorageRegistryGetter = NewMockModelStorageRegistryGetter(ctrl)
 
 	s.leaseManager = NewMockManager(ctrl)
-	s.applicationLeaseManagerGetter = NewMockApplicationLeaseManagerGetter(ctrl)
-	s.modelApplicationLeaseManagerGetter = NewMockModelApplicationLeaseManagerGetter(ctrl)
+	s.leaseManagerGetter = NewMockLeaseManagerGetter(ctrl)
+	s.modelLeaseManagerGetter = NewMockModelLeaseManagerGetter(ctrl)
 
 	return ctrl
 }
@@ -99,7 +99,7 @@ func NewModelDomainServices(
 	dbGetter changestream.WatchableDBGetter,
 	objectStore objectstore.ModelObjectStoreGetter,
 	storageRegistry storage.ModelStorageRegistryGetter,
-	leaseManager lease.ModelApplicationLeaseManagerGetter,
+	leaseManager lease.ModelLeaseManagerGetter,
 	clock clock.Clock,
 	logger logger.Logger,
 ) services.ModelDomainServices {

@@ -208,7 +208,7 @@ func (s *manifoldSuite) TestNewModelDomainServices(c *gc.C) {
 		s.dbGetter,
 		s.modelObjectStoreGetter,
 		s.modelStorageRegistryGetter,
-		s.modelApplicationLeaseManagerGetter,
+		s.modelLeaseManagerGetter,
 		s.clock,
 		s.logger,
 	)
@@ -282,7 +282,7 @@ func noopModelDomainServices(
 	providertracker.ProviderFactory,
 	objectstore.ModelObjectStoreGetter,
 	storage.ModelStorageRegistryGetter,
-	lease.ModelApplicationLeaseManagerGetter,
+	lease.ModelLeaseManagerGetter,
 	clock.Clock,
 	logger.Logger,
 ) services.ModelDomainServices {
