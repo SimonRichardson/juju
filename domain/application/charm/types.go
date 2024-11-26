@@ -6,6 +6,8 @@ package charm
 import (
 	"github.com/juju/version/v2"
 
+	corecharm "github.com/juju/juju/core/charm"
+	"github.com/juju/juju/core/objectstore"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	internalcharm "github.com/juju/juju/internal/charm"
 	"github.com/juju/juju/internal/errors"
@@ -110,6 +112,25 @@ type SetStateArgs struct {
 	Version string
 	// Platform is the platform of the charm.
 	Platform Platform
+}
+
+// CharmNameWithOrigin holds the name of a charm and its origin.
+type CharmNameWithOrigin struct {
+	// UUID is the UUID of the charm.
+	UUID corecharm.ID
+	// Name is the name of the charm.
+	Name string
+	// Origin holds additional origin information about the charm.
+	Origin CharmOrigin
+}
+
+// CharmPersistence holds the persistence information of a charm once it's
+// stored in the charm store.
+type CharmPersistence struct {
+	// UUID is the UUID of the charm.
+	UUID objectstore.UUID
+	// Path is the path to the charm archive.
+	Path string
 }
 
 // Charm represents a charm from the perspective of the service. This is the

@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/juju/collections/transform"
@@ -32,6 +33,7 @@ import (
 	"github.com/juju/juju/domain/life"
 	"github.com/juju/juju/domain/linklayerdevice"
 	domainstorage "github.com/juju/juju/domain/storage"
+	"github.com/juju/juju/internal/charm"
 	internalcharm "github.com/juju/juju/internal/charm"
 	internalerrors "github.com/juju/juju/internal/errors"
 	"github.com/juju/juju/internal/storage"
@@ -52,9 +54,9 @@ type AtomicApplicationState interface {
 	GetUnitUUID(ctx domain.AtomicContext, unitName coreunit.Name) (coreunit.UUID, error)
 
 	// CreateApplication creates an application, returning an error satisfying
-	// [applicationerrors.ApplicationAlreadyExists] if the application already exists.
-	// If returns as error satisfying [applicationerrors.CharmNotFound] if the charm
-	// for the application is not found.
+	// [applicationerrors.ApplicationAlreadyExists] if the application already
+	// exists. If returns as error satisfying [applicationerrors.CharmNotFound]
+	// if the charm for the application is not found.
 	CreateApplication(domain.AtomicContext, string, application.AddApplicationArg) (coreapplication.ID, error)
 
 	// AddUnits adds the specified units to the application.
@@ -66,27 +68,32 @@ type AtomicApplicationState interface {
 	InsertUnit(domain.AtomicContext, coreapplication.ID, application.InsertUnitArg) error
 
 	// UpdateUnitContainer updates the cloud container for specified unit,
-	// returning an error satisfying [applicationerrors.UnitNotFoundError]
-	// if the unit doesn't exist.
+	// returning an error satisfying [applicationerrors.UnitNotFoundError] if
+	// the unit doesn't exist.
 	UpdateUnitContainer(domain.AtomicContext, coreunit.Name, *application.CloudContainer) error
 
 	// SetUnitPassword updates the password for the specified unit UUID.
 	SetUnitPassword(domain.AtomicContext, coreunit.UUID, application.PasswordInfo) error
 
-	// SetCloudContainerStatus saves the given cloud container status, overwriting any current status data.
-	// If returns an error satisfying [applicationerrors.UnitNotFound] if the unit doesn't exist.
+	// SetCloudContainerStatus saves the given cloud container status,
+	// overwriting any current status data. If returns an error satisfying
+	// [applicationerrors.UnitNotFound] if the unit doesn't exist.
 	SetCloudContainerStatus(domain.AtomicContext, coreunit.UUID, application.CloudContainerStatusStatusInfo) error
 
-	// SetUnitAgentStatus saves the given unit agent status, overwriting any current status data.
-	// If returns an error satisfying [applicationerrors.UnitNotFound] if the unit doesn't exist.
+	// SetUnitAgentStatus saves the given unit agent status, overwriting any
+	// current status data. If returns an error satisfying
+	// [applicationerrors.UnitNotFound] if the unit doesn't exist.
 	SetUnitAgentStatus(domain.AtomicContext, coreunit.UUID, application.UnitAgentStatusInfo) error
 
-	// SetUnitWorkloadStatus saves the given unit workload status, overwriting any current status data.
-	// If returns an error satisfying [applicationerrors.UnitNotFound] if the unit doesn't exist.
+	// SetUnitWorkloadStatus saves the given unit workload status, overwriting
+	// any current status data. If returns an error satisfying
+	// [applicationerrors.UnitNotFound] if the unit doesn't exist.
 	SetUnitWorkloadStatus(domain.AtomicContext, coreunit.UUID, application.UnitWorkloadStatusInfo) error
 
-	// GetApplicationLife looks up the life of the specified application, returning an error
-	// satisfying [applicationerrors.ApplicationNotFoundError] if the application is not found.
+	// GetApplicationLife looks up the life of the specified application,
+	// returning an error satisfying
+	// [applicationerrors.ApplicationNotFoundError] if the application is not
+	// found.
 	GetApplicationLife(ctx domain.AtomicContext, appName string) (coreapplication.ID, life.Life, error)
 
 	// SetApplicationLife sets the life of the specified application.
@@ -97,11 +104,12 @@ type AtomicApplicationState interface {
 	// [applicationerrors.ApplicationNotFound] if the application is not found.
 	GetApplicationScaleState(domain.AtomicContext, coreapplication.ID) (application.ScaleState, error)
 
-	// SetApplicationScalingState sets the scaling details for the given caas application
-	// Scale is optional and is only set if not nil.
+	// SetApplicationScalingState sets the scaling details for the given caas
+	// application Scale is optional and is only set if not nil.
 	SetApplicationScalingState(ctx domain.AtomicContext, appID coreapplication.ID, scale *int, targetScale int, scaling bool) error
 
-	// SetDesiredApplicationScale updates the desired scale of the specified application.
+	// SetDesiredApplicationScale updates the desired scale of the specified
+	// application.
 	SetDesiredApplicationScale(domain.AtomicContext, coreapplication.ID, int) error
 
 	// GetUnitLife looks up the life of the specified unit, returning an error
@@ -111,7 +119,8 @@ type AtomicApplicationState interface {
 	// SetUnitLife sets the life of the specified unit.
 	SetUnitLife(domain.AtomicContext, coreunit.Name, life.Life) error
 
-	// InitialWatchStatementUnitLife returns the initial namespace query for the application unit life watcher.
+	// InitialWatchStatementUnitLife returns the initial namespace query for the
+	// application unit life watcher.
 	InitialWatchStatementUnitLife(appName string) (string, eventsource.NamespaceQuery)
 
 	// DeleteApplication deletes the specified application, returning an error
@@ -120,11 +129,10 @@ type AtomicApplicationState interface {
 	// satisfying [applicationerrors.ApplicationHasUnits] is returned.
 	DeleteApplication(domain.AtomicContext, string) error
 
-	// DeleteUnit deletes the specified unit.
-	// If the unit's application is Dying and no
-	// other references to it exist, true is returned to
-	// indicate the application could be safely deleted.
-	// It will fail if the unit is not Dead.
+	// DeleteUnit deletes the specified unit. If the unit's application is Dying
+	// and no other references to it exist, true is returned to indicate the
+	// application could be safely deleted. It will fail if the unit is not
+	// Dead.
 	DeleteUnit(domain.AtomicContext, coreunit.Name) (bool, error)
 
 	// GetSecretsForUnit returns the secrets owned by the specified unit.
@@ -132,7 +140,8 @@ type AtomicApplicationState interface {
 		ctx domain.AtomicContext, unitName coreunit.Name,
 	) ([]*coresecrets.URI, error)
 
-	// GetSecretsForApplication returns the secrets owned by the specified application.
+	// GetSecretsForApplication returns the secrets owned by the specified
+	// application.
 	GetSecretsForApplication(
 		ctx domain.AtomicContext, applicationName string,
 	) ([]*coresecrets.URI, error)
@@ -143,8 +152,9 @@ type AtomicApplicationState interface {
 type ApplicationState interface {
 	AtomicApplicationState
 
-	// GetModelType returns the model type for the underlying model. If the model
-	// does not exist then an error satisfying [modelerrors.NotFound] will be returned.
+	// GetModelType returns the model type for the underlying model. If the
+	// model does not exist then an error satisfying [modelerrors.NotFound] will
+	// be returned.
 	GetModelType(context.Context) (coremodel.ModelType, error)
 
 	// StorageDefaults returns the default storage sources for a model.
@@ -156,13 +166,13 @@ type ApplicationState interface {
 	GetStoragePoolByName(ctx context.Context, name string) (domainstorage.StoragePoolDetails, error)
 
 	// GetUnitUUIDs returns the UUIDs for the named units in bulk, returning an
-	// error satisfying [applicationerrors.UnitNotFound] if any of the units don't
-	// exist.
+	// error satisfying [applicationerrors.UnitNotFound] if any of the units
+	// don't exist.
 	GetUnitUUIDs(context.Context, []coreunit.Name) ([]coreunit.UUID, error)
 
-	// GetUnitNames gets in bulk the names for the specified unit UUIDs, returning
-	// an error satisfying [applicationerrors.UnitNotFound] if any units are not
-	// found.
+	// GetUnitNames gets in bulk the names for the specified unit UUIDs,
+	// returning an error satisfying [applicationerrors.UnitNotFound] if any
+	// units are not found.
 	GetUnitNames(context.Context, []coreunit.UUID) ([]coreunit.Name, error)
 
 	// UpsertCloudService updates the cloud service for the specified
@@ -180,8 +190,8 @@ type ApplicationState interface {
 	// platform for the specified application ID.
 	//
 	// If the application does not exist, an error satisfying
-	// [applicationerrors.ApplicationNotFoundError] is returned.
-	// If the charm for the application does not exist, an error satisfying
+	// [applicationerrors.ApplicationNotFoundError] is returned. If the charm
+	// for the application does not exist, an error satisfying
 	// [applicationerrors.CharmNotFoundError] is returned.
 	GetCharmByApplicationID(context.Context, coreapplication.ID) (domaincharm.Charm, domaincharm.CharmOrigin, application.Platform, error)
 
@@ -192,14 +202,31 @@ type ApplicationState interface {
 	GetCharmIDByApplicationName(context.Context, string) (corecharm.ID, error)
 
 	// GetApplicationIDByUnitName returns the application ID for the named unit,
-	// returning an error satisfying [applicationerrors.UnitNotFound] if the unit
-	// doesn't exist.
+	// returning an error satisfying [applicationerrors.UnitNotFound] if the
+	// unit doesn't exist.
 	GetApplicationIDByUnitName(ctx context.Context, name coreunit.Name) (coreapplication.ID, error)
 
 	// GetCharmModifiedVersion looks up the charm modified version of the given
 	// application. Returns [applicationerrors.ApplicationNotFound] if the
 	// application is not found.
 	GetCharmModifiedVersion(ctx context.Context, id coreapplication.ID) (int, error)
+
+	// IsApplicationCharmAvailable returns whether the application charm is
+	// available for the specified application ID. Returns
+	// [applicationerrors.ApplicationNotFound] if the application is not found.
+	IsApplicationCharmAvailable(ctx context.Context, appID coreapplication.ID) (bool, error)
+
+	// GetCharmNameWithOriginByApplicationID returns the charm uuid, name and
+	// origin for the specified application ID.
+	GetCharmNameWithOriginByApplicationID(context.Context, coreapplication.ID) (domaincharm.CharmNameWithOrigin, error)
+
+	// ResolveDownloadedCharm resolves a charm so that's it's ready for use in
+	// the model. This includes ensuring the charm is downloaded and the
+	// metadata is available. This will update the mutable charm fields in the
+	// database.
+	// The persistenceUUID is the UUID of the charm in the charm store, which
+	// is used for Referential Integrity.
+	ResolveDownloadedCharm(context.Context, corecharm.ID, domaincharm.Charm, domaincharm.CharmPersistence) error
 }
 
 // DeleteSecretState describes methods used by the secret deleter plugin.
@@ -1179,4 +1206,68 @@ func (s *Service) GetApplicationScalingState(ctx context.Context, appName string
 		ScaleTarget: scaleState.ScaleTarget,
 		Scaling:     scaleState.Scaling,
 	}, errors.Trace(err)
+}
+
+// DownloadApplicationCharm downloads the charms for the specified
+// applications. If the charm has already been downloaded, it will be skipped.
+func (s *Service) DownloadApplicationCharm(ctx context.Context, uuid coreapplication.ID) error {
+	if err := uuid.Validate(); err != nil {
+		return errors.Annotate(err, "application")
+	}
+
+	// Although this isn't a fool proof way to ensure that we don't download
+	// the identical charm twice, it's a good enough heuristic for now.
+	if available, err := s.st.IsApplicationCharmAvailable(ctx, uuid); available {
+		return nil
+	} else if err != nil {
+		return internalerrors.Errorf("checking if charm is available: %w", err)
+	}
+
+	info, err := s.st.GetCharmNameWithOriginByApplicationID(ctx, uuid)
+	if err != nil {
+		return internalerrors.Errorf("getting charm name and origin: %w", err)
+	}
+
+	// Download the charm, once it's been downloaded, we can then persist the
+	// charm is the storage. The downloader guarantees that the archive is
+	// cleaned up on error. Once it's successfully downloaded, then the clean
+	// up of the temporary archive is now our responsibility,
+	downloadResult, err := s.charmDownloader.Download(ctx, info.Name, info.Origin)
+	if err != nil {
+		return internalerrors.Errorf("downloading charm: %w", err)
+	}
+
+	// charmPath is the path to the charm archive that we've downloaded as
+	// a temporary file.
+	blobPath := downloadResult.Path
+
+	defer func() {
+		// If for any reason we can't remove the temporary archive, we log a
+		// warning, so the operator can manually clean up the archive.
+		err := os.Remove(blobPath)
+		if err != nil {
+			s.logger.Warningf("removing temporary downloaded charm archive: %v", err)
+		}
+	}()
+
+	// Persist the charm in the charm store (objectstore) and return back the
+	// object UUID of the location. We can use that UUID to look up the
+	// location of the charm blob in the object store.
+	persistence, err := s.charmStore.Store(ctx, info.Name, blobPath, downloadResult.Size, downloadResult.Origin.Hash)
+	if err != nil {
+		return internalerrors.Errorf("persisting charm: %w", err)
+	}
+
+	// Only once we've persisted the charm, do we update the application with
+	// the new charm.
+	charm, err := charm.ReadCharmArchive(blobPath)
+	if err != nil {
+		return internalerrors.Errorf("reading charm archive: %w", err)
+	}
+
+	if err := s.st.ResolveDownloadedCharm(ctx, info.UUID, charm, persistence); err != nil {
+		return internalerrors.Errorf("resolving downloaded charm: %w", err)
+	}
+
+	return nil
 }
