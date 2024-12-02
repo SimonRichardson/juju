@@ -17,7 +17,7 @@ import (
 
 	"github.com/juju/collections/set"
 	"github.com/juju/errors"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 	"golang.org/x/crypto/ssh/terminal"
 )
 

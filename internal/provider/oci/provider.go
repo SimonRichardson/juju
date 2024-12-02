@@ -13,7 +13,7 @@ import (
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 	"github.com/juju/schema"
 	ociIdentity "github.com/oracle/oci-go-sdk/v65/identity"
 	"gopkg.in/ini.v1"

@@ -54,7 +54,6 @@ require (
 	github.com/juju/gojsonschema v1.0.0
 	github.com/juju/gomaasapi/v2 v2.2.0
 	github.com/juju/idmclient/v2 v2.0.0
-	github.com/juju/jsonschema v1.0.0
 	github.com/juju/loggo v1.0.0
 	github.com/juju/loggo/v2 v2.1.1-0.20240509163806-ebdeb290b961
 	github.com/juju/lumberjack/v2 v2.0.2
@@ -81,6 +80,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kr/pretty v0.3.1
 	github.com/lestrrat-go/jwx/v2 v2.0.21
+	github.com/lestrrat/go-jsschema v0.0.0-20160903131957-b09d7650b822
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/microsoft/kiota-abstractions-go v1.5.3
@@ -230,7 +230,6 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/lestrrat/go-jspointer v0.0.0-20160229021354-f4881e611bdb // indirect
 	github.com/lestrrat/go-jsref v0.0.0-20160601013240-e452c7b5801d // indirect
-	github.com/lestrrat/go-jsschema v0.0.0-20160903131957-b09d7650b822 // indirect
 	github.com/lestrrat/go-jsval v0.0.0-20161012045717-b1258a10419f // indirect
 	github.com/lestrrat/go-pdebug v0.0.0-20160817063333-2e6eaaa5717f // indirect
 	github.com/lestrrat/go-structinfo v0.0.0-20160308131105-f74c056fe41f // indirect
@@ -286,7 +285,7 @@ require (
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
+	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/zitadel/oidc/v2 v2.12.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1 // indirect

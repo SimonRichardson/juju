@@ -12,7 +12,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	jsonschema "github.com/juju/jsonschema"
+	jsonschema "github.com/juju/juju/internal/jsonschema"
 	cloud "github.com/juju/juju/cloud"
 	constraints "github.com/juju/juju/core/constraints"
 	instance "github.com/juju/juju/core/instance"

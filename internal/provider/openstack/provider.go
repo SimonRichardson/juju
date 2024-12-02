@@ -30,7 +30,7 @@ import (
 	"github.com/juju/collections/set"
 	"github.com/juju/collections/transform"
 	"github.com/juju/errors"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 	"github.com/juju/names/v5"
 	"github.com/juju/retry"
 	"github.com/juju/utils/v4"

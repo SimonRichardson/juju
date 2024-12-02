@@ -8,7 +8,7 @@ import (
 	stdcontext "context"
 
 	"github.com/juju/errors"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 	"github.com/juju/schema"
 	"gopkg.in/juju/environschema.v1"
 

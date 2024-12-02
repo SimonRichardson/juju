@@ -11,7 +11,7 @@ import (
 
 	"github.com/juju/errors"
 	"github.com/juju/gomaasapi/v2"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/environs"

@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	"github.com/juju/errors"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 	"golang.org/x/net/context"
 
 	"github.com/juju/juju/cloud"

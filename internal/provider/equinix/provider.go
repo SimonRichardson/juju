@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
-	"github.com/juju/jsonschema"
+	"github.com/juju/juju/internal/jsonschema"
 	"github.com/juju/schema"
 	"github.com/packethost/packngo"
 
