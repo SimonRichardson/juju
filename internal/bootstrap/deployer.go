@@ -7,6 +7,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/hex"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -303,12 +306,28 @@ func (b *baseDeployer) DeployLocalCharm(ctx context.Context, arch string, base c
 		return DeployCharmInfo{}, errors.Trace(err)
 	}
 
-	hash256 := sha256.New()
-	hash384 := sha512.New384()
+	file, err := os.Open(path)
+	if err != nil {
+		return DeployCharmInfo{}, errors.Annotatef(err, "opening %q", path)
+	}
+
+	hasher256 := sha256.New()
+	hasher384 := sha512.New384()
+
+	size, err := io.Copy(io.MultiWriter(hasher256, hasher384), file)
+	if err != nil {
+		return DeployCharmInfo{}, errors.Annotatef(err, "hashing %q", path)
+	} else if size != info.Size() {
+		return DeployCharmInfo{}, errors.Errorf("expected %d bytes, got %d", info.Size(), size)
+	}
+
+	sha256 := fmt.Sprintf("%x", hasher256.Sum(nil))
+	sha384 := hex.EncodeToString(hasher384.Sum(nil))
 
 	origin := corecharm.Origin{
 		Source: corecharm.Local,
 		Type:   "charm",
+		Hash:   sha256,
 		Platform: corecharm.Platform{
 			Architecture: arch,
 			OS:           base.OS,
@@ -317,8 +336,8 @@ func (b *baseDeployer) DeployLocalCharm(ctx context.Context, arch string, base c
 	}
 
 	result, err := b.applicationService.ResolveControllerCharmDownload(ctx, domainapplication.ResolveControllerCharmDownload{
-		SHA256: origin.Hash,
-		SHA384: downloadResult.SHA384,
+		SHA256: sha256,
+		SHA384: sha384,
 		Path:   path,
 		Size:   info.Size(),
 	})
