@@ -10,9 +10,10 @@ import (
 	"io"
 	"os"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/chzyer/readline"
+	"github.com/fatih/color"
+	"github.com/juju/ansiterm"
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"gopkg.in/tomb.v2"
@@ -74,7 +75,10 @@ type dbReplWorker struct {
 	cfg  WorkerConfig
 	tomb tomb.Tomb
 
-	dbGetter coredatabase.DBGetter
+	dbGetter         coredatabase.DBGetter
+	controllerDB     database.TxnRunner
+	currentDB        database.TxnRunner
+	currentNamespace string
 }
 
 // NewWorker creates a new dbaccessor worker.
@@ -84,9 +88,17 @@ func NewWorker(cfg WorkerConfig) (*dbReplWorker, error) {
 		return nil, errors.Trace(err)
 	}
 
+	controllerDB, err := cfg.DBGetter.GetDB(database.ControllerNS)
+	if err != nil {
+		return nil, errors.Annotate(err, "getting controller db")
+	}
+
 	w := &dbReplWorker{
-		cfg:      cfg,
-		dbGetter: cfg.DBGetter,
+		cfg:              cfg,
+		dbGetter:         cfg.DBGetter,
+		controllerDB:     controllerDB,
+		currentDB:        controllerDB,
+		currentNamespace: "*",
 	}
 
 	w.tomb.Go(w.loop)
@@ -118,13 +130,6 @@ func (w *dbReplWorker) loop() (err error) {
 	}
 	defer line.Close()
 
-	currentDB, err := w.dbGetter.GetDB(database.ControllerNS)
-	if err != nil {
-		return errors.Annotate(err, "failed to get db")
-	}
-	controllerDB := currentDB
-	currentNamespace := "*"
-
 	// Allow the line to be closed when the worker is dying.
 	go func() {
 		select {
@@ -144,7 +149,7 @@ func (w *dbReplWorker) loop() (err error) {
 		default:
 		}
 
-		line.SetPrompt("repl (" + currentNamespace + ")> ")
+		line.SetPrompt("repl (" + w.currentNamespace + ")> ")
 		if err != nil {
 			return errors.Annotate(err, "failed to read input")
 		}
@@ -170,53 +175,107 @@ func (w *dbReplWorker) loop() (err error) {
 		}
 
 		switch args[0] {
-		case ".exit":
+		case ".exit", ".quit":
 			return worker.ErrTerminateAgent
-		case ".help":
-			fmt.Fprintf(w.cfg.Stdout, helpText)
-			continue
+		case ".help", ".h":
+			fmt.Fprint(w.cfg.Stdout, helpText)
 		case ".switch":
-			if len(args) != 2 {
-				fmt.Fprintln(w.cfg.Stderr, "usage: .switch <name>")
-				continue
-			}
-
-			name := args[1]
-			if name == "global" || name == "*" {
-				currentDB = controllerDB
-				currentNamespace = "*"
-				continue
-			}
-
-			var uuid string
-			if err := controllerDB.StdTxn(ctx, func(ctx context.Context, tx *sql.Tx) error {
-				row := tx.QueryRowContext(ctx, "SELECT uuid FROM model WHERE name=?", name)
-				if err := row.Scan(&uuid); err != nil {
-					return err
-				}
-				return nil
-			}); err != nil {
-				fmt.Fprintf(w.cfg.Stderr, "failed to select %q database: %v\n", name, err)
-				continue
-			}
-
-			currentDB, err = w.dbGetter.GetDB(uuid)
-			if err != nil {
-				fmt.Fprintf(w.cfg.Stderr, "failed to switch to namespace %q: %v\n", name, err)
-				continue
-			}
-			currentNamespace = name
-
+			w.execSwitch(ctx, args[1:])
 		case ".models":
-			if err := w.executeQuery(ctx, controllerDB, "SELECT uuid, name FROM model;"); err != nil {
-				w.cfg.Logger.Errorf("failed to execute query: %v", err)
-			}
+			w.execModels(ctx)
+		case ".tables":
+			w.execTables(ctx)
+		case ".triggers":
+			w.execTriggers(ctx)
+		case ".views":
+			w.execViews(ctx)
+		case ".ddl":
+			w.execShowDDL(ctx, args[1:])
 
 		default:
-			if err := w.executeQuery(ctx, currentDB, input); err != nil {
+			if err := w.executeQuery(ctx, w.currentDB, input); err != nil {
 				w.cfg.Logger.Errorf("failed to execute query: %v", err)
 			}
 		}
+	}
+}
+
+func (w *dbReplWorker) execSwitch(ctx context.Context, args []string) {
+	if len(args) != 1 {
+		fmt.Fprintln(w.cfg.Stderr, "usage: .switch <name>")
+		return
+	}
+
+	name := args[0]
+	if name == "global" || name == "*" {
+		w.currentDB = w.controllerDB
+		w.currentNamespace = "*"
+		return
+	}
+
+	var uuid string
+	if err := w.controllerDB.StdTxn(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		row := tx.QueryRowContext(ctx, "SELECT uuid FROM model WHERE name=?", name)
+		if err := row.Scan(&uuid); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		fmt.Fprintf(w.cfg.Stderr, "failed to select %q database: %v\n", name, err)
+		return
+	}
+
+	currentDB, err := w.dbGetter.GetDB(uuid)
+	if err != nil {
+		fmt.Fprintf(w.cfg.Stderr, "failed to switch to namespace %q: %v\n", name, err)
+		return
+	}
+	w.currentDB = currentDB
+	w.currentNamespace = name
+}
+
+func (w *dbReplWorker) execModels(ctx context.Context) {
+	if err := w.executeQuery(ctx, w.controllerDB, "SELECT uuid, name FROM model"); err != nil {
+		w.cfg.Logger.Errorf("failed to execute query: %v", err)
+	}
+}
+
+func (w *dbReplWorker) execTables(ctx context.Context) {
+	if err := w.executeQuery(ctx, w.currentDB, "SELECT name AS table_name FROM sqlite_master WHERE type='table'"); err != nil {
+		w.cfg.Logger.Errorf("failed to execute query: %v", err)
+	}
+}
+
+func (w *dbReplWorker) execShowDDL(ctx context.Context, args []string) {
+	if len(args) != 1 {
+		fmt.Fprintln(w.cfg.Stderr, "usage: .ddl <name>")
+		return
+	}
+
+	name := args[0]
+	var ddl string
+	if err := w.currentDB.StdTxn(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		row := tx.QueryRowContext(ctx, "SELECT sql FROM sqlite_master WHERE name=?", name)
+		if err := row.Scan(&ddl); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		w.cfg.Logger.Errorf("failed to execute query: %v\n", err)
+	}
+
+	fmt.Fprintln(w.cfg.Stdout, ddl)
+}
+
+func (w *dbReplWorker) execTriggers(ctx context.Context) {
+	if err := w.executeQuery(ctx, w.currentDB, "SELECT name AS trigger_name FROM sqlite_master WHERE type='trigger'"); err != nil {
+		w.cfg.Logger.Errorf("failed to execute query: %v", err)
+	}
+}
+
+func (w *dbReplWorker) execViews(ctx context.Context) {
+	if err := w.executeQuery(ctx, w.currentDB, "SELECT name AS view_name FROM sqlite_master WHERE type='view'"); err != nil {
+		w.cfg.Logger.Errorf("failed to execute query: %v", err)
 	}
 }
 
@@ -253,10 +312,15 @@ func (w *dbReplWorker) executeQuery(ctx context.Context, db database.TxnRunner, 
 		}
 		n := len(columns)
 
+		headerStyle := color.New(color.Bold)
 		var sb strings.Builder
-		writer := tabwriter.NewWriter(&sb, 0, 8, 1, '\t', 0)
+
+		// Use the ansiterm tabwriter because the stdlib tabwriter contains a bug
+		// which breaks if there are color codes. Our own tabwriter implementation
+		// doesn't have this issue.
+		writer := ansiterm.NewTabWriter(&sb, 0, 8, 1, '\t', 0)
 		for _, col := range columns {
-			fmt.Fprintf(writer, "%s\t", col)
+			headerStyle.Fprintf(writer, "%s\t", col)
 		}
 		fmt.Fprintln(writer)
 
@@ -305,10 +369,14 @@ func filterInput(r rune) (rune, bool) {
 const helpText = `
 The following commands are available:
 
-  .exit              Exit the REPL.
-  .help              Show this help message.
+  .exit, .quit       Exit the REPL.
+  .help, .h          Show this help message.
   .models            Show all models.
-  .switch            Switch to a different model (or global database).
+  .switch <model>    Switch to a different model (or global database).
+  .tables            Show all standard tables in the current database.
+  .triggers          Show all trigger tables in the current database.
+  .views             Show all views in the current database.
+  .ddl <name>        Show the DDL for the specified table, trigger, or view.
 
 The global database can be accessed by using the '*' or 'global' keyword
 when switching databases. 
