@@ -44,14 +44,18 @@ func makeStateCrossModelSecretsAPI(stdCtx context.Context, ctx facade.MultiModel
 	domainServices := ctx.DomainServices()
 
 	backendService := domainServices.SecretBackend()
-	secretInfoGetter := func(modelUUID coremodel.UUID) SecretService {
-		return ctx.DomainServicesForModel(modelUUID).Secret(
+	secretInfoGetter := func(c context.Context, modelUUID coremodel.UUID) (SecretService, error) {
+		svc, err := ctx.DomainServicesForModel(c, modelUUID)
+		if err != nil {
+			return nil, fmt.Errorf("retrieving domain services for model %q: %w", modelUUID, err)
+		}
+		return svc.Secret(
 			secretservice.SecretServiceParams{
 				BackendUserSecretConfigGetter: secretbackendservice.UserSecretBackendConfigGetterFunc(
 					domainServices.SecretBackend(), modelUUID,
 				),
 			},
-		)
+		), nil
 	}
 
 	modelInfo, err := domainServices.ModelInfo().GetModelInfo(stdCtx)
