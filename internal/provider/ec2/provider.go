@@ -38,11 +38,9 @@ func (environProvider) Version() int {
 
 // Open is specified in the EnvironProvider interface.
 func (p environProvider) Open(ctx context.Context, args environs.OpenParams, invalidator environs.CredentialInvalidator) (environs.Environ, error) {
-	logger.Debugf(context.TODO(), "opening model %q", args.Config.Name())
+	logger.Debugf(ctx, "opening model %q", args.Config.Name())
 
-	e := newEnviron()
-	e.name = args.Config.Name()
-	e.controllerUUID = args.ControllerUUID
+	e := newEnviron(args.Config.Name(), args.ControllerUUID, invalidator)
 
 	namespace, err := instance.NewNamespace(args.Config.UUID())
 	if err != nil {
@@ -139,9 +137,9 @@ page in the AWS console: %w
 // verify the configured credentials. If verification fails, a user-friendly
 // error will be returned, and the original error will be logged at debug
 // level.
-var verifyCredentials = func(e Client, ctx envcontext.ProviderCallContext) error {
+var verifyCredentials = func(ctx context.Context, invalidator environs.CredentialInvalidator, e Client) error {
 	_, err := e.DescribeAccountAttributes(ctx, nil)
-	return maybeConvertCredentialError(err, ctx)
+	return maybeConvertCredentialError(ctx, invalidator, err)
 }
 
 // maybeConvertCredentialError examines the error received from the provider.
@@ -149,7 +147,7 @@ var verifyCredentials = func(e Client, ctx envcontext.ProviderCallContext) error
 // Authorisation related errors are annotated with an additional
 // user-friendly explanation.
 // All other errors are returned un-wrapped and not annotated.
-var maybeConvertCredentialError = func(err error, ctx envcontext.ProviderCallContext) error {
+var maybeConvertCredentialError = func(ctx context.Context, invalidator environs.CredentialInvalidator, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -159,10 +157,10 @@ var maybeConvertCredentialError = func(err error, ctx envcontext.ProviderCallCon
 	}
 
 	convert := func(converted error) error {
-		callbackErr := ctx.InvalidateCredential(converted.Error())
+		callbackErr := invalidator.InvalidateCredentials(ctx, environs.CredentialInvalidReason(converted.Error()))
 		if callbackErr != nil {
 			// We want to proceed with the actual processing but still keep a log of a problem.
-			logger.Infof(context.TODO(), "callback to invalidate model credential failed with %v", converted)
+			logger.Infof(ctx, "callback to invalidate model credential failed with %v", converted)
 		}
 		return converted
 	}

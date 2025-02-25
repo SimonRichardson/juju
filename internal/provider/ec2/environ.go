@@ -93,6 +93,8 @@ type environ struct {
 	environs.NoSpaceDiscoveryEnviron
 	environs.NoContainerAddressesEnviron
 
+	credentialInvalidator environs.CredentialInvalidator
+
 	name           string
 	cloud          environscloudspec.CloudSpec
 	controllerUUID string
@@ -120,10 +122,14 @@ type environ struct {
 	ensureGroupMutex sync.Mutex
 }
 
-func newEnviron() *environ {
+func newEnviron(name, controllerUUID string, invalidator environs.CredentialInvalidator) *environ {
 	return &environ{
-		ec2ClientFunc: clientFunc,
-		iamClientFunc: iamClientFunc,
+		name:           name,
+		controllerUUID: controllerUUID,
+
+		ec2ClientFunc:         clientFunc,
+		iamClientFunc:         iamClientFunc,
+		credentialInvalidator: invalidator,
 	}
 }
 
@@ -158,29 +164,27 @@ func (e *environ) Name() string {
 
 // PrepareForBootstrap is part of the Environ interface.
 func (e *environ) PrepareForBootstrap(ctx environs.BootstrapContext, controllerName string) error {
-	// Cannot really invalidate a credential here since nothing is bootstrapped yet.
-	callCtx := envcontext.WithoutCredentialInvalidator(ctx)
 	if ctx.ShouldVerifyCredentials() {
-		if err := verifyCredentials(e.ec2Client, callCtx); err != nil {
+		if err := verifyCredentials(ctx, e.credentialInvalidator, e.ec2Client); err != nil {
 			return err
 		}
 	}
 	ecfg := e.ecfg()
 	vpcID, forceVPCID := ecfg.vpcID(), ecfg.forceVPCID()
-	if err := validateBootstrapVPC(e.ec2Client, callCtx, e.cloud.Region, vpcID, forceVPCID, ctx); err != nil {
-		return errors.Trace(maybeConvertCredentialError(err, callCtx))
+	if err := validateBootstrapVPC(ctx, e.credentialInvalidator, e.ec2Client, e.cloud.Region, vpcID, forceVPCID, ctx); err != nil {
+		return errors.Trace(maybeConvertCredentialError(ctx, e.credentialInvalidator, err))
 	}
 	return nil
 }
 
 // Create is part of the Environ interface.
 func (e *environ) Create(ctx envcontext.ProviderCallContext, args environs.CreateParams) error {
-	if err := verifyCredentials(e.ec2Client, ctx); err != nil {
+	if err := verifyCredentials(ctx, e.credentialInvalidator, e.ec2Client); err != nil {
 		return err
 	}
 	vpcID := e.ecfg().vpcID()
-	if err := validateModelVPC(e.ec2Client, ctx, e.name, vpcID); err != nil {
-		return errors.Trace(maybeConvertCredentialError(err, ctx))
+	if err := validateModelVPC(ctx, e.credentialInvalidator, e.ec2Client, e.name, vpcID); err != nil {
+		return errors.Trace(maybeConvertCredentialError(ctx, e.credentialInvalidator, err))
 	}
 	return nil
 }
@@ -208,7 +212,7 @@ func (e *environ) FinaliseBootstrapCredential(
 func (e *environ) Bootstrap(ctx environs.BootstrapContext, callCtx envcontext.ProviderCallContext, args environs.BootstrapParams) (*environs.BootstrapResult, error) {
 	// We are going to take a look at the Bootstrap constraints and see if we have to make an instance profile
 	r, err := common.Bootstrap(ctx, e, callCtx, args)
-	return r, maybeConvertCredentialError(err, callCtx)
+	return r, maybeConvertCredentialError(callCtx, e.credentialInvalidator, err)
 }
 
 func (e *environ) CreateAutoInstanceRole(
@@ -273,7 +277,7 @@ func (e *environ) ConstraintsValidator(ctx envcontext.ProviderCallContext) (cons
 		[]string{constraints.Arch, constraints.Mem, constraints.Cores, constraints.CpuPower})
 	validator.RegisterUnsupported(unsupportedConstraints)
 
-	instanceTypes, err := e.supportedInstanceTypes(ctx, allInstanceTypeFilter())
+	instanceTypes, err := e.supportedInstanceTypes(ctx, e.credentialInvalidator, allInstanceTypeFilter())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -336,12 +340,12 @@ func (e *environ) AvailabilityZones(ctx envcontext.ProviderCallContext) (network
 		Filters: []types.Filter{filter},
 	})
 	if err != nil {
-		return nil, maybeConvertCredentialError(err, ctx)
+		return nil, maybeConvertCredentialError(ctx, e.credentialInvalidator, err)
 	}
 
 	zones := make(network.AvailabilityZones, len(resp.AvailabilityZones))
 	for i, z := range resp.AvailabilityZones {
-		zones[i] = &ec2AvailabilityZone{z}
+		zones[i] = &ec2AvailabilityZone{AvailabilityZone: z}
 	}
 	return zones, nil
 }
@@ -466,7 +470,7 @@ func (e *environ) PrecheckInstance(ctx envcontext.ProviderCallContext, args envi
 		return nil
 	}
 	// Constraint has an instance-type constraint so let's see if it is valid.
-	instanceTypes, err := e.supportedInstanceTypes(ctx, exactInstanceTypeFilter(types.InstanceType(*args.Constraints.InstanceType)))
+	instanceTypes, err := e.supportedInstanceTypes(ctx, e.credentialInvalidator, exactInstanceTypeFilter(types.InstanceType(*args.Constraints.InstanceType)))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -561,7 +565,7 @@ func (e *environ) StartInstance(
 		}
 		// If there is a problem with authentication/authorisation,
 		// we want a correctly typed error.
-		annotatedErr := errors.Annotate(maybeConvertCredentialError(received, ctx), annotation)
+		annotatedErr := errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, received), annotation)
 		if errors.Is(annotatedErr, common.ErrorCredentialNotValid) {
 			return annotatedErr
 		}
@@ -593,7 +597,7 @@ func (e *environ) StartInstance(
 
 	hasVPCID := isVPCIDSet(e.ecfg().vpcID())
 
-	instFilter, err := generalPurposeInstanceFilter(ctx, e.instanceTypeCache())
+	instFilter, err := generalPurposeInstanceFilter(ctx, e.credentialInvalidator, e.instanceTypeCache())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -605,7 +609,7 @@ func (e *environ) StartInstance(
 		)
 	}
 
-	instanceTypes, err := e.supportedInstanceTypes(ctx, instFilter)
+	instanceTypes, err := e.supportedInstanceTypes(ctx, e.credentialInvalidator, instFilter)
 	if err != nil {
 		return nil, wrapError(err)
 	}
@@ -718,7 +722,7 @@ func (e *environ) StartInstance(
 	_ = callback(ctx, status.Allocating,
 		fmt.Sprintf("Trying to start instance in availability zone %q", availabilityZone), nil)
 
-	instResp, err = runInstances(e.ec2Client, ctx, runArgs, callback)
+	instResp, err = runInstances(ctx, e.credentialInvalidator, e.ec2Client, runArgs, callback)
 	if err != nil {
 		if !isZoneOrSubnetConstrainedError(err) {
 			err = annotateWrapError(err, "cannot run instances")
@@ -1003,13 +1007,14 @@ func (e *environ) selectVPCSubnetsForZone(ctx envcontext.ProviderCallContext,
 	}
 
 	subnets, err := getVPCSubnetsForAvailabilityZone(
-		e.ec2Client, ctx, e.ecfg().vpcID(), availabilityZone, allowedSubnetIDs)
+		ctx, e.credentialInvalidator,
+		e.ec2Client, e.ecfg().vpcID(), availabilityZone, allowedSubnetIDs)
 
 	switch {
 	case isNotFoundError(err):
 		return nil, errors.Trace(err)
 	case err != nil:
-		return nil, errors.Annotatef(maybeConvertCredentialError(err, ctx), "getting subnets for zone %q", availabilityZone)
+		return nil, errors.Annotatef(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "getting subnets for zone %q", availabilityZone)
 	}
 	return subnets, nil
 }
@@ -1057,7 +1062,7 @@ func (e *environ) deriveAvailabilityZoneAndSubnetID(
 	// Determine the availability zones of existing volumes that are to be
 	// attached to the machine. They must all match, and must be the same
 	// as specified zone (if any).
-	volumeAttachmentsZone, err := volumeAttachmentsZone(e.ec2Client, ctx, args.VolumeAttachments)
+	volumeAttachmentsZone, err := volumeAttachmentsZone(ctx, e.credentialInvalidator, e.ec2Client, args.VolumeAttachments)
 	if err != nil {
 		return "", "", errors.Trace(err)
 	}
@@ -1137,7 +1142,7 @@ func (e *environ) instancePlacementZone(ctx envcontext.ProviderCallContext, plac
 // volumeAttachmentsZone determines the availability zone for each volume
 // identified in the volume attachment parameters, checking that they are
 // all the same, and returns the availability zone name.
-func volumeAttachmentsZone(e Client, ctx envcontext.ProviderCallContext, attachments []storage.VolumeAttachmentParams) (string, error) {
+func volumeAttachmentsZone(ctx context.Context, invalidator environs.CredentialInvalidator, e Client, attachments []storage.VolumeAttachmentParams) (string, error) {
 	volumeIds := make([]string, 0, len(attachments))
 	for _, a := range attachments {
 		if a.Provider != EBS_ProviderType {
@@ -1152,7 +1157,7 @@ func volumeAttachmentsZone(e Client, ctx envcontext.ProviderCallContext, attachm
 		VolumeIds: volumeIds,
 	})
 	if err != nil {
-		return "", errors.Annotatef(maybeConvertCredentialError(err, ctx), "getting volume details (%s)", volumeIds)
+		return "", errors.Annotatef(maybeConvertCredentialError(ctx, invalidator, err), "getting volume details (%s)", volumeIds)
 	}
 	if len(resp.Volumes) == 0 {
 		return "", nil
@@ -1173,7 +1178,7 @@ func volumeAttachmentsZone(e Client, ctx envcontext.ProviderCallContext, attachm
 // tagResources calls ec2.CreateTags, tagging each of the specified resources
 // with the given tags. tagResources will retry for a short period of time
 // if it receives a *.NotFound error response from EC2.
-func tagResources(e Client, ctx envcontext.ProviderCallContext, tags map[string]string, resourceIds ...string) error {
+func tagResources(ctx context.Context, invalidator environs.CredentialInvalidator, e Client, tags map[string]string, resourceIds ...string) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -1196,7 +1201,7 @@ func tagResources(e Client, ctx envcontext.ProviderCallContext, tags map[string]
 	if retry.IsAttemptsExceeded(err) || retry.IsDurationExceeded(err) {
 		err = retry.LastError(err)
 	}
-	return maybeConvertCredentialError(err, ctx)
+	return maybeConvertCredentialError(ctx, invalidator, err)
 }
 
 var runInstances = _runInstances
@@ -1204,7 +1209,7 @@ var runInstances = _runInstances
 // runInstances calls ec2.RunInstances for a fixed number of attempts until
 // RunInstances returns an error code that does not indicate an error that
 // may be caused by eventual consistency.
-func _runInstances(e Client, ctx envcontext.ProviderCallContext, ri *ec2.RunInstancesInput, callback environs.StatusCallbackFunc) (*ec2.RunInstancesOutput, error) {
+func _runInstances(ctx context.Context, invalidator environs.CredentialInvalidator, e Client, ri *ec2.RunInstancesInput, callback environs.StatusCallbackFunc) (*ec2.RunInstancesOutput, error) {
 	var resp *ec2.RunInstancesOutput
 	try := 1
 
@@ -1224,7 +1229,7 @@ func _runInstances(e Client, ctx envcontext.ProviderCallContext, ri *ec2.RunInst
 		err = retry.LastError(err)
 	}
 
-	return resp, maybeConvertCredentialError(err, ctx)
+	return resp, maybeConvertCredentialError(ctx, invalidator, err)
 }
 
 func (e *environ) StopInstances(ctx envcontext.ProviderCallContext, ids ...instance.Id) error {
@@ -1232,10 +1237,10 @@ func (e *environ) StopInstances(ctx envcontext.ProviderCallContext, ids ...insta
 }
 
 // groupByName returns the security group with the given name.
-func (e *environ) groupByName(ctx envcontext.ProviderCallContext, groupName string) (types.SecurityGroup, error) {
+func (e *environ) groupByName(ctx context.Context, invalidator environs.CredentialInvalidator, groupName string) (types.SecurityGroup, error) {
 	groups, err := e.securityGroupsByNameOrID(ctx, groupName)
 	if err != nil {
-		return types.SecurityGroup{}, maybeConvertCredentialError(err, ctx)
+		return types.SecurityGroup{}, maybeConvertCredentialError(ctx, invalidator, err)
 	}
 
 	if len(groups) != 1 {
@@ -1279,7 +1284,7 @@ func (e *environ) Instances(ctx envcontext.ProviderCallContext, ids []instance.I
 			makeFilter("instance-id", need...),
 			makeModelFilter(e.uuid()),
 		}
-		return e.gatherInstances(ctx, ids, insts, filters)
+		return e.gatherInstances(ctx, e.credentialInvalidator, ids, insts, filters)
 	}
 	err := retry.Call(retryStrategy)
 	if retry.IsAttemptsExceeded(err) || retry.IsDurationExceeded(err) {
@@ -1306,7 +1311,8 @@ func (e *environ) Instances(ctx envcontext.ProviderCallContext, ids []instance.I
 // This function returns environs.ErrPartialInstances if the
 // insts slice has not been completely filled.
 func (e *environ) gatherInstances(
-	ctx envcontext.ProviderCallContext,
+	ctx context.Context,
+	invalidator environs.CredentialInvalidator,
 	ids []instance.Id,
 	insts []instances.Instance,
 	filters []types.Filter,
@@ -1315,7 +1321,7 @@ func (e *environ) gatherInstances(
 		Filters: filters,
 	})
 	if err != nil {
-		return maybeConvertCredentialError(err, ctx)
+		return maybeConvertCredentialError(ctx, invalidator, err)
 	}
 	n := 0
 	// For each requested id, add it to the returned instances
@@ -1359,7 +1365,7 @@ func (e *environ) NetworkInterfaces(ctx envcontext.ProviderCallContext, ids []in
 	// for the bulk network interface info requests below.
 	subMap, err := e.subnetMap(ctx)
 	if err != nil {
-		return nil, errors.Annotate(maybeConvertCredentialError(err, ctx), "failed to retrieve subnet info")
+		return nil, errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "failed to retrieve subnet info")
 	}
 
 	infos := make([]network.InterfaceInfos, len(ids))
@@ -1449,7 +1455,7 @@ func (e *environ) gatherNetworkInterfaceInfo(
 		Filters: []types.Filter{filter},
 	})
 	if err != nil {
-		return maybeConvertCredentialError(err, ctx)
+		return maybeConvertCredentialError(ctx, e.credentialInvalidator, err)
 	}
 
 	for _, netIfSpec := range networkInterfacesResp.NetworkInterfaces {
@@ -1500,7 +1506,7 @@ func (e *environ) networkInterfacesForInstance(ctx envcontext.ProviderCallContex
 			Filters: []types.Filter{filter},
 		})
 		if err != nil {
-			return maybeConvertCredentialError(err, ctx)
+			return maybeConvertCredentialError(ctx, e.credentialInvalidator, err)
 		}
 		if len(resp.NetworkInterfaces) == 0 {
 			msg := fmt.Sprintf("instance %q has no NIC attachment yet, retrying...", instId)
@@ -1528,7 +1534,7 @@ func (e *environ) networkInterfacesForInstance(ctx envcontext.ProviderCallContex
 			SubnetIds: []string{aws.ToString(iface.SubnetId)},
 		})
 		if err != nil {
-			return nil, errors.Annotatef(maybeConvertCredentialError(err, ctx), "failed to retrieve subnet %q info", aws.ToString(iface.SubnetId))
+			return nil, errors.Annotatef(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "failed to retrieve subnet %q info", aws.ToString(iface.SubnetId))
 		}
 		if len(resp.Subnets) != 1 {
 			return nil, errors.Errorf("expected 1 subnet, got %d", len(resp.Subnets))
@@ -1709,9 +1715,9 @@ func (e *environ) subnetsForVPC(ctx envcontext.ProviderCallContext) ([]types.Sub
 		Filters: []types.Filter{filter},
 	})
 	if err != nil {
-		return nil, "", maybeConvertCredentialError(err, ctx)
+		return nil, "", maybeConvertCredentialError(ctx, e.credentialInvalidator, err)
 	}
-	return resp.Subnets, vpcId, maybeConvertCredentialError(err, ctx)
+	return resp.Subnets, vpcId, nil
 }
 
 // AdoptResources is part of the Environ interface.
@@ -1745,7 +1751,7 @@ func (e *environ) AdoptResources(ctx envcontext.ProviderCallContext, controllerU
 	resourceIds = append(resourceIds, groupIds...)
 
 	tags := map[string]string{tags.JujuController: controllerUUID}
-	return errors.Annotate(tagResources(e.ec2Client, ctx, tags, resourceIds...), "updating tags")
+	return errors.Annotate(tagResources(ctx, e.credentialInvalidator, e.ec2Client, tags, resourceIds...), "updating tags")
 }
 
 // AllInstances is part of the environs.InstanceBroker interface.
@@ -1780,7 +1786,7 @@ func (e *environ) ControllerInstances(ctx envcontext.ProviderCallContext, contro
 	}
 	ids, err := e.allInstanceIDs(ctx, filters)
 	if err != nil {
-		return nil, errors.Trace(maybeConvertCredentialError(err, ctx))
+		return nil, errors.Trace(maybeConvertCredentialError(ctx, e.credentialInvalidator, err))
 	}
 	if len(ids) == 0 {
 		return nil, environs.ErrNotBootstrapped
@@ -1812,7 +1818,7 @@ func (e *environ) allControllerManagedInstances(ctx envcontext.ProviderCallConte
 func (e *environ) allInstanceIDs(ctx envcontext.ProviderCallContext, filters []types.Filter) ([]instance.Id, error) {
 	insts, err := e.allInstances(ctx, filters)
 	if err != nil {
-		return nil, errors.Trace(maybeConvertCredentialError(err, ctx))
+		return nil, errors.Trace(maybeConvertCredentialError(ctx, e.credentialInvalidator, err))
 	}
 	ids := make([]instance.Id, len(insts))
 	for i, inst := range insts {
@@ -1826,7 +1832,7 @@ func (e *environ) allInstances(ctx envcontext.ProviderCallContext, filters []typ
 		Filters: filters,
 	})
 	if err != nil {
-		return nil, errors.Annotate(maybeConvertCredentialError(err, ctx), "listing instances")
+		return nil, errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "listing instances")
 	}
 	var insts []instances.Instance
 	for _, r := range resp.Reservations {
@@ -1840,10 +1846,10 @@ func (e *environ) allInstances(ctx envcontext.ProviderCallContext, filters []typ
 // Destroy is part of the environs.Environ interface.
 func (e *environ) Destroy(ctx envcontext.ProviderCallContext) error {
 	if err := common.Destroy(e, ctx); err != nil {
-		return errors.Trace(maybeConvertCredentialError(err, ctx))
+		return errors.Trace(maybeConvertCredentialError(ctx, e.credentialInvalidator, err))
 	}
 	if err := e.cleanModelSecurityGroups(ctx); err != nil {
-		return errors.Annotate(maybeConvertCredentialError(err, ctx), "cannot delete model security groups")
+		return errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "cannot delete model security groups")
 	}
 	return nil
 }
@@ -1876,7 +1882,7 @@ func (e *environ) destroyControllerManagedModels(ctx envcontext.ProviderCallCont
 	if err != nil {
 		return errors.Annotate(err, "listing volumes")
 	}
-	errs := foreachVolume(e.ec2Client, ctx, volIds, destroyVolume)
+	errs := foreachVolume(ctx, e.credentialInvalidator, e.ec2Client, volIds, destroyVolume)
 	for i, err := range errs {
 		if err == nil {
 			continue
@@ -1930,11 +1936,11 @@ func (e *environ) destroyControllerManagedModels(ctx envcontext.ProviderCallCont
 }
 
 func (e *environ) allControllerManagedVolumes(ctx envcontext.ProviderCallContext, controllerUUID string, includeRootDisks bool) ([]string, error) {
-	return listVolumes(e.ec2Client, ctx, includeRootDisks, makeControllerFilter(controllerUUID))
+	return listVolumes(ctx, e.credentialInvalidator, e.ec2Client, includeRootDisks, makeControllerFilter(controllerUUID))
 }
 
 func (e *environ) allModelVolumes(ctx envcontext.ProviderCallContext, includeRootDisks bool) ([]string, error) {
-	return listVolumes(e.ec2Client, ctx, includeRootDisks, makeModelFilter(e.uuid()))
+	return listVolumes(ctx, e.credentialInvalidator, e.ec2Client, includeRootDisks, makeModelFilter(e.uuid()))
 }
 
 func rulesToIPPerms(rules firewall.IngressRules) []types.IpPermission {
@@ -1977,7 +1983,7 @@ func (e *environ) openPortsInGroup(ctx envcontext.ProviderCallContext, name stri
 		return nil
 	}
 	// Give permissions for anyone to access the given ports.
-	g, err := e.groupByName(ctx, name)
+	g, err := e.groupByName(ctx, e.credentialInvalidator, name)
 	if err != nil {
 		return err
 	}
@@ -2000,13 +2006,13 @@ func (e *environ) openPortsInGroup(ctx envcontext.ProviderCallContext, name stri
 				IpPermissions: ipPerms[i : i+1],
 			})
 			if err != nil && ec2ErrCode(err) != "InvalidPermission.Duplicate" {
-				return errors.Annotatef(maybeConvertCredentialError(err, ctx), "cannot open port %v", ipPerms[i])
+				return errors.Annotatef(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "cannot open port %v", ipPerms[i])
 			}
 		}
 		return nil
 	}
 	if err != nil {
-		return errors.Annotate(maybeConvertCredentialError(err, ctx), "cannot open ports")
+		return errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "cannot open ports")
 	}
 	return nil
 }
@@ -2018,7 +2024,7 @@ func (e *environ) closePortsInGroup(ctx envcontext.ProviderCallContext, name str
 	// Revoke permissions for anyone to access the given ports.
 	// Note that ec2 allows the revocation of permissions that aren't
 	// granted, so this is naturally idempotent.
-	g, err := e.groupByName(ctx, name)
+	g, err := e.groupByName(ctx, e.credentialInvalidator, name)
 	if err != nil {
 		return err
 	}
@@ -2027,13 +2033,13 @@ func (e *environ) closePortsInGroup(ctx envcontext.ProviderCallContext, name str
 		IpPermissions: rulesToIPPerms(rules),
 	})
 	if err != nil {
-		return errors.Annotate(maybeConvertCredentialError(err, ctx), "cannot close ports")
+		return errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "cannot close ports")
 	}
 	return nil
 }
 
 func (e *environ) ingressRulesInGroup(ctx envcontext.ProviderCallContext, name string) (rules firewall.IngressRules, err error) {
-	group, err := e.groupByName(ctx, name)
+	group, err := e.groupByName(ctx, e.credentialInvalidator, name)
 	if err != nil {
 		return nil, err
 	}
@@ -2139,7 +2145,7 @@ func (e *environ) instanceSecurityGroups(ctx envcontext.ProviderCallContext, ins
 		Filters:     filter,
 	})
 	if err != nil {
-		return nil, errors.Annotatef(maybeConvertCredentialError(err, ctx), "cannot retrieve instance information from aws to delete security groups")
+		return nil, errors.Annotatef(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "cannot retrieve instance information from aws to delete security groups")
 	}
 
 	var securityGroups []types.GroupIdentifier
@@ -2167,7 +2173,7 @@ func (e *environ) querySecurityGroups(ctx envcontext.ProviderCallContext, filter
 		Filters: []types.Filter{filter},
 	})
 	if err != nil {
-		return nil, errors.Annotate(maybeConvertCredentialError(err, ctx), "listing security groups")
+		return nil, errors.Annotate(maybeConvertCredentialError(ctx, e.credentialInvalidator, err), "listing security groups")
 	}
 	groups := make([]types.GroupIdentifier, len(resp.SecurityGroups))
 	for i, g := range resp.SecurityGroups {
@@ -2224,7 +2230,7 @@ func (e *environ) terminateInstances(ctx envcontext.ProviderCallContext, ids []i
 	retryStrategy := shortRetryStrategy
 	retryStrategy.Stop = abortRetries
 	retryStrategy.Func = func() error {
-		resp, err := terminateInstancesById(e.ec2Client, ctx, ids...)
+		resp, err := terminateInstancesById(ctx, e.credentialInvalidator, e.ec2Client, ids...)
 		if err == nil {
 			for i, sc := range resp {
 				if !terminatingStates.Contains(string(sc.CurrentState.Name)) {
@@ -2236,7 +2242,7 @@ func (e *environ) terminateInstances(ctx envcontext.ProviderCallContext, ids []i
 			// This will return either success at terminating all instances (1st condition) or
 			// encountered error as long as it's not NotFound (2nd condition).
 			abortRetries <- struct{}{}
-			return maybeConvertCredentialError(err, ctx)
+			return maybeConvertCredentialError(ctx, e.credentialInvalidator, err)
 		}
 		return err
 	}
@@ -2256,7 +2262,7 @@ func (e *environ) terminateInstances(ctx envcontext.ProviderCallContext, ids []i
 	// So try each instance individually, ignoring a NotFound error this time.
 	deletedIDs := []instance.Id{}
 	for _, id := range ids {
-		resp, err := terminateInstancesById(e.ec2Client, ctx, id)
+		resp, err := terminateInstancesById(ctx, e.credentialInvalidator, e.ec2Client, id)
 		if err == nil {
 			scName := string(resp[0].CurrentState.Name)
 			if !terminatingStates.Contains(scName) {
@@ -2275,7 +2281,7 @@ func (e *environ) terminateInstances(ctx envcontext.ProviderCallContext, ids []i
 	return nil
 }
 
-var terminateInstancesById = func(ec2inst Client, ctx envcontext.ProviderCallContext, ids ...instance.Id) ([]types.InstanceStateChange, error) {
+var terminateInstancesById = func(ctx context.Context, invalidator environs.CredentialInvalidator, ec2inst Client, ids ...instance.Id) ([]types.InstanceStateChange, error) {
 	strs := make([]string, len(ids))
 	for i, id := range ids {
 		strs[i] = string(id)
@@ -2284,7 +2290,7 @@ var terminateInstancesById = func(ec2inst Client, ctx envcontext.ProviderCallCon
 		InstanceIds: strs,
 	})
 	if err != nil {
-		return nil, maybeConvertCredentialError(err, ctx)
+		return nil, maybeConvertCredentialError(ctx, invalidator, err)
 	}
 	return r.TerminatingInstances, nil
 }

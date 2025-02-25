@@ -4,6 +4,7 @@
 package ec2
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -140,11 +141,13 @@ func selectorInstanceTypeFilter(selector instanceType) instanceTypeFilter {
 // only on machines that are considered general purpose enough for Juju to use
 // as a sane default.
 func generalPurposeInstanceFilter(
-	ctx envcontext.ProviderCallContext,
+	ctx context.Context,
+	invalidator environs.CredentialInvalidator,
 	cache *instanceTypeCache,
 ) (instanceTypeFilter, error) {
 	highestGenerationIntel, err := cache.HighestFamilyGeneration(
 		ctx,
+		invalidator,
 		defaultAWSEC2Family,
 		processorFamilyIntel,
 	)
@@ -154,6 +157,7 @@ func generalPurposeInstanceFilter(
 
 	highestGenerationGraviton, err := cache.HighestFamilyGeneration(
 		ctx,
+		invalidator,
 		defaultAWSEC2Family,
 		processorFamilyGraviton,
 	)
@@ -258,7 +262,7 @@ func parseInstanceType(instType types.InstanceType) (instanceType, error) {
 }
 
 // populateCache loads aws instance type info the region into the cache
-func (c *instanceTypeCache) populateCache(ctx envcontext.ProviderCallContext) error {
+func (c *instanceTypeCache) populateCache(ctx context.Context, invalidator environs.CredentialInvalidator) error {
 	c.populateMutex.Lock()
 	defer c.populateMutex.Unlock()
 
@@ -268,6 +272,7 @@ func (c *instanceTypeCache) populateCache(ctx envcontext.ProviderCallContext) er
 
 	instTypesInfo, err := FetchInstanceTypeInfo(
 		ctx,
+		invalidator,
 		c.ec2Client,
 	)
 	if err != nil {
@@ -292,11 +297,12 @@ func newInstanceTypeCache(ec2Client Client, region string) *instanceTypeCache {
 // provided aws ec2 family. If no generation is found for the family then an
 // error satisfying NotFound is returned.
 func (c *instanceTypeCache) HighestFamilyGeneration(
-	ctx envcontext.ProviderCallContext,
+	ctx context.Context,
+	invalidator environs.CredentialInvalidator,
 	family,
 	processor string,
 ) (int, error) {
-	if err := c.populateCache(ctx); err != nil {
+	if err := c.populateCache(ctx, invalidator); err != nil {
 		return 0, err
 	}
 
@@ -310,8 +316,11 @@ func (c *instanceTypeCache) HighestFamilyGeneration(
 
 // InstanceTypesInfo returns the cached instance type info or an error if there
 // was a problem loading the cache.
-func (c *instanceTypeCache) InstanceTypesInfo(ctx envcontext.ProviderCallContext) ([]types.InstanceTypeInfo, error) {
-	if err := c.populateCache(ctx); err != nil {
+func (c *instanceTypeCache) InstanceTypesInfo(
+	ctx context.Context,
+	invalidator environs.CredentialInvalidator,
+) ([]types.InstanceTypeInfo, error) {
+	if err := c.populateCache(ctx, invalidator); err != nil {
 		return nil, err
 	}
 	return c.instTypesInfo, nil
@@ -320,7 +329,7 @@ func (c *instanceTypeCache) InstanceTypesInfo(ctx envcontext.ProviderCallContext
 // InstanceTypes implements InstanceTypesFetcher
 func (e *environ) InstanceTypes(ctx envcontext.ProviderCallContext, c constraints.Value) (instances.InstanceTypesWithCostMetadata, error) {
 	iTypeFilter := allInstanceTypeFilter()
-	iTypes, err := e.supportedInstanceTypes(ctx, iTypeFilter)
+	iTypes, err := e.supportedInstanceTypes(ctx, e.credentialInvalidator, iTypeFilter)
 	if err != nil {
 		return instances.InstanceTypesWithCostMetadata{}, errors.Trace(err)
 	}
@@ -391,10 +400,11 @@ func archName(in types.ArchitectureType) string {
 }
 
 func (e *environ) supportedInstanceTypes(
-	ctx envcontext.ProviderCallContext,
+	ctx context.Context,
+	invalidator environs.CredentialInvalidator,
 	filter instanceTypeFilter,
 ) ([]instances.InstanceType, error) {
-	instanceTypes, err := e.instanceTypeCache().InstanceTypesInfo(ctx)
+	instanceTypes, err := e.instanceTypeCache().InstanceTypesInfo(ctx, invalidator)
 	if err != nil {
 		return nil, fmt.Errorf("consulting cache for available instance types: %w", err)
 	}

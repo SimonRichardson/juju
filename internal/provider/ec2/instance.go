@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/core/network/firewall"
 	"github.com/juju/juju/core/status"
+	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/envcontext"
 	"github.com/juju/juju/environs/instances"
@@ -161,7 +162,8 @@ type FetchInstanceClient interface {
 // available instance types for an AWS region. This func assumes that the ec2
 // client provided is scoped to a region already.
 func FetchInstanceTypeInfo(
-	ctx envcontext.ProviderCallContext,
+	ctx context.Context,
+	invalidator environs.CredentialInvalidator,
 	ec2Client FetchInstanceClient,
 ) ([]types.InstanceTypeInfo, error) {
 	const maxResults = int32(100)
@@ -174,7 +176,7 @@ func FetchInstanceTypeInfo(
 			NextToken:  nextToken,
 		})
 		if err != nil {
-			err = maybeConvertCredentialError(err, ctx)
+			err = maybeConvertCredentialError(ctx, invalidator, err)
 			return nil, fmt.Errorf("describing instance types: %w", err)
 		}
 		instanceTypes = append(instanceTypes, instTypeResults.InstanceTypes...)
