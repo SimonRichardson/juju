@@ -41,14 +41,6 @@ type Service struct {
 // WatcherFactory describes the methods required for creating new watchers
 // for key updates.
 type WatcherFactory interface {
-	// NewNamespaceNotifyWatcher returns a new namespace notify watcher for
-	// events based on the input change mask.
-	NewNamespaceNotifyWatcher(string, changestream.ChangeType) (watcher.NotifyWatcher, error)
-
-	// NewValueWatcher returns a watcher for a particular change value in a
-	// namespace, based on the input change mask.
-	NewValueWatcher(string, string, changestream.ChangeType) (watcher.NotifyWatcher, error)
-
 	// NewMultiWatcher returns a watcher that combines multiple value
 	// watchers into a single watcher.
 	NewMultiWatcher(...eventsource.FilterOption) (watcher.NotifyWatcher, error)

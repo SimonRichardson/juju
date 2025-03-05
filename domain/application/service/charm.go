@@ -34,19 +34,14 @@ var (
 
 // WatcherFactory instances return watchers for a given namespace and UUID.
 type WatcherFactory interface {
-	NewUUIDsWatcher(
-		namespace string, changeMask changestream.ChangeType,
-	) (watcher.StringsWatcher, error)
-	NewValueMapperWatcher(string, string, changestream.ChangeType, eventsource.Mapper,
-	) (watcher.NotifyWatcher, error)
+	NewUUIDsWatcher(namespace string, changeMask changestream.ChangeType) (watcher.StringsWatcher, error)
+	NewMultiWatcher(...eventsource.FilterOption) (watcher.NotifyWatcher, error)
+	NewMultiMapperWatcher(eventsource.Mapper, ...eventsource.FilterOption) (watcher.NotifyWatcher, error)
 	NewNamespaceMapperWatcher(
 		namespace string, changeMask changestream.ChangeType,
 		initialStateQuery eventsource.NamespaceQuery,
 		mapper eventsource.Mapper,
 	) (watcher.StringsWatcher, error)
-	NewValueWatcher(
-		namespace, changeValue string, changeMask changestream.ChangeType,
-	) (watcher.NotifyWatcher, error)
 }
 
 // CharmState describes retrieval and persistence methods for charms.

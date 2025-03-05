@@ -34,18 +34,14 @@ type State interface {
 	// machine id.
 	MachineBlockDevices(ctx context.Context) ([]blockdevice.MachineBlockDevice, error)
 
-	// WatchBlockDevices returns a new NotifyWatcher watching for
-	// changes to block devices associated with the specified machine.
-	WatchBlockDevices(ctx context.Context, getWatcher getWatcherFunc, machineId string) (watcher.NotifyWatcher, error)
+	// BlockDeviceMachineUUID returns the machine UUID for the specified machine
+	// ID.
+	BlockDeviceMachineUUID(ctx context.Context, machineId string) (string, error)
 }
 
 // WatcherFactory describes methods for creating watchers.
 type WatcherFactory interface {
-	NewValueMapperWatcher(
-		namespace, changeValue string,
-		changeMask changestream.ChangeType,
-		mapper eventsource.Mapper,
-	) (watcher.NotifyWatcher, error)
+	NewMultiWatcher(...eventsource.FilterOption) (watcher.NotifyWatcher, error)
 }
 
 // Service defines a service for interacting with the underlying state.
@@ -115,5 +111,16 @@ func (s *WatchableService) WatchBlockDevices(
 	ctx context.Context,
 	machineId string,
 ) (watcher.NotifyWatcher, error) {
-	return s.st.WatchBlockDevices(ctx, s.watcherFactory.NewValueMapperWatcher, machineId)
+	machineUUID, err := s.st.BlockDeviceMachineUUID(ctx, machineId)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return s.watcherFactory.NewMultiWatcher(
+		eventsource.ValueFilter(
+			"block_device",
+			changestream.All,
+			func(s string) bool { return s == machineUUID },
+		),
+	)
 }

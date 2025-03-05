@@ -145,7 +145,7 @@ func (s *watcherSuite) TestNewNamespaceNotifyWatcherSuccess(c *gc.C) {
 		}, nil
 	}, nil)
 
-	w, err := factory.NewNamespaceNotifyWatcher("some-namespace", changestream.All)
+	w, err := factory.NewMultiWatcher(eventsource.NamespaceFilter("some-namespace", changestream.All))
 	c.Assert(err, jc.ErrorIsNil)
 
 	select {
@@ -168,11 +168,11 @@ func (s *watcherSuite) TestNewNamespaceNotifyMapperWatcherSuccess(c *gc.C) {
 		}, nil
 	}, nil)
 
-	w, err := factory.NewNamespaceNotifyMapperWatcher(
-		"some-namespace", changestream.All,
+	w, err := factory.NewMultiMapperWatcher(
 		func(ctx context.Context, tr database.TxnRunner, ce []changestream.ChangeEvent) ([]changestream.ChangeEvent, error) {
 			return ce, nil
 		},
+		eventsource.NamespaceFilter("some-namespace", changestream.All),
 	)
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -196,7 +196,9 @@ func (s *watcherSuite) TestNewValueWatcherSuccess(c *gc.C) {
 		}, nil
 	}, nil)
 
-	w, err := factory.NewValueWatcher("some-namespace", "some-id-from-namespace", changestream.All)
+	w, err := factory.NewMultiWatcher(eventsource.ValueFilter("some-namespace", changestream.All, func(s string) bool {
+		return s == "some-id-from-namespace"
+	}))
 	c.Assert(err, jc.ErrorIsNil)
 
 	select {
@@ -219,11 +221,13 @@ func (s *watcherSuite) TestNewValueMapperWatcherSuccess(c *gc.C) {
 		}, nil
 	}, nil)
 
-	w, err := factory.NewValueMapperWatcher(
-		"some-namespace", "some-id-from-namespace", changestream.All,
+	w, err := factory.NewMultiMapperWatcher(
 		func(ctx context.Context, tr database.TxnRunner, ce []changestream.ChangeEvent) ([]changestream.ChangeEvent, error) {
 			return ce, nil
 		},
+		eventsource.ValueFilter("some-namespace", changestream.All, func(s string) bool {
+			return s == "some-id-from-namespace"
+		}),
 	)
 	c.Assert(err, jc.ErrorIsNil)
 

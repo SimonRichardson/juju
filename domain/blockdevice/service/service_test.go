@@ -12,7 +12,6 @@ import (
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/core/blockdevice"
-	"github.com/juju/juju/core/watcher/watchertest"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 )
 
@@ -148,9 +147,7 @@ func (s *serviceSuite) TestUpdateDevicesNoFilesystemType(c *gc.C) {
 func (s *serviceSuite) TestWatchBlockDevice(c *gc.C) {
 	defer s.setupMocks(c).Finish()
 
-	nw := watchertest.NewMockNotifyWatcher(nil)
-
-	s.state.EXPECT().WatchBlockDevices(gomock.Any(), gomock.Any(), "666").Return(nw, nil)
+	s.state.EXPECT().BlockDeviceMachineUUID(gomock.Any(), "666").Return("666", nil)
 
 	w, err := s.service(c).WatchBlockDevices(context.Background(), "666")
 	c.Assert(err, jc.ErrorIsNil)

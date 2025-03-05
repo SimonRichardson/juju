@@ -30,6 +30,7 @@ import (
 	corestorage "github.com/juju/juju/core/storage"
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher"
+	"github.com/juju/juju/core/watcher/eventsource"
 	"github.com/juju/juju/domain"
 	"github.com/juju/juju/domain/application"
 	"github.com/juju/juju/domain/application/architecture"
@@ -325,7 +326,6 @@ func (s *WatchableService) WatchApplicationScale(ctx context.Context, appName st
 	}
 	currentScale := scaleState.Scale
 
-	mask := changestream.Changed
 	mapper := func(ctx context.Context, db database.TxnRunner, changes []changestream.ChangeEvent) ([]changestream.ChangeEvent, error) {
 		newScaleState, err := s.st.GetApplicationScaleState(ctx, appID)
 		if err != nil {
@@ -339,7 +339,13 @@ func (s *WatchableService) WatchApplicationScale(ctx context.Context, appName st
 		}
 		return nil, nil
 	}
-	return s.watcherFactory.NewValueMapperWatcher("application_scale", appID.String(), mask, mapper)
+
+	return s.watcherFactory.NewMultiMapperWatcher(
+		mapper,
+		eventsource.ValueFilter("application_scale", changestream.Changed, func(s string) bool {
+			return s == appID.String()
+		}),
+	)
 }
 
 // WatchApplicationsWithPendingCharms returns a watcher that observes changes to
@@ -432,10 +438,10 @@ func (s *WatchableService) WatchApplication(ctx context.Context, name string) (w
 	if err != nil {
 		return nil, internalerrors.Errorf("getting ID of application %s: %w", name, err)
 	}
-	return s.watcherFactory.NewValueWatcher(
-		"application",
-		uuid.String(),
-		changestream.All,
+	return s.watcherFactory.NewMultiWatcher(
+		eventsource.ValueFilter("application", changestream.All, func(s string) bool {
+			return s == uuid.String()
+		}),
 	)
 }
 
@@ -453,7 +459,11 @@ func (s *WatchableService) WatchApplicationConfig(ctx context.Context, name stri
 		return nil, internalerrors.Errorf("getting ID of application %s: %w", name, err)
 	}
 
-	return s.watcherFactory.NewValueWatcher("application_config_hash", uuid.String(), changestream.All)
+	return s.watcherFactory.NewMultiWatcher(
+		eventsource.ValueFilter("application_config_hash", changestream.All, func(s string) bool {
+			return s == uuid.String()
+		}),
+	)
 }
 
 // WatchApplicationConfigHash watches for changes to the specified application's

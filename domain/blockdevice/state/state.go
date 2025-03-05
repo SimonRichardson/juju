@@ -12,10 +12,7 @@ import (
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/core/blockdevice"
-	"github.com/juju/juju/core/changestream"
 	coredatabase "github.com/juju/juju/core/database"
-	"github.com/juju/juju/core/watcher"
-	"github.com/juju/juju/core/watcher/eventsource"
 	"github.com/juju/juju/domain"
 	"github.com/juju/juju/domain/life"
 	machineerrors "github.com/juju/juju/domain/machine/errors"
@@ -361,20 +358,13 @@ WHERE machine_uuid = $M.machine_uuid
 	return nil
 }
 
-// WatchBlockDevices returns a new NotifyWatcher watching for
-// changes to block devices associated with the specified machine.
-func (st *State) WatchBlockDevices(
-	ctx context.Context,
-	getWatcher func(
-		namespace, changeValue string,
-		changeMask changestream.ChangeType,
-		mapper eventsource.Mapper,
-	) (watcher.NotifyWatcher, error),
-	machineId string,
-) (watcher.NotifyWatcher, error) {
+// BlockDeviceMachineUUID returns the machine UUID for the associated block
+// devices. Returns an error satisfying [machinerrors.NotFound] if the machine
+// does not exist.
+func (st *State) BlockDeviceMachineUUID(ctx context.Context, machineId string) (string, error) {
 	db, err := st.DB()
 	if err != nil {
-		return nil, errors.Trace(err)
+		return "", errors.Trace(err)
 	}
 
 	var (
@@ -387,17 +377,11 @@ func (st *State) WatchBlockDevices(
 	})
 
 	if err != nil {
-		return nil, errors.Trace(err)
+		return "", errors.Trace(err)
 	}
 	if machineLife == life.Dead {
-		return nil, errors.Errorf("cannot watch block devices on dead machine %q", machineId)
+		return "", errors.Errorf("cannot watch block devices on dead machine %q", machineId)
 	}
 
-	baseWatcher, err := getWatcher("block_device", machineUUID, changestream.All, eventsource.FilterEvents(func(ce changestream.ChangeEvent) bool {
-		return ce.Changed() == machineUUID
-	}))
-	if err != nil {
-		return nil, errors.Annotatef(err, "watching machine %q block devices", machineId)
-	}
-	return baseWatcher, nil
+	return machineUUID, nil
 }

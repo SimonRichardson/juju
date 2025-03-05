@@ -102,64 +102,6 @@ func (f *WatcherFactory) NewMultiMapperWatcher(
 	return eventsource.NewMultiValueMapperWatcher(base, mapper, filterOpts...), nil
 }
 
-// NewNamespaceNotifyWatcher returns a new namespace notify watcher
-// for events based on the input change mask.
-// Deprecated: use NewMultiWatcher instead.
-func (f *WatcherFactory) NewNamespaceNotifyWatcher(
-	namespace string, changeMask changestream.ChangeType,
-) (watcher.NotifyWatcher, error) {
-	base, err := f.newBaseWatcher()
-	if err != nil {
-		return nil, errors.Annotate(err, "creating base watcher")
-	}
-
-	return eventsource.NewNamespaceNotifyWatcher(base, namespace, changeMask), nil
-}
-
-// NewNamespaceNotifyMapperWatcher returns a new namespace notify watcher
-// for events based on the input change mask and mapper.
-// Deprecated: use NewMultiMapperWatcher instead.
-func (f *WatcherFactory) NewNamespaceNotifyMapperWatcher(
-	namespace string, changeMask changestream.ChangeType, mapper eventsource.Mapper,
-) (watcher.NotifyWatcher, error) {
-	base, err := f.newBaseWatcher()
-	if err != nil {
-		return nil, errors.Annotate(err, "creating base watcher")
-	}
-
-	return eventsource.NewNamespaceNotifyMapperWatcher(base, namespace, changeMask, mapper), nil
-}
-
-// NewValueWatcher returns a watcher for a particular change value
-// in a namespace, based on the input change mask.
-// Deprecated: use NewMultiWatcher instead.
-func (f *WatcherFactory) NewValueWatcher(
-	namespace, changeValue string, changeMask changestream.ChangeType,
-) (watcher.NotifyWatcher, error) {
-	base, err := f.newBaseWatcher()
-	if err != nil {
-		return nil, errors.Annotate(err, "creating base watcher")
-	}
-
-	return eventsource.NewValueWatcher(base, namespace, changeValue, changeMask), nil
-}
-
-// NewValueMapperWatcher returns a watcher for a particular change value
-// in a namespace, based on the input change mask and mapper.
-// Deprecated: use NewMultiMapperWatcher instead.
-func (f *WatcherFactory) NewValueMapperWatcher(
-	namespace, changeValue string,
-	changeMask changestream.ChangeType,
-	mapper eventsource.Mapper,
-) (watcher.NotifyWatcher, error) {
-	base, err := f.newBaseWatcher()
-	if err != nil {
-		return nil, errors.Annotate(err, "creating base watcher")
-	}
-
-	return eventsource.NewValueMapperWatcher(base, namespace, changeValue, changeMask, mapper), nil
-}
-
 func (f *WatcherFactory) newBaseWatcher() (*eventsource.BaseWatcher, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
