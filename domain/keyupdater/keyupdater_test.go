@@ -223,5 +223,5 @@ func (s *keyUpdaterSuite) TestWatchAuthorizedKeysForMachine(c *gc.C) {
 		w.AssertNoChange()
 	})
 
-	harness.Run(c, struct{}{}, struct{}{})
+	harness.Run(c, struct{}{})
 }
