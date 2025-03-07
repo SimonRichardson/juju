@@ -96,16 +96,16 @@ func NewServerWorker(config ServerWorkerConfig) (worker.Worker, error) {
 		s.config.Listener = listener
 	}
 
-	var listener net.Listener
-	if config.TestingSSHServerListener == nil {
-		// make listener
-	} else {
-		listener = config.TestingSSHServerListener(s.config.Listener, time.Second*10)
+	// Due to test race conditions, we have a special listener that ensures Accept()
+	// has been called at least once, allowing us to clean up properly after
+	// tests.
+	if config.TestingSSHServerListener != nil {
+		s.config.Listener = config.TestingSSHServerListener(s.config.Listener, time.Second*10)
 	}
 
 	// Start server.
 	s.tomb.Go(func() error {
-		err := s.Server.Serve(listener)
+		err := s.Server.Serve(s.config.Listener)
 		if errors.Is(err, ssh.ErrServerClosed) {
 			return nil
 		}
@@ -118,7 +118,7 @@ func NewServerWorker(config ServerWorkerConfig) (worker.Worker, error) {
 		<-s.tomb.Dying()
 
 		// Close the listener, this prevents a race in the test.
-		if err := listener.Close(); err != nil {
+		if err := s.config.Listener.Close(); err != nil {
 			s.config.Logger.Errorf("failed to close listener: %v", err)
 		}
 
