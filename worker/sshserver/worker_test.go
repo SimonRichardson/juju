@@ -30,10 +30,9 @@ func newServerWrapperWorkerConfig(
 	modifier func(*sshserver.ServerWrapperWorkerConfig),
 ) *sshserver.ServerWrapperWorkerConfig {
 	cfg := &sshserver.ServerWrapperWorkerConfig{
-		NewServerWorker:      func(sshserver.ServerWorkerConfig) (worker.Worker, error) { return nil, nil },
-		Logger:               l,
-		FacadeClient:         client,
-		NewSSHServerListener: TestingSSHServerListener,
+		NewServerWorker: func(sshserver.ServerWorkerConfig) (worker.Worker, error) { return nil, nil },
+		Logger:          l,
+		FacadeClient:    client,
 	}
 
 	modifier(cfg)
@@ -81,16 +80,6 @@ func (s *workerSuite) TestValidate(c *gc.C) {
 		},
 	)
 	c.Assert(cfg.Validate(), jc.ErrorIs, errors.NotValid)
-
-	// Test no NewSSHServerListener.
-	cfg = newServerWrapperWorkerConfig(
-		l,
-		mockFacadeClient,
-		func(cfg *sshserver.ServerWrapperWorkerConfig) {
-			cfg.NewSSHServerListener = nil
-		},
-	)
-	c.Assert(cfg.Validate(), jc.ErrorIs, errors.NotValid)
 }
 
 func (s *workerSuite) TestSSHServerWrapperWorkerCanBeKilled(c *gc.C) {
@@ -123,7 +112,6 @@ func (s *workerSuite) TestSSHServerWrapperWorkerCanBeKilled(c *gc.C) {
 		NewServerWorker: func(swc sshserver.ServerWorkerConfig) (worker.Worker, error) {
 			return serverWorker, nil
 		},
-		NewSSHServerListener: TestingSSHServerListener,
 	}
 	w, err := sshserver.NewServerWrapperWorker(cfg)
 	c.Assert(err, jc.ErrorIsNil)
@@ -198,7 +186,6 @@ func (s *workerSuite) TestSSHServerWrapperWorkerRestartsServerWorker(c *gc.C) {
 			}
 			return serverWorker, nil
 		},
-		NewSSHServerListener: TestingSSHServerListener,
 	}
 	w, err := sshserver.NewServerWrapperWorker(cfg)
 	c.Assert(err, jc.ErrorIsNil)
@@ -249,7 +236,6 @@ func (s *workerSuite) TestSSHServerWrapperWorkerErrorsOnMissingHostKey(c *gc.C) 
 		NewServerWorker: func(swc sshserver.ServerWorkerConfig) (worker.Worker, error) {
 			return serverWorker, nil
 		},
-		NewSSHServerListener: TestingSSHServerListener,
 	}
 	w1, err := sshserver.NewServerWrapperWorker(cfg)
 	c.Assert(err, gc.IsNil)
@@ -267,7 +253,6 @@ func (s *workerSuite) TestSSHServerWrapperWorkerErrorsOnMissingHostKey(c *gc.C) 
 		NewServerWorker: func(swc sshserver.ServerWorkerConfig) (worker.Worker, error) {
 			return serverWorker, nil
 		},
-		NewSSHServerListener: TestingSSHServerListener,
 	}
 	w2, err := sshserver.NewServerWrapperWorker(cfg)
 	c.Assert(err, gc.IsNil)

@@ -36,9 +36,9 @@ type ServerWorkerConfig struct {
 	// listener this can be left zeroed.
 	Port int
 
-	// NewSSHServerListener is a function that returns a listener and a
+	// TestingSSHServerListener is a function that returns a listener and a
 	// closeAllowed channel.
-	NewSSHServerListener func(net.Listener, time.Duration) net.Listener
+	TestingSSHServerListener func(net.Listener, time.Duration) net.Listener
 }
 
 // Validate validates the workers configuration is as expected.
@@ -48,9 +48,6 @@ func (c ServerWorkerConfig) Validate() error {
 	}
 	if c.JumpHostKey == "" {
 		return errors.NotValidf("empty JumpHostKey")
-	}
-	if c.NewSSHServerListener == nil {
-		return errors.NotValidf("missing NewSSHServerListener")
 	}
 	return nil
 }
@@ -99,7 +96,12 @@ func NewServerWorker(config ServerWorkerConfig) (worker.Worker, error) {
 		s.config.Listener = listener
 	}
 
-	listener := config.NewSSHServerListener(s.config.Listener, time.Second*10)
+	var listener net.Listener
+	if config.TestingSSHServerListener == nil {
+		// make listener
+	} else {
+		listener = config.TestingSSHServerListener(s.config.Listener, time.Second*10)
+	}
 
 	// Start server.
 	s.tomb.Go(func() error {
