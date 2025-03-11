@@ -213,9 +213,6 @@ type ObjectStoreServicesGetter interface {
 // ControllerLogSinkServices provides access to the services required by the
 // log sink worker.
 type LogSinkServices interface {
-	// ControllerConfig returns the controller configuration service.
-	ControllerConfig() *controllerconfigservice.WatchableService
-
 	// Model returns the log sink model service.
 	Model() *modelservice.LogSinkService
 }

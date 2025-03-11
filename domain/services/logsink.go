@@ -6,8 +6,6 @@ package services
 import (
 	"github.com/juju/juju/core/changestream"
 	"github.com/juju/juju/core/logger"
-	controllerconfigservice "github.com/juju/juju/domain/controllerconfig/service"
-	controllerconfigstate "github.com/juju/juju/domain/controllerconfig/state"
 	modelservice "github.com/juju/juju/domain/model/service"
 	modelstate "github.com/juju/juju/domain/model/state"
 )
@@ -32,14 +30,6 @@ func NewLogSinkServices(
 			},
 		},
 	}
-}
-
-// ControllerConfig returns the controller configuration service.
-func (s *LogSinkServices) ControllerConfig() *controllerconfigservice.WatchableService {
-	return controllerconfigservice.NewWatchableService(
-		controllerconfigstate.NewState(changestream.NewTxnRunnerFactory(s.controllerDB)),
-		s.controllerWatcherFactory("controllerconfig"),
-	)
 }
 
 // Model returns the provider model service.

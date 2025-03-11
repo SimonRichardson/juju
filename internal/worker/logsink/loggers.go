@@ -8,7 +8,6 @@ import (
 	"io"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/juju/clock"
@@ -19,6 +18,7 @@ import (
 
 	corelogger "github.com/juju/juju/core/logger"
 	internallogger "github.com/juju/juju/internal/logger"
+	internallogsink "github.com/juju/juju/internal/logsink"
 )
 
 var (
@@ -28,9 +28,7 @@ var (
 type modelLogger struct {
 	tomb tomb.Tomb
 
-	bufferedLogWriter *bufferedLogWriterCloser
-	bufferedLogCloser func() error
-
+	logger        corelogger.Logger
 	loggerContext corelogger.LoggerContext
 }
 
@@ -44,46 +42,19 @@ type ModelLoggerConfig struct {
 }
 
 // NewModelLogger returns a new model logger instance.
-func NewModelLogger(
-	ctx context.Context,
-	key corelogger.LoggerKey,
-	config ModelLoggerConfig,
-) (worker.Worker, error) {
-	// Create a newLogWriter for the model.
-	logger, err := config.NewLogWriter(ctx, key)
-	if err != nil {
-		return nil, errors.Annotatef(err, "getting logger for model %q", key.ModelName)
-	}
-
-	// Create a buffered log writer for the model, so that it correctly handles
-	// the flushing of the logs to disk.
-	bufferedLogWriter := &bufferedLogWriterCloser{
-		BufferedLogWriter: corelogger.NewBufferedLogWriter(
-			logger,
-			config.BufferSize,
-			config.FlushInterval,
-			config.Clock,
-		),
-		closer:    logger,
-		modelUUID: key.ModelUUID,
-		machineID: config.MachineID,
-	}
-
+func NewModelLogger(logSink internallogsink.LogSinkWriter) (worker.Worker, error) {
 	// Create a new logger context for the model. This will use the buffered
 	// log writer to write the logs to disk.
 	loggerContext := internallogger.LoggerContext(corelogger.INFO)
+	logger := loggerContext.GetLogger("juju")
 
-	w := &modelLogger{
-		bufferedLogWriter: bufferedLogWriter,
-		bufferedLogCloser: sync.OnceValue(func() error {
-			return bufferedLogWriter.Close()
-		}),
-
-		loggerContext: loggerContext,
+	if err := loggerContext.AddWriter("model-sink", logSink); err != nil {
+		return nil, errors.Annotatef(err, "adding model-sink writer")
 	}
 
-	if err := w.AddWriter("model-sink", bufferedLogWriter); err != nil {
-		return nil, errors.Annotatef(err, "adding model-sink writer")
+	w := &modelLogger{
+		logger:        logger,
+		loggerContext: loggerContext,
 	}
 
 	w.tomb.Go(w.loop)
@@ -147,11 +118,6 @@ func (d *modelLogger) AddWriter(name string, writer loggo.Writer) error {
 	return d.loggerContext.AddWriter(name, writer)
 }
 
-// Close closes the model logger.
-func (d *modelLogger) Close() error {
-	return d.bufferedLogCloser()
-}
-
 // Kill stops the model logger.
 func (d *modelLogger) Kill() {
 	d.tomb.Kill(nil)
@@ -163,11 +129,6 @@ func (d *modelLogger) Wait() error {
 }
 
 func (d *modelLogger) loop() error {
-	// Close the buffered log writer when the model logger is stopped or killed.
-	defer func() {
-		_ = d.bufferedLogCloser()
-	}()
-
 	// Wait for the heat death of the universe.
 	<-d.tomb.Dying()
 	return tomb.ErrDying

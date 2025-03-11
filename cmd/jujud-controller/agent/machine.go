@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -65,6 +66,7 @@ import (
 	"github.com/juju/juju/internal/container/broker"
 	internaldependency "github.com/juju/juju/internal/dependency"
 	internallogger "github.com/juju/juju/internal/logger"
+	"github.com/juju/juju/internal/logsink"
 	"github.com/juju/juju/internal/mongo"
 	"github.com/juju/juju/internal/mongo/mongometrics"
 	"github.com/juju/juju/internal/pki"
@@ -141,7 +143,7 @@ func init() {
 	}
 }
 
-type machineAgentFactoryFnType func(names.Tag, bool) (*MachineAgent, error)
+type machineAgentFactoryFnType func(names.Tag, logsink.LogSinkWriter, bool) (*MachineAgent, error)
 
 // AgentInitializer handles initializing a type for use as a Jujud
 // agent.
@@ -182,6 +184,7 @@ type machineAgentCommand struct {
 	currentConfig       agentconfig.AgentConfigWriter
 	machineAgentFactory machineAgentFactoryFnType
 	ctx                 *cmd.Context
+	logSink             logsink.LogSinkWriter
 
 	// This group is for debugging purposes.
 	logToStdErr bool
@@ -198,7 +201,6 @@ type machineAgentCommand struct {
 // Init is called by the cmd system to initialize the structure for
 // running.
 func (a *machineAgentCommand) Init(args []string) error {
-
 	if a.machineId == "" && a.controllerId == "" {
 		return errors.New("either machine-id or controller-id must be set")
 	}
@@ -228,8 +230,23 @@ func (a *machineAgentCommand) Init(args []string) error {
 	}
 	config := a.currentConfig.CurrentConfig()
 	if err := os.MkdirAll(config.LogDir(), 0644); err != nil {
-		logger.Warningf(context.TODO(), "cannot create log dir: %v", err)
+		logger.Warningf(context.Background(), "cannot create log dir: %v", err)
 	}
+
+	// Prime the logsink.log and assign it to the loggo. Then pass it through
+	// to the manifolds. This will allow us to write all the model logs to the
+	// logsink.log file.
+	logSinkPath := agent.LogSinkFilename(config)
+	file, err := newLogSinkFile(logSinkPath, config.AgentLogfileMaxSizeMB(), config.AgentLogfileMaxBackups())
+	if err != nil {
+		return errors.Trace(err)
+	}
+	logSink := logsink.NewLogSink(file, 100, 10*time.Second)
+	if err := loggo.DefaultContext().AddWriter("logsink", logSink); err != nil {
+		return errors.Trace(err)
+	}
+	a.logSink = logSink
+
 	a.isCaas = config.Value(agent.ProviderType) == k8sconstants.CAASProviderType
 
 	if !a.logToStdErr {
@@ -240,7 +257,7 @@ func (a *machineAgentCommand) Init(args []string) error {
 			MaxBackups: config.AgentLogfileMaxBackups(),
 			Compress:   true,
 		}
-		logger.Debugf(context.TODO(), "created rotating log file %q with max size %d MB and max backups %d",
+		logger.Debugf(context.Background(), "created rotating log file %q with max size %d MB and max backups %d",
 			ljLogger.Filename, ljLogger.MaxSize, ljLogger.MaxBackups)
 		a.ctx.Stderr = ljLogger
 	}
@@ -250,7 +267,7 @@ func (a *machineAgentCommand) Init(args []string) error {
 
 // Run instantiates a MachineAgent and runs it.
 func (a *machineAgentCommand) Run(c *cmd.Context) error {
-	machineAgent, err := a.machineAgentFactory(a.agentTag, a.isCaas)
+	machineAgent, err := a.machineAgentFactory(a.agentTag, a.logSink, a.isCaas)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -282,7 +299,7 @@ func MachineAgentFactoryFn(
 	upgradeSteps UpgradeStepsFunc,
 	rootDir string,
 ) machineAgentFactoryFnType {
-	return func(agentTag names.Tag, isCaasAgent bool) (*MachineAgent, error) {
+	return func(agentTag names.Tag, logSink logsink.LogSinkWriter, isCaasAgent bool) (*MachineAgent, error) {
 		return NewMachineAgent(
 			agentTag,
 			agentConfWriter,
@@ -297,6 +314,7 @@ func MachineAgentFactoryFn(
 			preUpgradeSteps,
 			upgradeSteps,
 			rootDir,
+			logSink,
 			isCaasAgent,
 		)
 	}
@@ -312,6 +330,7 @@ func NewMachineAgent(
 	preUpgradeSteps PreUpgradeStepsFunc,
 	upgradeSteps UpgradeStepsFunc,
 	rootDir string,
+	logSink logsink.LogSinkWriter,
 	isCaasAgent bool,
 ) (*MachineAgent, error) {
 	prometheusRegistry, err := addons.NewPrometheusRegistry()
@@ -334,6 +353,7 @@ func NewMachineAgent(
 		mongoDialCollector:          mongometrics.NewDialCollector(),
 		preUpgradeSteps:             preUpgradeSteps,
 		upgradeSteps:                upgradeSteps,
+		logSink:                     logSink,
 		isCaasAgent:                 isCaasAgent,
 		cmdRunner:                   &defaultRunner{},
 	}
@@ -391,6 +411,8 @@ type MachineAgent struct {
 	runner           *worker.Runner
 	rootDir          string
 	configChangedVal *voyeur.Value
+
+	logSink logsink.LogSinkWriter
 
 	workersStarted chan struct{}
 	machineLock    machinelock.Lock
@@ -467,7 +489,7 @@ func upgradeCertificateDNSNames(config agent.ConfigSetter) error {
 	leaf, err := authority.LeafGroupFromPemCertKey(pki.DefaultLeafGroup,
 		[]byte(si.Cert), []byte(si.PrivateKey))
 	if err != nil || !pki.LeafHasDNSNames(leaf, controller.DefaultDNSNames) {
-		logger.Infof(context.TODO(), "parsing certificate/key failed, will generate a new one: %v", err)
+		logger.Infof(context.Background(), "parsing certificate/key failed, will generate a new one: %v", err)
 		leaf, err = authority.LeafRequestForGroup(pki.DefaultLeafGroup).
 			AddDNSNames(controller.DefaultDNSNames...).
 			Commit()
@@ -502,7 +524,7 @@ func (a *MachineAgent) Run(ctx *cmd.Context) (err error) {
 
 	if err := introspection.WriteProfileFunctions(introspection.ProfileDir); err != nil {
 		// This isn't fatal, just annoying.
-		logger.Errorf(context.TODO(), "failed to write profile funcs: %v", err)
+		logger.Errorf(ctx, "failed to write profile funcs: %v", err)
 	}
 
 	// When the API server and peergrouper have manifolds, they can
@@ -554,10 +576,10 @@ func (a *MachineAgent) Run(ctx *cmd.Context) (err error) {
 	err = a.runner.Wait()
 	switch errors.Cause(err) {
 	case internalworker.ErrRebootMachine:
-		logger.Infof(context.TODO(), "Caught reboot error")
+		logger.Infof(ctx, "Caught reboot error")
 		err = a.executeRebootOrShutdown(params.ShouldReboot)
 	case internalworker.ErrShutdownMachine:
-		logger.Infof(context.TODO(), "Caught shutdown error")
+		logger.Infof(ctx, "Caught shutdown error")
 		err = a.executeRebootOrShutdown(params.ShouldShutdown)
 	}
 	return cmdutil.AgentDone(logger, err)
@@ -613,6 +635,7 @@ func (a *MachineAgent) makeEngineCreator(
 			PreUpgradeSteps:                   a.preUpgradeSteps,
 			UpgradeSteps:                      a.upgradeSteps,
 			NewDeployContext:                  deployer.NewNestedContext,
+			LogSink:                           a.logSink,
 			Clock:                             clock.WallClock,
 			ValidateMigration:                 a.validateMigration,
 			PrometheusRegisterer:              a.prometheusRegistry,
@@ -1251,4 +1274,21 @@ func (h *statePoolIntrospectionReporter) IntrospectionReport() string {
 		return "agent has no pool set"
 	}
 	return h.pool.IntrospectionReport()
+}
+
+// newLogSinkFile returns an io.WriteCloser that will write log messages to disk.
+func newLogSinkFile(logPath string, maxSizeMB, maxBackups int) (io.WriteCloser, error) {
+	if err := paths.PrimeLogFile(logPath); err != nil {
+		// This isn't a fatal error so log and continue if priming fails.
+		logger.Warningf(context.Background(), "Unable to prime %s (proceeding anyway): %v", logPath, err)
+	}
+	ljLogger := &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    maxSizeMB,
+		MaxBackups: maxBackups,
+		Compress:   true,
+	}
+	logger.Debugf(context.Background(), "created rotating log file %q with max size %d MB and max backups %d",
+		ljLogger.Filename, ljLogger.MaxSize, ljLogger.MaxBackups)
+	return ljLogger, nil
 }

@@ -25,6 +25,11 @@ var (
 	zeroTime = time.Time{}
 )
 
+// LogSinkWriter is an interface for writing log entries.
+type LogSinkWriter interface {
+	Write(entry loggo.Entry)
+}
+
 // NewWriterFunc is a function that creates a new writer.
 type NewWriterFunc func() (io.WriteCloser, error)
 

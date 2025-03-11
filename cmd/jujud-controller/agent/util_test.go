@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/juju/clock"
+	"github.com/juju/loggo/v2"
 	mgotesting "github.com/juju/mgo/v3/testing"
 	"github.com/juju/names/v6"
 	"github.com/juju/retry"
@@ -43,6 +44,7 @@ import (
 	"github.com/juju/juju/environs/instances"
 	"github.com/juju/juju/internal/cmd"
 	"github.com/juju/juju/internal/cmd/cmdtesting"
+	"github.com/juju/juju/internal/logsink"
 	"github.com/juju/juju/internal/mongo/mongometrics"
 	"github.com/juju/juju/internal/mongo/mongotest"
 	"github.com/juju/juju/internal/provider/dummy"
@@ -256,7 +258,7 @@ func NewTestMachineAgentFactory(
 		return nil
 	}
 
-	return func(agentTag names.Tag, isCAAS bool) (*MachineAgent, error) {
+	return func(agentTag names.Tag, logSink logsink.LogSinkWriter, isCAAS bool) (*MachineAgent, error) {
 		prometheusRegistry, err := addons.NewPrometheusRegistry()
 		c.Assert(err, jc.ErrorIsNil)
 		a := &MachineAgent{
@@ -279,6 +281,7 @@ func NewTestMachineAgentFactory(
 			mongoDialCollector:          mongometrics.NewDialCollector(),
 			preUpgradeSteps:             preUpgradeSteps,
 			upgradeSteps:                upgradeSteps,
+			logSink:                     logSink,
 			isCaasAgent:                 isCAAS,
 			cmdRunner:                   cmdRunner,
 		}
@@ -297,9 +300,17 @@ func (s *commonMachineSuite) newAgent(c *gc.C, m *state.Machine) (*gomock.Contro
 		return testing.NewTrackedDB(s.TxnRunnerFactory()), nil
 	}
 	machineAgentFactory := NewTestMachineAgentFactory(c, agentConf, newDBWorkerFunc, c.MkDir(), s.cmdRunner)
-	machineAgent, err := machineAgentFactory(m.Tag(), false)
+	machineAgent, err := machineAgentFactory(m.Tag(), logSink{c: c}, false)
 	c.Assert(err, jc.ErrorIsNil)
 	return ctrl, machineAgent
+}
+
+type logSink struct {
+	c *gc.C
+}
+
+func (l logSink) Write(p loggo.Entry) {
+	l.c.Logf("%s:%s %s", p.Timestamp.Format(time.RFC3339), p.Level.Short(), p.Message)
 }
 
 func (s *commonMachineSuite) setFakeMachineAddresses(c *gc.C, machine *state.Machine, instanceId instance.Id) {

@@ -413,6 +413,11 @@ func LogFilename(c Config) string {
 	return filepath.Join(c.LogDir(), c.Tag().String()+".log")
 }
 
+// LogSinkFilename returns the filename for the Agent's log file.
+func LogSinkFilename(c Config) string {
+	return filepath.Join(c.LogDir(), "logsink.log")
+}
+
 // MachineLockLogFilename returns the filename for the machine lock log file.
 func MachineLockLogFilename(c Config) string {
 	return filepath.Join(c.LogDir(), machinelock.Filename)

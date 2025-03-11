@@ -40,6 +40,7 @@ import (
 	internalhttp "github.com/juju/juju/internal/http"
 	internallease "github.com/juju/juju/internal/lease"
 	internallogger "github.com/juju/juju/internal/logger"
+	internallogsink "github.com/juju/juju/internal/logsink"
 	internalobjectstore "github.com/juju/juju/internal/objectstore"
 	proxyconfig "github.com/juju/juju/internal/proxy/config"
 	"github.com/juju/juju/internal/s3client"
@@ -125,7 +126,6 @@ import (
 
 // ManifoldsConfig allows specialisation of the result of Manifolds.
 type ManifoldsConfig struct {
-
 	// AgentName is the name of the machine agent, like "machine-12".
 	// This will never change during the execution of an agent, and
 	// is used to provide this as config into a worker rather than
@@ -192,6 +192,9 @@ type ManifoldsConfig struct {
 	// NewDeployContext gives the tests the opportunity to create a
 	// deployer.Context that can be used for testing.
 	NewDeployContext func(deployer.ContextConfig) (deployer.Context, error)
+
+	// LogSink is the log sink that the agent will use to write logs to disk.
+	LogSink internallogsink.LogSinkWriter
 
 	// Clock supplies timekeeping services to various workers.
 	Clock clock.Clock
@@ -605,6 +608,7 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			ClockName:          clockName,
 			LogSinkServices:    logSinkServicesName,
 			AgentName:          agentName,
+			LogSinkWriter:      config.LogSink,
 			DebugLogger:        internallogger.GetLogger("juju.worker.logsink"),
 			NewWorker:          logsink.NewWorker,
 			NewModelLogger:     logsink.NewModelLogger,
