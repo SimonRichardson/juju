@@ -37,6 +37,13 @@ import (
 	"github.com/juju/juju/internal/worker/logsender"
 )
 
+// LogSource is an interface that provides a channel for log records.
+type LogSource interface {
+	Logs() logsender.LogRecordCh
+}
+
+type logSourceGetter func() (LogSource, error)
+
 // ModelCommand is a cmd.Command responsible for running a model agent.
 type ModelCommand struct {
 	agentconf.AgentConf
@@ -47,7 +54,7 @@ type ModelCommand struct {
 	ModelUUID        string
 	runner           *worker.Runner
 	upgradeStepsLock gate.Lock
-	bufferedLogger   *logsender.BufferedLogWriter
+	logSourceGetter  logSourceGetter
 }
 
 // Done signals the model agent is finished
@@ -120,21 +127,43 @@ func copyFile(dest, source string) error {
 	return errors.Trace(err)
 }
 
+// ModelCommandOption is a function that can be used to configure a model
+// command.
+type ModelCommandOption func(*modelCommandOptions)
+
+// WithLogSourceGetter sets the buffered log writer for the model command
+// to use.
+func WithLogSourceGetter(w logSourceGetter) ModelCommandOption {
+	return func(o *modelCommandOptions) {
+		o.logSourceGetter = w
+	}
+}
+
+type modelCommandOptions struct {
+	logSourceGetter logSourceGetter
+}
+
+func newModelCommandOptions() *modelCommandOptions {
+	return &modelCommandOptions{}
+}
+
 // NewModelCommand creates a new ModelCommand instance properly initialized
-func NewModelCommand(
-	bufferedLogger *logsender.BufferedLogWriter,
-) *ModelCommand {
+func NewModelCommand(opts ...ModelCommandOption) *ModelCommand {
+	options := newModelCommandOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
 	return &ModelCommand{
 		AgentConf:        agentconf.NewAgentConf(""),
 		configChangedVal: voyeur.NewValue(true),
 		dead:             make(chan struct{}),
-		bufferedLogger:   bufferedLogger,
+		logSourceGetter:  options.logSourceGetter,
 	}
 }
 
 // Run implements Command
 func (m *ModelCommand) Run(ctx *cmd.Context) error {
-	logger.Infof(context.TODO(), "caas model operator start (%s [%s])", jujuversion.Current,
+	logger.Infof(ctx, "caas model operator start (%s [%s])", jujuversion.Current,
 		runtime.Compiler)
 
 	if err := m.maybeCopyAgentConfig(); err != nil {
@@ -143,7 +172,14 @@ func (m *ModelCommand) Run(ctx *cmd.Context) error {
 
 	m.upgradeStepsLock = upgrade.NewLock(m.CurrentConfig(), jujuversion.Current)
 
-	_ = m.runner.StartWorker("modeloperator", m.Workers)
+	logRecorder, err := m.logSourceGetter()
+	if err != nil {
+		return errors.Annotate(err, "getting buffered log writer")
+	}
+
+	if err := m.runner.StartWorker("modeloperator", m.Workers(logRecorder)); err != nil {
+		return errors.Annotate(err, "starting model operator workers")
+	}
 	return cmdutil.AgentDone(logger, m.runner.Wait())
 }
 
@@ -168,57 +204,60 @@ func (m *ModelCommand) Wait() error {
 	return m.errReason
 }
 
-func (m *ModelCommand) Workers() (worker.Worker, error) {
-	port := os.Getenv(caasprovider.EnvModelAgentHTTPPort)
-	if port == "" {
-		return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentHTTPPort)
-	}
-
-	svcName := os.Getenv(caasprovider.EnvModelAgentCAASServiceName)
-	if svcName == "" {
-		return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentCAASServiceName)
-	}
-
-	svcNamespace := os.Getenv(caasprovider.EnvModelAgentCAASServiceNamespace)
-	if svcNamespace == "" {
-		return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentCAASServiceNamespace)
-	}
-
-	updateAgentConfLogging := func(loggingConfig string) error {
-		return m.AgentConf.ChangeConfig(func(setter agent.ConfigSetter) error {
-			setter.SetLoggingConfig(loggingConfig)
-			return nil
-		})
-	}
-
-	manifolds := modeloperator.Manifolds(modeloperator.ManifoldConfig{
-		Agent:                  agent.APIHostPortsSetter{Agent: m},
-		AgentConfigChanged:     m.configChangedVal,
-		NewContainerBrokerFunc: caas.New,
-		Port:                   port,
-		LogSource:              m.bufferedLogger.Logs(),
-		ServiceName:            svcName,
-		ServiceNamespace:       svcNamespace,
-		UpdateLoggerConfig:     updateAgentConfLogging,
-		PreviousAgentVersion:   m.CurrentConfig().UpgradedToVersion(),
-		UpgradeStepsLock:       m.upgradeStepsLock,
-	})
-
-	// TODO (stickupkid): There is no prometheus registry at this level, we
-	// should work out the best way to get it into here.
-	engine, err := dependency.NewEngine(engine.DependencyEngineConfig(
-		dependency.DefaultMetrics(),
-		internaldependency.WrapLogger(internallogger.GetLogger("juju.worker.dependency")),
-	))
-	if err != nil {
-		return nil, err
-	}
-	if err := dependency.Install(engine, manifolds); err != nil {
-		if err := worker.Stop(engine); err != nil {
-			logger.Errorf(context.TODO(), "while stopping engine with bad manifolds: %v", err)
+// Workers returns the workers for the model operator.
+func (m *ModelCommand) Workers(logSource LogSource) func() (worker.Worker, error) {
+	return func() (worker.Worker, error) {
+		port := os.Getenv(caasprovider.EnvModelAgentHTTPPort)
+		if port == "" {
+			return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentHTTPPort)
 		}
-		return nil, err
-	}
 
-	return engine, nil
+		svcName := os.Getenv(caasprovider.EnvModelAgentCAASServiceName)
+		if svcName == "" {
+			return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentCAASServiceName)
+		}
+
+		svcNamespace := os.Getenv(caasprovider.EnvModelAgentCAASServiceNamespace)
+		if svcNamespace == "" {
+			return nil, errors.NotValidf("env %s missing", caasprovider.EnvModelAgentCAASServiceNamespace)
+		}
+
+		updateAgentConfLogging := func(loggingConfig string) error {
+			return m.AgentConf.ChangeConfig(func(setter agent.ConfigSetter) error {
+				setter.SetLoggingConfig(loggingConfig)
+				return nil
+			})
+		}
+
+		manifolds := modeloperator.Manifolds(modeloperator.ManifoldConfig{
+			Agent:                  agent.APIHostPortsSetter{Agent: m},
+			AgentConfigChanged:     m.configChangedVal,
+			NewContainerBrokerFunc: caas.New,
+			Port:                   port,
+			LogSource:              logSource.Logs(),
+			ServiceName:            svcName,
+			ServiceNamespace:       svcNamespace,
+			UpdateLoggerConfig:     updateAgentConfLogging,
+			PreviousAgentVersion:   m.CurrentConfig().UpgradedToVersion(),
+			UpgradeStepsLock:       m.upgradeStepsLock,
+		})
+
+		// TODO (stickupkid): There is no prometheus registry at this level, we
+		// should work out the best way to get it into here.
+		engine, err := dependency.NewEngine(engine.DependencyEngineConfig(
+			dependency.DefaultMetrics(),
+			internaldependency.WrapLogger(internallogger.GetLogger("juju.worker.dependency")),
+		))
+		if err != nil {
+			return nil, err
+		}
+		if err := dependency.Install(engine, manifolds); err != nil {
+			if err := worker.Stop(engine); err != nil {
+				logger.Errorf(context.TODO(), "while stopping engine with bad manifolds: %v", err)
+			}
+			return nil, err
+		}
+
+		return engine, nil
+	}
 }

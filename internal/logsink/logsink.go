@@ -96,6 +96,12 @@ func (w *LogSink) Wait() error {
 	return w.tomb.Wait()
 }
 
+// Close stops the writer and waits for it to stop.
+func (w *LogSink) Close() error {
+	w.Kill()
+	return w.Wait()
+}
+
 func (w *LogSink) loop() error {
 	w.tomb.Go(func() error {
 		buffer := new(bytes.Buffer)

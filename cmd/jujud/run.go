@@ -253,7 +253,9 @@ func jujuDMain(args []string, ctx *cmd.Context) (code int, err error) {
 		return &jujudWriter{target: target}
 	}
 
-	jujud.Register(agentcmd.NewModelCommand(bufferedLogger))
+	jujud.Register(agentcmd.NewModelCommand(agentcmd.WithLogSourceGetter(func() (agentcmd.LogSource, error) {
+		return bufferedLogger, nil
+	})))
 
 	// TODO(katco-): AgentConf type is doing too much. The
 	// MachineAgent type has called out the separate concerns; the

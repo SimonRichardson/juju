@@ -12,7 +12,6 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/juju/collections/set"
-	"github.com/juju/lumberjack/v2"
 	"github.com/juju/mgo/v3"
 	"github.com/juju/names/v6"
 	"github.com/juju/testing"
@@ -155,13 +154,12 @@ func (s *MachineSuite) TestParseSuccess(c *gc.C) {
 	create := func() (cmd.Command, agentconf.AgentConf) {
 		aCfg := agentconf.NewAgentConf(s.DataDir)
 		s.PrimeAgent(c, names.NewMachineTag("42"), initialMachinePassword)
-		logger := s.newBufferedLogWriter()
 		newDBWorkerFunc := func(context.Context, dbaccessor.DBApp, string, ...dbaccessor.TrackedDBWorkerOption) (dbaccessor.TrackedDB, error) {
 			return databasetesting.NewTrackedDB(s.TxnRunnerFactory()), nil
 		}
 		a := NewMachineAgentCommand(
 			nil,
-			NewTestMachineAgentFactory(c, aCfg, logger, newDBWorkerFunc, c.MkDir(), s.cmdRunner),
+			NewTestMachineAgentFactory(c, aCfg, newDBWorkerFunc, c.MkDir(), s.cmdRunner),
 			aCfg,
 			aCfg,
 		)
@@ -169,67 +167,6 @@ func (s *MachineSuite) TestParseSuccess(c *gc.C) {
 	}
 	a := CheckAgentCommand(c, s.DataDir, create, []string{"--machine-id", "42", "--log-to-stderr", "--data-dir", s.DataDir})
 	c.Assert(a.(*machineAgentCommand).machineId, gc.Equals, "42")
-}
-
-func (s *MachineSuite) TestUseLumberjack(c *gc.C) {
-	ctx := cmdtesting.Context(c)
-	agentConf := FakeAgentConfig{}
-	logger := s.newBufferedLogWriter()
-
-	ctrl := gomock.NewController(c)
-	s.cmdRunner = mocks.NewMockCommandRunner(ctrl)
-
-	newDBWorkerFunc := func(context.Context, dbaccessor.DBApp, string, ...dbaccessor.TrackedDBWorkerOption) (dbaccessor.TrackedDB, error) {
-		return databasetesting.NewTrackedDB(s.TxnRunnerFactory()), nil
-	}
-	a := NewMachineAgentCommand(
-		ctx,
-		NewTestMachineAgentFactory(c, &agentConf, logger, newDBWorkerFunc, c.MkDir(), s.cmdRunner),
-		agentConf,
-		agentConf,
-	)
-	// little hack to set the data that Init expects to already be set
-	a.(*machineAgentCommand).machineId = "42"
-
-	err := a.Init(nil)
-	c.Assert(err, gc.IsNil)
-
-	l, ok := ctx.Stderr.(*lumberjack.Logger)
-	c.Assert(ok, jc.IsTrue)
-	c.Check(l.MaxAge, gc.Equals, 0)
-	c.Check(l.MaxBackups, gc.Equals, 2)
-	c.Check(l.Filename, gc.Equals, filepath.FromSlash("/var/log/juju/machine-42.log"))
-	c.Check(l.MaxSize, gc.Equals, 100)
-}
-
-func (s *MachineSuite) TestDontUseLumberjack(c *gc.C) {
-	ctx := cmdtesting.Context(c)
-	agentConf := FakeAgentConfig{}
-	logger := s.newBufferedLogWriter()
-
-	ctrl := gomock.NewController(c)
-	s.cmdRunner = mocks.NewMockCommandRunner(ctrl)
-
-	newDBWorkerFunc := func(context.Context, dbaccessor.DBApp, string, ...dbaccessor.TrackedDBWorkerOption) (dbaccessor.TrackedDB, error) {
-		return databasetesting.NewTrackedDB(s.TxnRunnerFactory()), nil
-	}
-	a := NewMachineAgentCommand(
-		ctx,
-		NewTestMachineAgentFactory(c, &agentConf, logger, newDBWorkerFunc, c.MkDir(), s.cmdRunner),
-		agentConf,
-		agentConf,
-	)
-	// little hack to set the data that Init expects to already be set
-	a.(*machineAgentCommand).machineId = "42"
-
-	// set the value that normally gets set by the flag parsing
-	a.(*machineAgentCommand).logToStdErr = true
-
-	err := a.Init(nil)
-	c.Assert(err, gc.IsNil)
-
-	_, ok := ctx.Stderr.(*lumberjack.Logger)
-	c.Assert(ok, jc.IsFalse)
 }
 
 func (s *MachineSuite) TestRunStop(c *gc.C) {

@@ -81,8 +81,6 @@ import (
 	"github.com/juju/juju/internal/worker/deployer"
 	"github.com/juju/juju/internal/worker/gate"
 	"github.com/juju/juju/internal/worker/introspection"
-	"github.com/juju/juju/internal/worker/logsender"
-	"github.com/juju/juju/internal/worker/logsender/logsendermetrics"
 	"github.com/juju/juju/internal/worker/migrationmaster"
 	"github.com/juju/juju/internal/worker/modelworkermanager"
 	psworker "github.com/juju/juju/internal/worker/pubsub"
@@ -279,7 +277,6 @@ func (a *machineAgentCommand) Info() *cmd.Info {
 // MachineAgent given a machineId.
 func MachineAgentFactoryFn(
 	agentConfWriter agentconfig.AgentConfigWriter,
-	bufferedLogger *logsender.BufferedLogWriter,
 	newDBWorkerFunc dbaccessor.NewDBWorkerFunc,
 	preUpgradeSteps PreUpgradeStepsFunc,
 	upgradeSteps UpgradeStepsFunc,
@@ -289,7 +286,6 @@ func MachineAgentFactoryFn(
 		return NewMachineAgent(
 			agentTag,
 			agentConfWriter,
-			bufferedLogger,
 			worker.NewRunner(worker.RunnerParams{
 				IsFatal:       agenterrors.IsFatal,
 				MoreImportant: agenterrors.MoreImportant,
@@ -310,7 +306,6 @@ func MachineAgentFactoryFn(
 func NewMachineAgent(
 	agentTag names.Tag,
 	agentConfWriter agentconfig.AgentConfigWriter,
-	bufferedLogger *logsender.BufferedLogWriter,
 	runner *worker.Runner,
 	loopDeviceManager looputil.LoopDeviceManager,
 	newDBWorkerFunc dbaccessor.NewDBWorkerFunc,
@@ -327,7 +322,6 @@ func NewMachineAgent(
 		agentTag:                    agentTag,
 		AgentConfigWriter:           agentConfWriter,
 		configChangedVal:            voyeur.NewValue(true),
-		bufferedLogger:              bufferedLogger,
 		workersStarted:              make(chan struct{}),
 		dead:                        make(chan struct{}),
 		runner:                      runner,
@@ -356,11 +350,6 @@ func (a *MachineAgent) registerPrometheusCollectors() error {
 		if err := a.prometheusRegistry.Register(collector); err != nil {
 			return errors.Annotate(err, "registering mgo stats collector")
 		}
-	}
-	if err := a.prometheusRegistry.Register(
-		logsendermetrics.BufferedLogWriterMetrics{BufferedLogWriter: a.bufferedLogger},
-	); err != nil {
-		return errors.Annotate(err, "registering logsender collector")
 	}
 	if err := a.prometheusRegistry.Register(a.mongoTxnCollector); err != nil {
 		return errors.Annotate(err, "registering mgo/txn collector")
@@ -401,7 +390,6 @@ type MachineAgent struct {
 	agentTag         names.Tag
 	runner           *worker.Runner
 	rootDir          string
-	bufferedLogger   *logsender.BufferedLogWriter
 	configChangedVal *voyeur.Value
 
 	workersStarted chan struct{}
@@ -624,7 +612,6 @@ func (a *MachineAgent) makeEngineCreator(
 			MachineStartup:                    a.machineStartup,
 			PreUpgradeSteps:                   a.preUpgradeSteps,
 			UpgradeSteps:                      a.upgradeSteps,
-			LogSource:                         a.bufferedLogger.Logs(),
 			NewDeployContext:                  deployer.NewNestedContext,
 			Clock:                             clock.WallClock,
 			ValidateMigration:                 a.validateMigration,

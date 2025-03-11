@@ -100,7 +100,6 @@ func (s *ManifoldsSuite) TestManifoldNamesIAAS(c *gc.C) {
 			"is-primary-controller-flag",
 			"lease-expiry",
 			"lease-manager",
-			"log-sender",
 			"log-sink-services",
 			"log-sink",
 			"logging-config-updater",
@@ -184,7 +183,6 @@ func (s *ManifoldsSuite) TestManifoldNamesCAAS(c *gc.C) {
 			"is-primary-controller-flag",
 			"lease-expiry",
 			"lease-manager",
-			"log-sender",
 			"log-sink-services",
 			"log-sink",
 			"logging-config-updater",
@@ -962,18 +960,6 @@ var expectedMachineManifoldsWithDependenciesIAAS = map[string][]string{
 		"query-logger",
 		"state-config-watcher",
 		"trace",
-	},
-
-	"log-sender": {
-		"agent",
-		"api-caller",
-		"api-config-watcher",
-		"migration-fortress",
-		"migration-inactive-flag",
-		"upgrade-check-flag",
-		"upgrade-check-gate",
-		"upgrade-steps-flag",
-		"upgrade-steps-gate",
 	},
 
 	"logging-config-updater": {
@@ -1841,18 +1827,6 @@ var expectedMachineManifoldsWithDependenciesCAAS = map[string][]string{
 		"query-logger",
 		"state-config-watcher",
 		"trace",
-	},
-
-	"log-sender": {
-		"agent",
-		"api-caller",
-		"api-config-watcher",
-		"migration-fortress",
-		"migration-inactive-flag",
-		"upgrade-check-flag",
-		"upgrade-check-gate",
-		"upgrade-steps-flag",
-		"upgrade-steps-gate",
 	},
 
 	"log-sink-services": {

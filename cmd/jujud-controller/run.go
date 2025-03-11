@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -55,7 +54,6 @@ import (
 var logger = internallogger.GetLogger("juju.cmd.jujud")
 
 func init() {
-	rand.Seed(time.Now().UTC().UnixNano())
 	featureflag.SetFlagsFromEnvironment(osenv.JujuFeatureFlagEnvKey)
 }
 
@@ -211,13 +209,7 @@ type versionDetail struct {
 // Main registers subcommands for the jujud executable, and hands over control
 // to the cmd package.
 func jujuDMain(args []string, ctx *cmd.Context) (code int, err error) {
-	// Assuming an average of 200 bytes per log message, use up to
-	// 200MB for the log buffer.
-	defer logger.Debugf(context.TODO(), "jujud complete, code %d, err %v", code, err)
-	bufferedLogger, err := logsender.InstallBufferedLogWriter(loggo.DefaultContext(), 1048576)
-	if err != nil {
-		return 1, errors.Trace(err)
-	}
+	defer logger.Debugf(ctx, "jujud complete, code %d, err %v", code, err)
 
 	// Set the default transport to use the in-process proxy
 	// configuration.
@@ -256,7 +248,9 @@ func jujuDMain(args []string, ctx *cmd.Context) (code int, err error) {
 		return &jujudWriter{target: target}
 	}
 
-	jujud.Register(jujudagentcmd.NewModelCommand(bufferedLogger))
+	jujud.Register(jujudagentcmd.NewModelCommand(jujudagentcmd.WithLogSourceGetter(func() (jujudagentcmd.LogSource, error) {
+		return logsender.InstallBufferedLogWriter(loggo.DefaultContext(), 1048576)
+	})))
 	jujud.Register(agentcmd.NewBootstrapCommand())
 
 	// TODO(katco-): AgentConf type is doing too much. The
@@ -265,7 +259,6 @@ func jujuDMain(args []string, ctx *cmd.Context) (code int, err error) {
 	agentConf := agentconf.NewAgentConf("")
 	machineAgentFactory := agentcmd.MachineAgentFactoryFn(
 		agentConf,
-		bufferedLogger,
 		dbaccessor.NewTrackedDBWorker,
 		func(mt state.ModelType) upgrades.PreUpgradeStepsFunc {
 			if mt == state.ModelTypeCAAS {
