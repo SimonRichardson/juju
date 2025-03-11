@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/juju/core/logger"
 	"github.com/juju/loggo/v2"
 	"gopkg.in/tomb.v2"
 )
@@ -25,9 +26,22 @@ var (
 	zeroTime = time.Time{}
 )
 
+// LoggoWriter is an interface for writing log entries. This is the interface
+// that plugs the logsink into loggo writers.
+type LoggoWriter interface {
+	Write(loggo.Entry)
+}
+
+// RecordWriter is an interface for writing log entries. This allows direct
+// writing of log entries to the log sink file, bypassing the loggo writer.
+type RecordWriter interface {
+	Log(logger.LogRecord)
+}
+
 // LogSinkWriter is an interface for writing log entries.
 type LogSinkWriter interface {
-	Write(entry loggo.Entry)
+	LoggoWriter
+	RecordWriter
 }
 
 // NewWriterFunc is a function that creates a new writer.
@@ -84,6 +98,14 @@ func newLogSink(writer io.Writer, batchSize int, flushInterval time.Duration, in
 // Write sends a new log message to the writer.
 // This implements the loggo.Writer interface.
 func (w *LogSink) Write(entry loggo.Entry) {
+	select {
+	case <-w.tomb.Dying():
+		return
+	case w.in <- entry:
+	}
+}
+
+func (w *LogSink) Log(entry logger.LogRecord) {
 	select {
 	case <-w.tomb.Dying():
 		return
