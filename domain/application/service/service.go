@@ -27,6 +27,7 @@ import (
 	corestorage "github.com/juju/juju/core/storage"
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher"
+	"github.com/juju/juju/core/watcher/eventsource"
 	"github.com/juju/juju/domain"
 	"github.com/juju/juju/domain/application"
 	"github.com/juju/juju/domain/application/architecture"
@@ -200,7 +201,12 @@ func (s *WatchableService) WatchApplicationScale(ctx context.Context, appName st
 		}
 		return nil, nil
 	}
-	return s.watcherFactory.NewValueMapperWatcher("application_scale", appID.String(), mask, mapper)
+	return s.watcherFactory.NewNotifyMapperWatcher(
+		mapper,
+		eventsource.PredicateFilter("application_scale", mask, func(s string) bool {
+			return s == appID.String()
+		}),
+	)
 }
 
 // WatchApplicationsWithPendingCharms returns a watcher that observes changes to
@@ -293,10 +299,10 @@ func (s *WatchableService) WatchApplication(ctx context.Context, name string) (w
 	if err != nil {
 		return nil, internalerrors.Errorf("getting ID of application %s: %w", name, err)
 	}
-	return s.watcherFactory.NewValueWatcher(
-		"application",
-		uuid.String(),
-		changestream.All,
+	return s.watcherFactory.NewNotifyWatcher(
+		eventsource.PredicateFilter("application", changestream.All, func(s string) bool {
+			return s == uuid.String()
+		}),
 	)
 }
 
@@ -314,7 +320,11 @@ func (s *WatchableService) WatchApplicationConfig(ctx context.Context, name stri
 		return nil, internalerrors.Errorf("getting ID of application %s: %w", name, err)
 	}
 
-	return s.watcherFactory.NewValueWatcher("application_config_hash", uuid.String(), changestream.All)
+	return s.watcherFactory.NewNotifyWatcher(
+		eventsource.PredicateFilter("application_config_hash", changestream.All, func(s string) bool {
+			return s == uuid.String()
+		}),
+	)
 }
 
 // WatchApplicationConfigHash watches for changes to the specified application's

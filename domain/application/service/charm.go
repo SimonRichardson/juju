@@ -37,15 +37,33 @@ type WatcherFactory interface {
 	NewUUIDsWatcher(
 		namespace string, changeMask changestream.ChangeType,
 	) (watcher.StringsWatcher, error)
-	NewValueMapperWatcher(string, string, changestream.ChangeType, eventsource.Mapper,
-	) (watcher.NotifyWatcher, error)
 	NewNamespaceMapperWatcher(
 		namespace string, changeMask changestream.ChangeType,
 		initialStateQuery eventsource.NamespaceQuery,
 		mapper eventsource.Mapper,
 	) (watcher.StringsWatcher, error)
-	NewValueWatcher(
-		namespace, changeValue string, changeMask changestream.ChangeType,
+
+	// NewNotifyMapperWatcher returns a new watcher that receives changes from
+	// the input base watcher's db/queue. Change-log events will be emitted only
+	// if the filter accepts them, and dispatching the notifications via the
+	// Changes channel, once the mapper has processed them. Filtering of values
+	// is done first by the filter, and then by the mapper. A filter option is
+	// required, though additional filter options can be provided.
+	NewNotifyMapperWatcher(
+		mapper eventsource.Mapper,
+		filter eventsource.FilterOption,
+		filterOpts ...eventsource.FilterOption,
+	) (watcher.NotifyWatcher, error)
+
+	// NewNotifyWatcher returns a new watcher that filters changes from the
+	// input base watcher's db/queue. Change-log events will be emitted only if
+	// the filter accepts them, and dispatching the notifications via the Changes
+	// channel.
+	// A filter option is required, though additional filter options can be
+	// provided.
+	NewNotifyWatcher(
+		filter eventsource.FilterOption,
+		filterOpts ...eventsource.FilterOption,
 	) (watcher.NotifyWatcher, error)
 }
 
