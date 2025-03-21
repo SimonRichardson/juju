@@ -57,32 +57,32 @@ func ImportOperations(
 	// not access them directly, instead provide a way to access them in
 	// a lazy fashion.
 
-	lease.RegisterImport(coordinator, logger.Child("lease"))
+	lease.RegisterImport(coordinator, logger)
 	externalcontroller.RegisterImport(coordinator)
-	credential.RegisterImport(coordinator, logger.Child("credential"))
-	model.RegisterImport(coordinator, logger.Child("model"))
+	credential.RegisterImport(coordinator, logger)
+	model.RegisterImport(coordinator, logger)
 
 	// Domain services is available for all the following services, but only
 	// after the model has been imported and activated.
 
-	keymanager.RegisterImport(coordinator, logger.Child("keymanager"))
-	modelconfig.RegisterImport(coordinator, modelDefaultsProvider, logger.Child("modelconfig"))
-	access.RegisterImport(coordinator, logger.Child("access"))
-	network.RegisterImport(coordinator, logger.Child("network"))
-	machine.RegisterImport(coordinator, clock, logger.Child("machine"))
-	application.RegisterImport(coordinator, storageRegistryGetter, clock, logger.Child("application"))
+	keymanager.RegisterImport(coordinator, logger)
+	modelconfig.RegisterImport(coordinator, modelDefaultsProvider, logger)
+	access.RegisterImport(coordinator, logger)
+	network.RegisterImport(coordinator, logger)
+	machine.RegisterImport(coordinator, clock, logger)
+	application.RegisterImport(coordinator, storageRegistryGetter, clock, logger)
 	status.RegisterImport(coordinator)
-	resource.RegisterImport(coordinator, clock, logger.Child("resource"))
-	port.RegisterImport(coordinator, logger.Child("port"))
-	blockdevice.RegisterImport(coordinator, logger.Child("blockdevice"))
+	resource.RegisterImport(coordinator, clock, logger)
+	port.RegisterImport(coordinator, logger)
+	blockdevice.RegisterImport(coordinator, logger)
 	// TODO(storage) - we need to break out storage pools and import BEFORE applications.
-	storage.RegisterImport(coordinator, storageRegistryGetter, logger.Child("storage"))
-	secret.RegisterImport(coordinator, logger.Child("secret"))
-	cloudimagemetadata.RegisterImport(coordinator, logger.Child("cloudimagemetadata"), clock)
+	storage.RegisterImport(coordinator, storageRegistryGetter, logger)
+	secret.RegisterImport(coordinator, logger)
+	cloudimagemetadata.RegisterImport(coordinator, logger, clock)
 	unitstate.RegisterImport(coordinator)
 
 	// Block command is probably best processed last, is that will prevent
 	// any block commands from being executed before all the other operations
 	// have been completed.
-	blockcommand.RegisterImport(coordinator, logger.Child("blockcommand"))
+	blockcommand.RegisterImport(coordinator, logger)
 }
