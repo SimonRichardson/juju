@@ -81,6 +81,11 @@ type ApplicationService interface {
 	// If no application is found, an error satisfying
 	// [applicationerrors.ApplicationNotFound] is returned.
 	GetExposedEndpoints(ctx context.Context, appName string) (map[string]application.ExposedEndpoint, error)
+
+	// WatchApplicationUnits starts a watcher for the specified
+	// application. The watcher will notify when the application
+	// changes its units.
+	WatchApplicationUnits(ctx context.Context, appName string) (watcher.Watcher[[]string], error)
 }
 
 // ControllerConfigAPI provides the subset of common.ControllerConfigAPI

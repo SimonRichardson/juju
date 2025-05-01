@@ -548,6 +548,60 @@ func (s *WatchableService) WatchApplicationExposed(ctx context.Context, name str
 	)
 }
 
+// WatchApplicationUnits starts a watcher for the specified
+// application. The watcher will notify when the application
+// changes its units.
+func (s *WatchableService) WatchApplicationUnits(ctx context.Context, appName string) (watcher.Watcher[[]string], error) {
+	appID, err := s.st.GetApplicationIDByName(ctx, appName)
+	if err != nil {
+		return nil, errors.Errorf("getting ID of application %s: %w", appName, err)
+	}
+
+	table, query := s.st.InitialWatchStatementApplicationUnits(ctx, appID)
+	return s.watcherFactory.NewNamespaceMapperWatcher(
+		query,
+		func(ctx context.Context, db database.TxnRunner, changes []changestream.ChangeEvent) ([]changestream.ChangeEvent, error) {
+			// Ensure that the changes are valid UUIDs.
+			var uuids []coreunit.UUID
+			for _, change := range changes {
+				uuid := coreunit.UUID(change.Changed())
+				if uuid.Validate() != nil {
+					continue
+				}
+
+				uuids = append(uuids, uuid)
+			}
+
+			// Get the units for the application we're watching. If they
+			// don't exist, then we can return no changes.
+			units, err := s.st.MatchApplicationUnits(ctx, appID, uuids)
+			if err != nil {
+				return nil, errors.Capture(err)
+			} else if len(units) == 0 {
+				return nil, nil
+			}
+
+			unitsMap := make(map[string]struct{})
+			for _, unit := range units {
+				unitsMap[unit.String()] = struct{}{}
+			}
+
+			// Filter the changes to only include the units that exist and
+			// are associated with the application we're watching.
+			var results []changestream.ChangeEvent
+			for _, change := range changes {
+				if _, ok := unitsMap[change.Changed()]; !ok {
+					continue
+				}
+
+				results = append(results, change)
+			}
+			return results, nil
+		},
+		eventsource.NamespaceFilter(table, changestream.All),
+	)
+}
+
 // WatchUnitForUniterChanged watches for some specific changes to the unit with
 // the given name. The watcher will emit a notification when there is a change to
 // the unit's inherent properties, it's subordinates or it's resolved mode.

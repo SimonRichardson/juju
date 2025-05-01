@@ -107,8 +107,10 @@ func NewStateFirewallerAPI(
 		watcherRegistry,
 	)
 	// WatchUnits() is supported for machines.
-	unitsWatcher := common.NewUnitsWatcher(st,
-		resources,
+	unitsWatcher := common.NewUnitsWatcher(
+		applicationService,
+		st,
+		watcherRegistry,
 		accessMachine,
 	)
 	// WatchModelMachines() is allowed with unrestricted access.

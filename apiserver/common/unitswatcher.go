@@ -11,56 +11,51 @@ import (
 
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/apiserver/internal"
+	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/watcher"
 )
+
+// ApplicationService represents the application service for interacting
+// with applications and units in a model.
+type ApplicationService interface {
+	// WatchApplicationUnits starts a watcher for the specified
+	// application. The watcher will notify when the application
+	// changes its units.
+	WatchApplicationUnits(ctx context.Context, appName string) (watcher.Watcher[[]string], error)
+}
 
 // UnitsWatcher implements a common WatchUnits method for use by
 // various facades.
 type UnitsWatcher struct {
-	st          state.EntityFinder
-	resources   facade.Resources
-	getCanWatch GetAuthFunc
+	applicationService ApplicationService
+	watcherRegistry    facade.WatcherRegistry
+	getCanWatch        GetAuthFunc
+
+	// TODO: Remove me when we do machines.
+	st state.EntityFinder
 }
 
 // NewUnitsWatcher returns a new UnitsWatcher. The GetAuthFunc will be
 // used on each invocation of WatchUnits to determine current
 // permissions.
-func NewUnitsWatcher(st state.EntityFinder, resources facade.Resources, getCanWatch GetAuthFunc) *UnitsWatcher {
+func NewUnitsWatcher(
+	applicationService ApplicationService,
+	state state.EntityFinder,
+	watcherRegistry facade.WatcherRegistry,
+	getCanWatch GetAuthFunc,
+) *UnitsWatcher {
 	return &UnitsWatcher{
-		st:          st,
-		resources:   resources,
-		getCanWatch: getCanWatch,
+		applicationService: applicationService,
+		watcherRegistry:    watcherRegistry,
+		getCanWatch:        getCanWatch,
+		st:                 state,
 	}
-}
-
-func (u *UnitsWatcher) watchOneEntityUnits(canWatch AuthFunc, tag names.Tag) (params.StringsWatchResult, error) {
-	nothing := params.StringsWatchResult{}
-	if !canWatch(tag) {
-		return nothing, apiservererrors.ErrPerm
-	}
-	entity0, err := u.st.FindEntity(tag)
-	if err != nil {
-		return nothing, err
-	}
-	entity, ok := entity0.(state.UnitsWatcher)
-	if !ok {
-		return nothing, apiservererrors.NotSupportedError(tag, "watching units")
-	}
-	watch := entity.WatchUnits()
-	// Consume the initial event and forward it to the result.
-	if changes, ok := <-watch.Changes(); ok {
-		return params.StringsWatchResult{
-			StringsWatcherId: u.resources.Register(watch),
-			Changes:          changes,
-		}, nil
-	}
-	return nothing, watcher.EnsureErr(watch)
 }
 
 // WatchUnits starts a StringsWatcher to watch all units belonging to
-// to any entity (machine or service) passed in args.
+// to any entity (machine or application) passed in args.
 func (u *UnitsWatcher) WatchUnits(ctx context.Context, args params.Entities) (params.StringsWatchResults, error) {
 	result := params.StringsWatchResults{
 		Results: make([]params.StringsWatchResult, len(args.Entities)),
@@ -78,9 +73,55 @@ func (u *UnitsWatcher) WatchUnits(ctx context.Context, args params.Entities) (pa
 			result.Results[i].Error = apiservererrors.ServerError(apiservererrors.ErrPerm)
 			continue
 		}
-		entityResult, err := u.watchOneEntityUnits(canWatch, tag)
-		result.Results[i] = entityResult
-		result.Results[i].Error = apiservererrors.ServerError(err)
+
+		var w watcher.Watcher[[]string]
+		switch tag.Kind() {
+		case names.ApplicationTagKind:
+			w, err = u.watchApplicationUnits(ctx, canWatch, tag)
+		case names.MachineTagKind:
+			w, err = u.legacyWatchMachineUnits(canWatch, tag)
+		default:
+			result.Results[i].Error = apiservererrors.ServerError(apiservererrors.ErrPerm)
+		}
+		if err != nil {
+			result.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+
+		id, changes, err := internal.EnsureRegisterWatcher(ctx, u.watcherRegistry, w)
+		if err != nil {
+			result.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+
+		result.Results[i] = params.StringsWatchResult{
+			StringsWatcherId: id,
+			Changes:          changes,
+		}
 	}
 	return result, nil
+}
+
+func (u *UnitsWatcher) watchApplicationUnits(ctx context.Context, canWatch AuthFunc, tag names.Tag) (watcher.Watcher[[]string], error) {
+	if !canWatch(tag) {
+		return nil, apiservererrors.ErrPerm
+	}
+
+	return u.applicationService.WatchApplicationUnits(ctx, tag.Id())
+}
+
+func (u *UnitsWatcher) legacyWatchMachineUnits(canWatch AuthFunc, tag names.Tag) (watcher.Watcher[[]string], error) {
+	if !canWatch(tag) {
+		return nil, apiservererrors.ErrPerm
+	}
+	entity0, err := u.st.FindEntity(tag)
+	if err != nil {
+		return nil, err
+	}
+	entity, ok := entity0.(state.UnitsWatcher)
+	if !ok {
+		return nil, apiservererrors.NotSupportedError(tag, "watching units")
+	}
+	watch := entity.WatchUnits()
+	return watch, nil
 }

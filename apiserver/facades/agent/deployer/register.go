@@ -54,6 +54,7 @@ func NewDeployerFacade(ctx facade.ModelContext) (*DeployerAPI, error) {
 		st,
 		ctx.ObjectStore(),
 		resources,
+		ctx.WatcherRegistry(),
 		leadershipRevoker,
 		systemState,
 		ctx.Clock(),

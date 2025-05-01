@@ -19,6 +19,7 @@ import (
 	"github.com/juju/juju/core/objectstore"
 	corestatus "github.com/juju/juju/core/status"
 	coreunit "github.com/juju/juju/core/unit"
+	"github.com/juju/juju/core/watcher"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
@@ -44,6 +45,10 @@ type ApplicationService interface {
 	GetUnitLife(context.Context, coreunit.Name) (life.Value, error)
 	EnsureUnitDead(context.Context, coreunit.Name, leadership.Revoker) error
 	RemoveUnit(context.Context, coreunit.Name, leadership.Revoker) error
+	// WatchApplicationUnits starts a watcher for the specified
+	// application. The watcher will notify when the application
+	// changes its units.
+	WatchApplicationUnits(ctx context.Context, appName string) (watcher.Watcher[[]string], error)
 }
 
 type StatusService interface {
@@ -86,6 +91,7 @@ func NewDeployerAPI(
 	st *state.State,
 	store objectstore.ObjectStore,
 	resources facade.Resources,
+	watcherRegistery facade.WatcherRegistry,
 	leadershipRevoker leadership.Revoker,
 	systemState *state.State,
 	clock clock.Clock,
@@ -120,7 +126,7 @@ func NewDeployerAPI(
 	return &DeployerAPI{
 		PasswordChanger:        common.NewPasswordChanger(agentPasswordService, st, getAuthFunc),
 		APIAddresser:           common.NewAPIAddresser(systemState, resources),
-		UnitsWatcher:           common.NewUnitsWatcher(st, resources, getCanWatch),
+		UnitsWatcher:           common.NewUnitsWatcher(applicationService, st, watcherRegistery, getCanWatch),
 		unitStatusSetter:       common.NewUnitStatusSetter(statusService, clock, getAuthFunc),
 		controllerConfigGetter: controllerConfigGetter,
 		applicationService:     applicationService,

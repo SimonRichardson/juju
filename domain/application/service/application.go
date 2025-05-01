@@ -343,6 +343,14 @@ type ApplicationState interface {
 
 	// GetDeviceConstraints returns the device constraints for an application.
 	GetDeviceConstraints(ctx context.Context, appID coreapplication.ID) (map[string]devices.Constraints, error)
+
+	// InitialWatchStatementApplicationUnits returns the initial namespace query
+	// for the application units watcher.
+	InitialWatchStatementApplicationUnits(ctx context.Context, appID coreapplication.ID) (string, eventsource.NamespaceQuery)
+
+	// MatchApplicationUnits returns a list of unit uuids for the given
+	// application that matches the provided unit uuids.
+	MatchApplicationUnits(ctx context.Context, appID coreapplication.ID, unitUUIDs []coreunit.UUID) ([]coreunit.UUID, error)
 }
 
 func validateCharmAndApplicationParams(

@@ -2847,6 +2847,45 @@ func (c *MockStateInitialWatchStatementApplicationConfigHashCall) DoAndReturn(f 
 	return c
 }
 
+// InitialWatchStatementApplicationUnits mocks base method.
+func (m *MockState) InitialWatchStatementApplicationUnits(ctx context.Context, appID application.ID) (string, eventsource.NamespaceQuery) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InitialWatchStatementApplicationUnits", ctx, appID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(eventsource.NamespaceQuery)
+	return ret0, ret1
+}
+
+// InitialWatchStatementApplicationUnits indicates an expected call of InitialWatchStatementApplicationUnits.
+func (mr *MockStateMockRecorder) InitialWatchStatementApplicationUnits(ctx, appID any) *MockStateInitialWatchStatementApplicationUnitsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitialWatchStatementApplicationUnits", reflect.TypeOf((*MockState)(nil).InitialWatchStatementApplicationUnits), ctx, appID)
+	return &MockStateInitialWatchStatementApplicationUnitsCall{Call: call}
+}
+
+// MockStateInitialWatchStatementApplicationUnitsCall wrap *gomock.Call
+type MockStateInitialWatchStatementApplicationUnitsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateInitialWatchStatementApplicationUnitsCall) Return(arg0 string, arg1 eventsource.NamespaceQuery) *MockStateInitialWatchStatementApplicationUnitsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateInitialWatchStatementApplicationUnitsCall) Do(f func(context.Context, application.ID) (string, eventsource.NamespaceQuery)) *MockStateInitialWatchStatementApplicationUnitsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateInitialWatchStatementApplicationUnitsCall) DoAndReturn(f func(context.Context, application.ID) (string, eventsource.NamespaceQuery)) *MockStateInitialWatchStatementApplicationUnitsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // InitialWatchStatementApplicationsWithPendingCharms mocks base method.
 func (m *MockState) InitialWatchStatementApplicationsWithPendingCharms() (string, eventsource.NamespaceQuery) {
 	m.ctrl.T.Helper()
@@ -3320,6 +3359,45 @@ func (c *MockStateListCharmLocatorsByNamesCall) Do(f func(context.Context, []str
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockStateListCharmLocatorsByNamesCall) DoAndReturn(f func(context.Context, []string) ([]charm0.CharmLocator, error)) *MockStateListCharmLocatorsByNamesCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// MatchApplicationUnits mocks base method.
+func (m *MockState) MatchApplicationUnits(ctx context.Context, appID application.ID, unitUUIDs []unit.UUID) ([]unit.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MatchApplicationUnits", ctx, appID, unitUUIDs)
+	ret0, _ := ret[0].([]unit.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchApplicationUnits indicates an expected call of MatchApplicationUnits.
+func (mr *MockStateMockRecorder) MatchApplicationUnits(ctx, appID, unitUUIDs any) *MockStateMatchApplicationUnitsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchApplicationUnits", reflect.TypeOf((*MockState)(nil).MatchApplicationUnits), ctx, appID, unitUUIDs)
+	return &MockStateMatchApplicationUnitsCall{Call: call}
+}
+
+// MockStateMatchApplicationUnitsCall wrap *gomock.Call
+type MockStateMatchApplicationUnitsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateMatchApplicationUnitsCall) Return(arg0 []unit.UUID, arg1 error) *MockStateMatchApplicationUnitsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateMatchApplicationUnitsCall) Do(f func(context.Context, application.ID, []unit.UUID) ([]unit.UUID, error)) *MockStateMatchApplicationUnitsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateMatchApplicationUnitsCall) DoAndReturn(f func(context.Context, application.ID, []unit.UUID) ([]unit.UUID, error)) *MockStateMatchApplicationUnitsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
