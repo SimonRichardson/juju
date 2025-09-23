@@ -1498,14 +1498,6 @@ func (api *APIBase) saveRemoteApplicationOfferer(
 		}
 	}
 
-	// TODO (stickupkid): Handle the following case:
-	//
-	// If a remote application with the same name and endpoints from the same
-	// source model already exists, we will use that one. If the status was
-	// "terminated", the offer had been removed, so we'll replace the terminated
-	// application with a fresh copy.
-	//
-
 	return api.crossModelRelationService.AddRemoteApplicationOfferer(ctx, applicationName, crossmodelrelationservice.AddRemoteApplicationOffererArgs{
 		OfferUUID:             offer.OfferUUID,
 		OffererControllerUUID: offererControllerUUID,

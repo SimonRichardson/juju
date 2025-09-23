@@ -122,6 +122,13 @@ type applicationDetails struct {
 	SpaceUUID string    `db:"space_uuid"`
 }
 
+type applicationInfo struct {
+	UUID             string    `db:"uuid"`
+	Name             string    `db:"name"`
+	LifeID           life.Life `db:"life_id"`
+	OffererModelUUID string    `db:"offerer_model_uuid"`
+}
+
 type countResult struct {
 	Count int `db:"count"`
 }

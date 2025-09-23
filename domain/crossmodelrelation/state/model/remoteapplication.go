@@ -35,6 +35,19 @@ func (st *State) AddRemoteApplicationOfferer(
 	}
 
 	if err := db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		info, err := st.getApplicationInfo(ctx, tx, applicationName)
+		if err != nil && !errors.Is(err, applicationerrors.ApplicationNotFound) {
+			return errors.Capture(err)
+		} else if info.OffererModelUUID != args.OffererModelUUID {
+			return errors.Errorf("application already exists from a different source model").Add(applicationerrors.ApplicationAlreadyExists)
+		} else if info.LifeID != life.Alive {
+			return errors.Errorf("application already exists but is terminating").Add(applicationerrors.ApplicationAlreadyExists)
+		} else if err == nil {
+			// Application already exists and is alive, so update the existing
+			// endpoints.
+			return st.updateApplicationExistingEndpoints(ctx, tx, info.UUID, args)
+		}
+
 		// Insert the application, along with the associated charm.
 		if err := st.insertApplication(ctx, tx, applicationName, args); err != nil {
 			return errors.Capture(err)
@@ -282,6 +295,32 @@ func (s *State) addCharmRelations(ctx context.Context, tx *sqlair.TX, uuid strin
 		return errors.Errorf("inserting charm relations: %w", err)
 	}
 
+	return nil
+}
+
+func (s *State) getApplicationInfo(ctx context.Context, tx *sqlair.TX, name string) (applicationInfo, error) {
+	query := `SELECT &applicationInfo.* FROM application WHERE name = $applicationInfo.name;`
+	stmt, err := s.Prepare(query, applicationInfo{})
+	if err != nil {
+		return applicationInfo{}, errors.Capture(err)
+	}
+
+	var info applicationInfo
+	if err := tx.Query(ctx, stmt, applicationInfo{Name: name}).Get(&info); errors.Is(err, sqlair.ErrNoRows) {
+		return applicationInfo{}, applicationerrors.ApplicationNotFound
+	} else if err != nil {
+		return applicationInfo{}, errors.Errorf("querying for application %q: %w", name, err)
+	}
+
+	return info, nil
+}
+
+func (s *State) updateApplicationExistingEndpoints(
+	ctx context.Context,
+	tx *sqlair.TX,
+	applicationUUID string,
+	args crossmodelrelation.AddRemoteApplicationOffererArgs,
+) error {
 	return nil
 }
 
