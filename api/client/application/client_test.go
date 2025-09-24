@@ -16,7 +16,6 @@ import (
 	"github.com/juju/juju/api/base/mocks"
 	"github.com/juju/juju/api/client/application"
 	apicharm "github.com/juju/juju/api/common/charm"
-	corebase "github.com/juju/juju/core/base"
 	"github.com/juju/juju/core/constraints"
 	"github.com/juju/juju/core/crossmodel"
 	"github.com/juju/juju/core/instance"
@@ -1528,69 +1527,162 @@ func (s *applicationSuite) TestLeader(c *tc.C) {
 	c.Assert(obtainedUnit, tc.Equals, "ubuntu/42")
 }
 
-func (s *applicationSuite) TestDeployFromRepository(c *tc.C) {
+func (s *applicationSuite) TestGetApplicationStorageSuccessful(c *tc.C) {
 	ctrl := gomock.NewController(c)
 	defer ctrl.Finish()
 
-	args := params.DeployFromRepositoryArgs{
-		Args: []params.DeployFromRepositoryArg{{
-			ApplicationName: "jammy",
-			CharmName:       "ubuntu",
-			Base: &params.Base{
-				Name:    "ubuntu",
-				Channel: "22.04",
-			},
-		}},
-	}
-	stable := "stable"
-	candidate := "candidate"
-	result := new(params.DeployFromRepositoryResults)
-	results := params.DeployFromRepositoryResults{
-		Results: []params.DeployFromRepositoryResult{{
-			Errors: []*params.Error{
-				{Message: "one"},
-				{Message: "two"},
-				{Message: "three"},
-			},
-			Info: params.DeployFromRepositoryInfo{
-				Channel:      candidate,
-				Architecture: "arm64",
-				Base: params.Base{
-					Name:    "ubuntu",
-					Channel: "22.04",
+	args := params.Entities{
+		Entities: []params.Entity{
+			{Tag: "application-storage-block"},
+		}}
+
+	sbSize := uint64(5)
+	sbCount := uint64(1)
+
+	result := new(params.ApplicationStorageGetResults)
+	results := params.ApplicationStorageGetResults{
+		Results: []params.ApplicationStorageGetResult{
+			{
+				StorageDirectives: map[string]params.StorageDirectives{
+					"storage-block": {
+						Pool:    "loop",
+						SizeMiB: &sbSize,
+						Count:   &sbCount,
+					},
 				},
-				EffectiveChannel: &stable,
-				Name:             "ubuntu",
-				Revision:         7,
 			},
-			PendingResourceUploads: nil,
-		}},
+		},
 	}
 	mockFacadeCaller := mocks.NewMockFacadeCaller(ctrl)
-	mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "DeployFromRepository", args, result).SetArg(3, results).Return(nil)
+	mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "GetApplicationStorage", args, result).SetArg(3, results).Return(nil)
 
-	arg := application.DeployFromRepositoryArg{
-		CharmName:       "ubuntu",
-		ApplicationName: "jammy",
-		Base:            &corebase.Base{OS: "ubuntu", Channel: corebase.Channel{Track: "22.04"}},
+	client := application.NewClientFromCaller(mockFacadeCaller)
+	info, err := client.GetApplicationStorage(c.Context(), "storage-block")
+
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(info.StorageDirectives, tc.DeepEquals, map[string]storage.Directive{
+		"storage-block": {
+			Pool:  "loop",
+			Size:  uint64(5),
+			Count: uint64(1),
+		},
+	})
+}
+
+func (s *applicationSuite) TestGetApplicationStorageServerError(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	args := params.Entities{
+		Entities: []params.Entity{
+			{Tag: "application-storage-block"},
+		}}
+
+	result := new(params.ApplicationStorageGetResults)
+	results := params.ApplicationStorageGetResults{
+		Results: []params.ApplicationStorageGetResult{
+			{
+				Error: &params.Error{
+					Code:    params.CodeNotFound,
+					Message: "Not Found Error",
+				},
+			},
+		},
+	}
+	mockFacadeCaller := mocks.NewMockFacadeCaller(ctrl)
+	mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "GetApplicationStorage", args, result).SetArg(3, results).Return(nil)
+
+	client := application.NewClientFromCaller(mockFacadeCaller)
+	info, err := client.GetApplicationStorage(c.Context(), "storage-block")
+
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(info.Error, tc.ErrorIs, errors.NotFound)
+}
+
+func (s *applicationSuite) TestUpdateApplicationStorageSuccessful(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	sbSize := uint64(5)
+	sbCount := uint64(1)
+
+	args := params.ApplicationStorageUpdateRequest{
+		ApplicationStorageUpdates: []params.ApplicationStorageUpdate{
+			{ApplicationTag: "application-storage-block", StorageDirectives: map[string]params.StorageDirectives{
+				"storage-block": {
+					Pool:    "loop",
+					SizeMiB: &sbSize,
+					Count:   &sbCount,
+				},
+			}},
+		}}
+
+	result := new(params.ErrorResults)
+	results := params.ErrorResults{
+		Results: []params.ErrorResult{
+			{
+				Error: nil,
+			},
+		},
+	}
+	mockFacadeCaller := mocks.NewMockFacadeCaller(ctrl)
+	mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "UpdateApplicationStorage", args, result).SetArg(3, results).Return(nil)
+
+	applicationStorageUpdate := application.ApplicationStorageUpdate{
+		ApplicationTag: names.NewApplicationTag("storage-block"), StorageDirectives: map[string]storage.Directive{
+			"storage-block": {
+				Pool:  "loop",
+				Size:  uint64(5),
+				Count: uint64(1),
+			},
+		},
 	}
 	client := application.NewClientFromCaller(mockFacadeCaller)
-	info, _, errs := client.DeployFromRepository(c.Context(), arg)
-	c.Assert(errs, tc.HasLen, 3)
-	c.Assert(errs[0], tc.ErrorMatches, "one")
-	c.Assert(errs[1], tc.ErrorMatches, "two")
-	c.Assert(errs[2], tc.ErrorMatches, "three")
+	err := client.UpdateApplicationStorage(c.Context(), applicationStorageUpdate)
 
-	c.Assert(info, tc.DeepEquals, application.DeployInfo{
-		Channel:      candidate,
-		Architecture: "arm64",
-		Base: corebase.Base{
-			OS:      "ubuntu",
-			Channel: corebase.Channel{Track: "22.04", Risk: "stable"},
+	c.Assert(err, tc.IsNil)
+}
+
+func (s *applicationSuite) TestUpdateApplicationStorageServerError(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	sbSize := uint64(5)
+	sbCount := uint64(1)
+
+	args := params.ApplicationStorageUpdateRequest{
+		ApplicationStorageUpdates: []params.ApplicationStorageUpdate{
+			{ApplicationTag: "application-storage-block", StorageDirectives: map[string]params.StorageDirectives{
+				"storage-block": {
+					Pool:    "loop",
+					SizeMiB: &sbSize,
+					Count:   &sbCount,
+				},
+			}},
+		}}
+
+	result := new(params.ErrorResults)
+	results := params.ErrorResults{
+		Results: []params.ErrorResult{
+			{
+				Error: &params.Error{Message: "test error1", Code: params.CodeNotFound},
+			},
 		},
-		EffectiveChannel: &stable,
-		Name:             "ubuntu",
-		Revision:         7,
-	})
+	}
+	mockFacadeCaller := mocks.NewMockFacadeCaller(ctrl)
+	mockFacadeCaller.EXPECT().FacadeCall(gomock.Any(), "UpdateApplicationStorage", args, result).SetArg(3, results).Return(nil)
 
+	applicationStorageUpdate := application.ApplicationStorageUpdate{
+		ApplicationTag: names.NewApplicationTag("storage-block"), StorageDirectives: map[string]storage.Directive{
+			"storage-block": {
+				Pool:  "loop",
+				Size:  uint64(5),
+				Count: uint64(1),
+			},
+		},
+	}
+
+	client := application.NewClientFromCaller(mockFacadeCaller)
+	err := client.UpdateApplicationStorage(c.Context(), applicationStorageUpdate)
+	c.Assert(err, tc.ErrorMatches, "test error1")
 }

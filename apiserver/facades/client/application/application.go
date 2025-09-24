@@ -2151,10 +2151,13 @@ func (api *APIBase) GetApplicationStorage(ctx context.Context, args params.Entit
 			resp.Results[i].Error = apiservererrors.ServerError(err)
 			continue
 		}
-		resp.Results[i].StorageConstraints = sc
+		resp.Results[i].StorageDirectives = sc
 	}
 	return resp, nil
 }
+
+// GetApplicationStorage isn't on the v21 API.
+func (api *APIv21) GetApplicationStorage(_ struct{}) {}
 
 func (api *APIBase) updateOneApplicationStorage(storageUpdate params.ApplicationStorageUpdate) error {
 	// TODO(storage): implement and add test.
@@ -2182,3 +2185,6 @@ func (api *APIBase) UpdateApplicationStorage(ctx context.Context, args params.Ap
 
 	return resp, nil
 }
+
+// UpdateApplicationStorage isn't on the v21 API.
+func (api *APIv21) UpdateApplicationStorage(_ struct{}) {}

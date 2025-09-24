@@ -702,8 +702,8 @@ type PendingResourceUpload struct {
 // ApplicationStorageGetResult holds the storage constraints and any
 // error information for a single application.
 type ApplicationStorageGetResult struct {
-	StorageConstraints map[string]StorageDirectives `json:"storage-constraints"`
-	Error              *Error
+	StorageDirectives map[string]StorageDirectives `json:"storage-constraints"`
+	Error             *Error
 }
 
 // ApplicationStorageGetResults aggregates the per-application results
@@ -724,6 +724,7 @@ type ApplicationStorageUpdateRequest struct {
 type ApplicationStorageUpdate struct {
 	ApplicationTag string `json:"application-tag"`
 
-	// Holds the application storage constraints where the key is the storage name.
-	StorageConstraints map[string]StorageDirectives `json:"storage-constraints"`
+	// Holds the application storage directives where the key is the storage
+	// name.
+	StorageDirectives map[string]StorageDirectives `json:"storage-constraints"`
 }
