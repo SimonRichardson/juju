@@ -7,6 +7,7 @@ import (
 	"context"
 	stdtesting "testing"
 
+	"github.com/juju/clock"
 	"github.com/juju/tc"
 	"gopkg.in/macaroon.v2"
 
@@ -78,7 +79,7 @@ func (s *watcherSuite) setupService(c *tc.C, factory domain.WatchableDBFactory) 
 	}
 
 	controllerState := controllerstate.NewState(controllerDB, loggertesting.WrapCheckLog(c))
-	modelState := modelstate.NewState(modelDB, loggertesting.WrapCheckLog(c))
+	modelState := modelstate.NewState(modelDB, clock.WallClock, loggertesting.WrapCheckLog(c))
 
 	return service.NewWatchableService(
 		controllerState,
