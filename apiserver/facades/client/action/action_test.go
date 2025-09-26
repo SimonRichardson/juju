@@ -11,8 +11,7 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/names/v6"
 	"github.com/juju/tc"
-	gomock "go.uber.org/mock/gomock"
-	"gopkg.in/check.v1"
+	"go.uber.org/mock/gomock"
 
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	apiservertesting "github.com/juju/juju/apiserver/testing"
@@ -43,7 +42,7 @@ type actionSuite struct {
 	client   *ActionAPI
 }
 
-func (s *actionSuite) SetUpTest(c *check.C) {
+func (s *actionSuite) SetUpTest(c *tc.C) {
 	s.adminTag = names.NewUserTag("admin")
 }
 
@@ -123,7 +122,7 @@ func (s *actionSuite) TestActionsSuccess(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(result.Results, tc.HasLen, 1)
 	c.Check(result.Results[0].Error, tc.IsNil)
-	c.Check(result.Results[0].Action.Tag, tc.Equals, "42")
+	c.Check(result.Results[0].Action.Tag, tc.Equals, "action-42")
 	c.Check(result.Results[0].Action.Receiver, tc.Equals, "unit-app-0") // ActionReceiverTag applies the conversion.
 	c.Check(result.Results[0].Action.Name, tc.Equals, "charm-action-0")
 	c.Check(*result.Results[0].Action.ExecutionGroup, tc.Equals, "group-0")
@@ -285,7 +284,7 @@ func (s *actionSuite) TestCancelSuccess(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(result.Results, tc.HasLen, 1)
 	c.Check(result.Results[0].Error, tc.IsNil)
-	c.Check(result.Results[0].Action.Tag, tc.Equals, "42")
+	c.Check(result.Results[0].Action.Tag, tc.Equals, "action-42")
 	c.Check(result.Results[0].Action.Receiver, tc.Equals, "unit-app-0") // ActionReceiverTag applies the conversion.
 }
 

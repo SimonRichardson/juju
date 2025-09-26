@@ -1173,12 +1173,31 @@ func (u *UniterAPI) Relation(ctx context.Context, args params.RelationUnits) (pa
 
 // ActionStatus returns the status of Actions by Tags passed in.
 func (u *UniterAPI) ActionStatus(ctx context.Context, args params.Entities) (params.StringResults, error) {
-	_, err := u.accessUnit(ctx)
+	canAccess, err := u.accessUnit(ctx)
 	if err != nil {
 		return params.StringResults{}, err
 	}
 
-	return params.StringResults{}, nil
+	results := params.StringResults{
+		Results: make([]params.StringResult, len(args.Entities)),
+	}
+
+	for i, entity := range args.Entities {
+		taskID, err := u.authTaskID(ctx, canAccess, entity.Tag)
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+
+		taskStatus, err := u.operationService.GetTaskStatusByID(ctx, taskID)
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+		results.Results[i].Result = taskStatus
+	}
+
+	return results, nil
 }
 
 // Actions returns the Actions by Tags passed and ensures that the Unit asking
@@ -1249,7 +1268,7 @@ func (u *UniterAPI) authTaskID(ctx context.Context, canAccess common.AuthFunc, t
 	if err != nil {
 		return "", err
 	}
-	receiverStr, err := u.operationService.ReceiverFromTask(ctx, actionTag.Id())
+	receiverStr, err := u.operationService.GetReceiverFromTaskID(ctx, actionTag.Id())
 	if err != nil {
 		return "", err
 	}
@@ -1294,15 +1313,29 @@ func (u *UniterAPI) FinishActions(ctx context.Context, args params.ActionExecuti
 
 // LogActionsMessages records the log messages against the specified actions.
 func (u *UniterAPI) LogActionsMessages(ctx context.Context, args params.ActionMessageParams) (params.ErrorResults, error) {
-	_, err := u.accessUnit(ctx)
+	canAccess, err := u.accessUnit(ctx)
 	if err != nil {
 		return params.ErrorResults{}, err
 	}
 
-	result := params.ErrorResults{
+	results := params.ErrorResults{
 		Results: make([]params.ErrorResult, len(args.Messages)),
 	}
-	return result, nil
+
+	for i, arg := range args.Messages {
+		taskID, err := u.authTaskID(ctx, canAccess, arg.Tag)
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+
+		err = u.operationService.LogTaskMessage(ctx, taskID, arg.Value)
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+		}
+	}
+
+	return results, nil
 }
 
 // RelationById returns information about all given relations,
@@ -2310,8 +2343,7 @@ func (u *UniterAPI) NetworkInfo(ctx context.Context, args params.NetworkInfoPara
 				return params.NetworkInfo{
 					MACAddress:    dev.MACAddress,
 					InterfaceName: dev.Name,
-					Addresses: transform.Slice(dev.Addresses, func(addr domainnetork.AddressInfo) params.
-						InterfaceAddress {
+					Addresses: transform.Slice(dev.Addresses, func(addr domainnetork.AddressInfo) params.InterfaceAddress {
 						return params.InterfaceAddress{
 							Hostname: addr.Hostname,
 							Address:  addr.Value,

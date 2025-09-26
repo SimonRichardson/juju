@@ -271,21 +271,14 @@ type NetworkService interface {
 }
 
 type ResolveService interface {
-	// UnitResolveMode returns the resolve mode for the given unit. If no unit is found
-	// with the given name, an error satisfying [resolveerrors.UnitNotFound] is returned.
-	// if no resolved marker is found for the unit, an error satisfying
-	// [resolveerrors.UnitNotResolved] is returned.
+	// UnitResolveMode returns the resolve mode for the given unit.
 	UnitResolveMode(context.Context, coreunit.Name) (resolve.ResolveMode, error)
 
-	// ClearResolved removes any resolved marker from the unit. If the unit is not
-	// found, an error satisfying [resolveerrors.UnitNotFound] is returned.
+	// ClearResolved removes any resolved marker from the unit.
 	ClearResolved(context.Context, coreunit.Name) error
 
-	// WatchUnitResolveMode returns a watcher that emits notification when the resolve
-	// mode of the specified unit changes.
-	//
-	// If the unit does not exist an error satisfying [resolveerrors.UnitNotFound]
-	// will be returned.
+	// WatchUnitResolveMode returns a watcher that emits notification when the
+	// resolve mode of the specified unit changes.
 	WatchUnitResolveMode(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
 }
 
@@ -306,8 +299,9 @@ type StatusService interface {
 	SetUnitAgentStatus(context.Context, coreunit.Name, corestatus.StatusInfo) error
 
 	// GetApplicationAndUnitStatusesForUnitWithLeader returns the display status
-	// of the application the specified unit belongs to, and the workload statuses
-	// of all the units that belong to that application, indexed by unit name.
+	// of the application the specified unit belongs to, and the workload
+	// statuses of all the units that belong to that application, indexed by
+	// unit name.
 	GetApplicationAndUnitStatusesForUnitWithLeader(
 		context.Context,
 		coreunit.Name,
@@ -346,11 +340,12 @@ type PortService interface {
 	UpdateUnitPorts(ctx context.Context, unitUUID coreunit.UUID, openPorts, closePorts network.GroupedPortRanges) error
 
 	// GetMachineOpenedPorts returns the opened ports for all the units on the
-	// machine. Opened ports are grouped first by unit name and then by endpoint.
+	// machine. Opened ports are grouped first by unit name and then by
+	// endpoint.
 	GetMachineOpenedPorts(ctx context.Context, machineUUID string) (map[coreunit.Name]network.GroupedPortRanges, error)
 
-	// GetUnitOpenedPorts returns the opened ports for a given unit uuid, grouped
-	// by endpoint.
+	// GetUnitOpenedPorts returns the opened ports for a given unit uuid,
+	// grouped by endpoint.
 	GetUnitOpenedPorts(ctx context.Context, unitUUID coreunit.UUID) (network.GroupedPortRanges, error)
 }
 
@@ -362,15 +357,21 @@ type OperationService interface {
 	// a pending status.
 	GetPendingTaskByTaskID(ctx context.Context, id string) (operation.TaskArgs, error)
 
-	// StartTask marks a task as running and logs the time it was started.
-	StartTask(ctx context.Context, id string) error
+	// GetReceiverFromTaskID return a receiver string for the task identified.
+	// The string should satisfy the ActionReceiverTag type.
+	GetReceiverFromTaskID(ctx context.Context, id string) (string, error)
+
+	// GetTaskStatusByID returns the status of the given task.
+	GetTaskStatusByID(ctx context.Context, id string) (string, error)
 
 	// FinishTask saves the result of a completed Task.
 	FinishTask(context.Context, operation.CompletedTaskResult) error
 
-	// ReceiverFromTask return a receiver string for the task identified.
-	// The string should satisfy the ActionReceiverTag type.
-	ReceiverFromTask(ctx context.Context, id string) (string, error)
+	// LogTaskMessage stores the message for the given task ID.
+	LogTaskMessage(ctx context.Context, id, message string) error
+
+	// StartTask marks a task as running and logs the time it was started.
+	StartTask(ctx context.Context, id string) error
 
 	// WatchMachineTaskNotifications returns a StringsWatcher that emits task
 	// ids for tasks targeted at the provided machine.
@@ -432,14 +433,14 @@ type MachineService interface {
 // RelationService defines the methods that the facade assumes from the
 // Relation service.
 type RelationService interface {
-	// EnterScope indicates that the provided unit has joined the relation.
-	// When the unit has already entered its relation scope, EnterScope will report
+	// EnterScope indicates that the provided unit has joined the relation. When
+	// the unit has already entered its relation scope, EnterScope will report
 	// success but make no changes to state. The unit's settings are created or
 	// overwritten in the relation according to the supplied map.
 	//
-	// If there is a subordinate application related to the unit entering scope that
-	// needs a subordinate unit creating, then the subordinate unit will be created
-	// with the provided createSubordinate function.
+	// If there is a subordinate application related to the unit entering scope
+	// that needs a subordinate unit creating, then the subordinate unit will be
+	// created with the provided createSubordinate function.
 	//
 	// The following error types can be expected to be returned:
 	//   - [relationerrors.PotentialRelationUnitNotValid] if the unit entering
@@ -454,12 +455,8 @@ type RelationService interface {
 		createSubordinate relation.SubordinateCreator,
 	) error
 
-	// GetGoalStateRelationDataForApplication returns GoalStateRelationData for all
-	// relations the given application is in, modulo peer relations.
-	//
-	// The following error types can be expected to be returned:
-	//   - [relationerrors.ApplicationIDNotValid] is returned if the application
-	//     UUID is not valid.
+	// GetGoalStateRelationDataForApplication returns GoalStateRelationData for
+	// all relations the given application is in, modulo peer relations.
 	GetGoalStateRelationDataForApplication(
 		ctx context.Context,
 		applicationID coreapplication.ID,
@@ -470,13 +467,6 @@ type RelationService interface {
 	//
 	// Only the leader unit may read the settings of the application in the local
 	// side of the relation.
-	//
-	// The following error types can be expected to be returned:
-	//   - [corelease.ErrNotHeld] if the unit is not the leader.
-	//   - [relationerrors.ApplicationNotFoundForRelation] is returned if the
-	//     application is not part of the relation.
-	//   - [relationerrors.RelationNotFound] is returned if the relation UUID
-	//     is not found.
 	GetRelationApplicationSettingsWithLeader(
 		ctx context.Context,
 		unitName coreunit.Name,
@@ -516,22 +506,21 @@ type RelationService interface {
 	// GetRelationUUIDByKey returns a relation UUID for the given relation Key.
 	// The relation key is a ordered space separated string of the endpoint
 	// names of the relation.
-	// The following error types can be expected:
-	// - [relationerrors.RelationNotFound]: when no relation exists for the given key.
 	GetRelationUUIDByKey(ctx context.Context, relationKey corerelation.Key) (corerelation.UUID, error)
 
 	// GetRelationUUIDByID returns the relation uuid based on the relation ID.
 	GetRelationUUIDByID(ctx context.Context, relationID int) (corerelation.UUID, error)
 
-	// GetRelationsStatusForUnit returns RelationUnitStatus for
-	// any relation the unit is part of.
+	// GetRelationsStatusForUnit returns RelationUnitStatus for any relation the
+	// unit is part of.
 	GetRelationsStatusForUnit(ctx context.Context, unitUUID coreunit.UUID) ([]relation.RelationUnitStatus, error)
 
-	// GetRelationApplicationSettings returns the application settings
-	// for the given application and relation identifier combination.
+	// GetRelationApplicationSettings returns the application settings for the
+	// given application and relation identifier combination.
 	//
 	// This function does not check leadership, so should only be used to check
-	// the settings of applications on the other end of the relation to the caller.
+	// the settings of applications on the other end of the relation to the
+	// caller.
 	GetRelationApplicationSettings(
 		ctx context.Context,
 		relationUUID corerelation.UUID,
@@ -543,11 +532,6 @@ type RelationService interface {
 
 	// SetRelationApplicationAndUnitSettings records settings for a unit and
 	// an application in a relation.
-	//
-	// The following error types can be expected to be returned:
-	//   - [corelease.ErrNotHeld] if the unit is not the leader.
-	//   - [relationerrors.RelationUnitNotFound] is returned if the
-	//     relation unit is not found.
 	SetRelationApplicationAndUnitSettings(
 		ctx context.Context,
 		unitName coreunit.Name,
@@ -563,8 +547,8 @@ type RelationService interface {
 		unitID coreunit.UUID,
 	) (watcher.StringsWatcher, error)
 
-	// WatchRelatedUnits returns a watcher that notifies of changes to counterpart units in
-	// the relation.
+	// WatchRelatedUnits returns a watcher that notifies of changes to
+	// counterpart units in the relation.
 	WatchRelatedUnits(
 		ctx context.Context,
 		unitUUID coreunit.UUID,
@@ -613,48 +597,31 @@ type BlockDeviceService interface {
 // StorageProvisioningService provides methods to watch and manage storage
 // provisioning related resources.
 type StorageProvisioningService interface {
-	// GetStorageAttachmentIDsForUnit returns the storage attachment IDs for the given unit UUID.
-	//
-	// The following errors may be returned:
-	// - [github.com/juju/juju/core/errors.NotValid] when the provided unit UUID
-	// is not valid.
-	// - [applicationerrors.UnitNotFound] when no unit exists for the supplied unit UUID.
+	// GetStorageAttachmentIDsForUnit returns the storage attachment IDs for the
+	// given unit UUID.
 	GetStorageAttachmentIDsForUnit(
 		ctx context.Context, unitUUID coreunit.UUID,
 	) ([]string, error)
 
-	// GetStorageAttachmentLife retrieves the life of a storage attachment for a unit.
-	//
-	// The following errors may be returned:
-	// - [coreerrors.NotValid] when the provided unit UUID is not valid.
-	// - [applicationerrors.UnitNotFound] when no unit exists for the supplied unit UUID.
-	// - [github.com/juju/juju/domain/storageprovisioning/errors.StorageInstanceNotFound]
-	// when no storage instance exists for the provided ID.
-	// - [github.com/juju/juju/domain/storageprovisioning/errors.StorageAttachmentNotFound]
-	// when the storage attachment does not exist for the unit.
+	// GetStorageAttachmentLife retrieves the life of a storage attachment for a
+	// unit.
 	GetStorageAttachmentLife(
 		ctx context.Context, unitUUID coreunit.UUID, storageID string,
 	) (domainlife.Life, error)
 
-	// GetStorageAttachmentUUIDForUnit returns the UUID of the storage attachment for the
-	// given storage ID and unit UUID.
-	//
-	// The following errors may be returned:
-	// - [applicationerrors.UnitNotFound] if the unit does not exist.
-	// - [storageprovisioningerrors.StorageInstanceNotFound] if the storage
-	// instance does not exist for the provided storage ID.
-	// - [storageprovisioningerrors.StorageAttachmentNotFound] if the
-	// storage attachment does not exist.
+	// GetStorageAttachmentUUIDForUnit returns the UUID of the storage
+	// attachment for the given storage ID and unit UUID.
 	GetStorageAttachmentUUIDForUnit(
 		ctx context.Context, storageID string, unitUUID coreunit.UUID,
 	) (storageprovisioning.StorageAttachmentUUID, error)
 
-	// WatchStorageAttachmentsForUnit returns a watcher that emits the storage IDs
-	// for the provided unit when the unit's storage attachments are changed.
+	// WatchStorageAttachmentsForUnit returns a watcher that emits the storage
+	// IDs for the provided unit when the unit's storage attachments are
+	// changed.
 	WatchStorageAttachmentsForUnit(ctx context.Context, unitUUID coreunit.UUID) (watcher.StringsWatcher, error)
 
-	// WatchStorageAttachment returns a notification watcher for the
-	// storage attachment.
+	// WatchStorageAttachment returns a notification watcher for the storage
+	// attachment.
 	WatchStorageAttachment(
 		ctx context.Context, uuid storageprovisioning.StorageAttachmentUUID,
 	) (watcher.NotifyWatcher, error)

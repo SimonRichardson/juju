@@ -6,9 +6,11 @@ package operation
 import (
 	"time"
 
+	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/machine"
 	corestatus "github.com/juju/juju/core/status"
 	"github.com/juju/juju/core/unit"
+	"github.com/juju/juju/internal/errors"
 )
 
 // CompletedTaskResult holds the task ID and output used when recording
@@ -18,6 +20,18 @@ type CompletedTaskResult struct {
 	Status  string
 	Results map[string]interface{}
 	Message string
+}
+
+func (c CompletedTaskResult) Validate() error {
+	var errList []error
+	if c.TaskID == "" {
+		errList = append(errList, errors.Errorf("TaskID is empty").Add(coreerrors.NotValid))
+	}
+	status := corestatus.Status(c.Status)
+	if !status.IsInActiveTaskStatus() {
+		errList = append(errList, errors.Errorf("Status is not valid for completed tasks").Add(coreerrors.NotValid))
+	}
+	return errors.Join(errList...)
 }
 
 // QueryArgs represents the parameters used for querying operations.
@@ -148,4 +162,16 @@ type Receivers struct {
 type ActionReceiver struct {
 	Unit       unit.Name
 	LeaderUnit string
+}
+
+// Validate checks that the ActionReceiver is correctly configured, i.e. only
+// one of Unit or LeaderUnit is set, and at least one is set.
+func (a *ActionReceiver) Validate() error {
+	if a.Unit != "" && a.LeaderUnit != "" {
+		return errors.Errorf("only one of Unit or LeaderUnit should be set")
+	}
+	if a.Unit == "" && a.LeaderUnit == "" {
+		return errors.Errorf("one of Unit or LeaderUnit must be set")
+	}
+	return nil
 }

@@ -40,6 +40,10 @@ type State interface {
 	// GetUnitUUIDByName returns the unit UUID for the given unit name.
 	GetUnitUUIDByName(ctx context.Context, n coreunit.Name) (string, error)
 
+	// GetReceiverFromTaskID returns a receiver string for the task identified.
+	// The string should satisfy the ActionReceiverTag type.
+	GetReceiverFromTaskID(ctx context.Context, taskID string) (string, error)
+
 	// GetMachineUUIDByName returns the machine UUID for the given machine name.
 	GetMachineUUIDByName(ctx context.Context, n coremachine.Name) (string, error)
 
@@ -55,6 +59,11 @@ type State interface {
 	// if any. It's up to the caller to retrieve the actual output from the object
 	// store.
 	GetTask(ctx context.Context, taskID string) (operation.Task, *string, error)
+
+	// GetMachineTaskIDsWithStatus retrieves all task IDs associated with a specific
+	//machine and filtered by a given status.
+	GetMachineTaskIDsWithStatus(ctx context.Context, machineName string, statusFilter string) ([]string,
+		error)
 
 	// GetTaskIDsByUUIDsFilteredByReceiverUUID returns task IDs of the tasks
 	// provided having the given receiverUUID.
@@ -75,6 +84,12 @@ type State interface {
 		cursor time.Time,
 	) ([]internal.TaskLogMessage, time.Time, error)
 
+	// FinishTask updates the task status to an inactive status value
+	// and saves a reference to its results in the object store. If the
+	// task's operation has no active tasks, mark the completed time for
+	// the operation.
+	FinishTask(context.Context, internal.CompletedTask) error
+
 	// InitialWatchStatementUnitTask returns the namespace (table) and an
 	// initial query function which returns the list of non-pending task ids for
 	// the given unit.
@@ -84,11 +99,17 @@ type State interface {
 	// query function which returns the list of task ids for the given machine.
 	InitialWatchStatementMachineTask() (string, string)
 
+	// LogTaskMessage stores the message for the given task ID.
+	LogTaskMessage(ctx context.Context, taskID, message string) error
+
 	// StartTask sets the task start time and updates the status to running.
 	// The following errors may be returned:
 	// - [operationerrors.TaskNotFound] if the task does not exist.
 	// - [operationerrors.TaskNotPending] if the task is not pending.
 	StartTask(ctx context.Context, taskID string) error
+
+	// GetTaskStatusByID returns the status of the given task.
+	GetTaskStatusByID(ctx context.Context, taskID string) (string, error)
 
 	// NamespaceForTaskAbortingWatcher returns the name space to be used
 	// for the TaskAbortingWatcher.
@@ -97,9 +118,29 @@ type State interface {
 	// NamespaceForTaskLogWatcher returns the name space for watching task
 	// log messages.
 	NamespaceForTaskLogWatcher() string
+
 	// PruneOperations deletes operations that are older than maxAge and larger than maxSizeMB (in megabytes).
 	// It returns the paths from objectStore that should be freed
 	PruneOperations(ctx context.Context, maxAge time.Duration, maxSizeMB int) ([]string, error)
+
+	// AddExecOperation creates an exec operation with tasks for various machines
+	// and units, using the provided parameters.
+	AddExecOperation(ctx context.Context, operationUUID internaluuid.UUID, target internal.ReceiversWithResolvedLeaders, args operation.ExecArgs) (operation.RunResult, error)
+
+	// AddExecOperationOnAllMachines creates an exec operation with tasks based
+	// on the provided parameters on all machines.
+	AddExecOperationOnAllMachines(ctx context.Context, operationUUID internaluuid.UUID, args operation.ExecArgs) (operation.RunResult, error)
+
+	// AddActionOperation creates an action operation with tasks for various
+	// units using the provided parameters.
+	AddActionOperation(ctx context.Context, operationUUID internaluuid.UUID, targetUnits []coreunit.Name, args operation.TaskArgs) (operation.RunResult, error)
+}
+
+// LeadershipService describes the methods for managing (application)
+// leadership.
+type LeadershipService interface {
+	// ApplicationLeader returns the leader unit name for the input application.
+	ApplicationLeader(appName string) (string, error)
 }
 
 // Service provides the API for managing operation
@@ -108,6 +149,7 @@ type Service struct {
 	clock             clock.Clock
 	logger            logger.Logger
 	objectStoreGetter objectstore.ModelObjectStoreGetter
+	leadershipService LeadershipService
 }
 
 // NewService returns a new Service for managing operation
@@ -116,12 +158,14 @@ func NewService(
 	clock clock.Clock,
 	logger logger.Logger,
 	objectStoreGetter objectstore.ModelObjectStoreGetter,
+	leadershipService LeadershipService,
 ) *Service {
 	return &Service{
 		st:                st,
 		clock:             clock,
 		logger:            logger,
 		objectStoreGetter: objectStoreGetter,
+		leadershipService: leadershipService,
 	}
 }
 
@@ -152,6 +196,7 @@ func NewWatchableService(
 	clock clock.Clock,
 	logger logger.Logger,
 	objectStoreGetter objectstore.ModelObjectStoreGetter,
+	leadershipService LeadershipService,
 	wf WatcherFactory,
 ) *WatchableService {
 	return &WatchableService{
@@ -159,6 +204,7 @@ func NewWatchableService(
 			st:                st,
 			clock:             clock,
 			objectStoreGetter: objectStoreGetter,
+			leadershipService: leadershipService,
 			logger:            logger,
 		},
 		watcherFactory: wf,

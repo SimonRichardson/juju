@@ -56,7 +56,9 @@ type taskIdent struct {
 // taskStatus represents a task status for queries on the
 // operation_task_status table.
 type taskStatus struct {
+	TaskUUID  string    `db:"task_uuid"`
 	Status    string    `db:"status"`
+	Message   string    `db:"message"`
 	UpdatedAt time.Time `db:"updated_at"`
 }
 
@@ -78,4 +80,59 @@ type taskTime struct {
 
 type pagination struct {
 	Cursor time.Time `db:"cursor"`
+}
+
+// taskUUIDTime maps a task UUID and time together
+type taskUUIDTime struct {
+	TaskUUID string    `db:"task_uuid"`
+	Time     time.Time `db:"time"`
+}
+
+// outputStore contains the data to interact with the
+// operation_task_output table.
+type outputStore struct {
+	TaskUUID  string `db:"task_uuid"`
+	StoreUUID string `db:"store_uuid"`
+}
+
+type insertOperation struct {
+	UUID           string    `db:"uuid"`
+	OperationID    string    `db:"operation_id"`
+	Summary        string    `db:"summary"`
+	EnqueuedAt     time.Time `db:"enqueued_at"`
+	Parallel       bool      `db:"parallel"`
+	ExecutionGroup string    `db:"execution_group"`
+}
+
+type insertOperationAction struct {
+	OperationUUID  string `db:"operation_uuid"`
+	CharmUUID      string `db:"charm_uuid"`
+	CharmActionKey string `db:"charm_action_key"`
+}
+
+type insertOperationTask struct {
+	UUID          string    `db:"uuid"`
+	OperationUUID string    `db:"operation_uuid"`
+	TaskID        string    `db:"task_id"`
+	EnqueuedAt    time.Time `db:"enqueued_at"`
+}
+
+type insertTaskStatus struct {
+	TaskUUID  string    `db:"task_uuid"`
+	Status    string    `db:"status"`
+	UpdatedAt time.Time `db:"updated_at"`
+}
+
+type insertUnitTask struct {
+	TaskUUID string `db:"task_uuid"`
+	UnitUUID string `db:"unit_uuid"`
+}
+
+type insertMachineTask struct {
+	TaskUUID    string `db:"task_uuid"`
+	MachineUUID string `db:"machine_uuid"`
+}
+
+type charmUUIDResult struct {
+	CharmUUID string `db:"charm_uuid"`
 }

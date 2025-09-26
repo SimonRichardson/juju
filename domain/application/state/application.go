@@ -341,6 +341,9 @@ func (st *State) insertApplication(
 	if err := st.insertPeerRelations(ctx, tx, appDetails.UUID); err != nil {
 		return errors.Errorf("inserting peer relation for application %q: %w", name, err)
 	}
+	if err := st.setApplicationConstraints(ctx, tx, appDetails.UUID, args.Constraints); err != nil {
+		return errors.Errorf("setting constraints for application %q: %w", name, err)
+	}
 	if err := st.insertDeviceConstraints(ctx, tx, appUUID, args.Devices); err != nil {
 		return errors.Errorf("inserting device constraints for application %q: %w", appUUID, err)
 	}
@@ -508,8 +511,10 @@ func (st *State) GetApplicationLife(ctx context.Context, appUUID coreapplication
 	}
 
 	stmt, err := st.Prepare(`
-SELECT &lifeID.* FROM application
-WHERE uuid = $applicationID.uuid
+SELECT a.life_id AS &lifeID.life_id 
+FROM application AS a
+JOIN charm AS c ON c.uuid = a.charm_uuid
+WHERE a.uuid = $applicationID.uuid AND c.source_id < 2;
 `, lifeID{}, ident)
 	if err != nil {
 		return -1, errors.Capture(err)
@@ -609,7 +614,8 @@ func (st *State) CheckAllApplicationsAndUnitsAreAlive(ctx context.Context) error
 	checkApplicationsStmt, err := st.Prepare(`
 SELECT &applicationName.*
 FROM application
-WHERE life_id != 0
+JOIN charm AS c ON c.uuid = application.charm_uuid
+WHERE life_id != 0 AND c.source_id < 2;
 `, applicationName{})
 	if err != nil {
 		return errors.Capture(err)
@@ -653,9 +659,14 @@ WHERE life_id != 0
 func (st *State) getApplicationDetails(ctx context.Context, tx *sqlair.TX, appName string) (applicationDetails, error) {
 	app := applicationDetails{Name: appName}
 	query := `
-SELECT &applicationDetails.*
+SELECT a.uuid AS &applicationDetails.uuid,
+	   a.name AS &applicationDetails.name,
+	   a.charm_uuid AS &applicationDetails.charm_uuid,
+	   a.life_id AS &applicationDetails.life_id,
+	   a.space_uuid AS &applicationDetails.space_uuid
 FROM application a
-WHERE name = $applicationDetails.name
+JOIN charm AS c ON c.uuid = a.charm_uuid
+WHERE a.name = $applicationDetails.name AND c.source_id < 2;
 `
 	stmt, err := st.Prepare(query, app)
 	if err != nil {
@@ -1110,7 +1121,7 @@ func (st *State) InitialWatchStatementApplicationsWithPendingCharms() (string, e
 SELECT a.uuid AS &applicationID.uuid
 FROM application a
 JOIN charm c ON a.charm_uuid = c.uuid
-WHERE c.available = FALSE
+WHERE c.available = FALSE AND c.source_id < 2;
 `, applicationID{})
 		if err != nil {
 			return nil, errors.Capture(err)
@@ -1144,7 +1155,8 @@ func (st *State) InitialWatchStatementApplicationConfigHash(appName string) (str
 SELECT &applicationConfigHash.*
 FROM application_config_hash ach
 JOIN application a ON a.uuid = ach.application_uuid
-WHERE a.name = $applicationName.name
+JOIN charm AS c ON c.uuid = a.charm_uuid
+WHERE a.name = $applicationName.name AND c.source_id < 2;
 `, app, applicationConfigHash{})
 		if err != nil {
 			return nil, errors.Capture(err)
@@ -1174,7 +1186,10 @@ WHERE a.name = $applicationName.name
 func (st *State) InitialWatchStatementApplications() (string, eventsource.NamespaceQuery) {
 	queryFunc := func(ctx context.Context, runner database.TxnRunner) ([]string, error) {
 		stmt, err := st.Prepare(`
-SELECT &applicationID.* FROM application
+SELECT a.uuid AS &applicationID.uuid
+FROM application AS a
+JOIN charm AS c ON c.uuid = a.charm_uuid
+WHERE c.source_id < 2;
 `, applicationID{})
 		if err != nil {
 			return nil, errors.Capture(err)
@@ -2344,7 +2359,8 @@ func (st *State) ShouldAllowCharmUpgradeOnError(ctx context.Context, appName str
 	stmt, err := st.Prepare(`
 SELECT &getCharmUpgradeOnError.*
 FROM   application
-WHERE  name = $getCharmUpgradeOnError.name
+JOIN   charm AS c ON c.uuid = application.charm_uuid
+WHERE  name = $getCharmUpgradeOnError.name AND c.source_id < 2;
 `, arg)
 	if err != nil {
 		return false, errors.Capture(err)
@@ -2373,9 +2389,10 @@ func (st *State) getApplicationName(
 		ID: id,
 	}
 	stmt, err := st.Prepare(`
-SELECT &applicationIDAndName.*
-FROM   application
-WHERE  uuid = $applicationIDAndName.uuid
+SELECT a.name AS &applicationIDAndName.name
+FROM   application AS a
+JOIN   charm AS c ON c.uuid = a.charm_uuid
+WHERE  a.uuid = $applicationIDAndName.uuid AND c.source_id < 2;
 `, arg)
 	if err != nil {
 		return "", errors.Capture(err)
@@ -2589,6 +2606,22 @@ func (st *State) SetApplicationConstraints(ctx context.Context, appID coreapplic
 		return errors.Capture(err)
 	}
 
+	return db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := st.checkApplicationNotDead(ctx, tx, appID); err != nil {
+			return errors.Capture(err)
+		}
+
+		return st.setApplicationConstraints(ctx, tx, appID, cons)
+	})
+}
+
+func (st *State) setApplicationConstraints(
+	ctx context.Context,
+	tx *sqlair.TX,
+	appID coreapplication.ID,
+	cons constraints.Constraints,
+) error {
+
 	cUUID, err := uuid.NewUUID()
 	if err != nil {
 		return errors.Capture(err)
@@ -2685,95 +2718,89 @@ ON CONFLICT (application_uuid) DO NOTHING
 		return errors.Errorf("preparing insert application constraints query: %w", err)
 	}
 
-	return db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		if err := st.checkApplicationNotDead(ctx, tx, appID); err != nil {
+	var containerTypeID containerTypeID
+	if cons.Container != nil {
+		err = tx.Query(ctx, selectContainerTypeIDStmt, containerTypeVal{Value: string(*cons.Container)}).Get(&containerTypeID)
+		if errors.Is(err, sqlair.ErrNoRows) {
+			st.logger.Warningf(ctx, "cannot set constraints, container type %q does not exist", *cons.Container)
+			return applicationerrors.InvalidApplicationConstraints
+		}
+		if err != nil {
 			return errors.Capture(err)
 		}
+	}
 
-		var containerTypeID containerTypeID
-		if cons.Container != nil {
-			err = tx.Query(ctx, selectContainerTypeIDStmt, containerTypeVal{Value: string(*cons.Container)}).Get(&containerTypeID)
+	// First check if the constraint already exists, in that case
+	// we need to update it, unsetting the nil values.
+	var retrievedConstraintUUID constraintUUID
+	err = tx.Query(ctx, selectConstraintUUIDStmt, applicationUUID{ApplicationUUID: appID.String()}).Get(&retrievedConstraintUUID)
+	if err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+		return errors.Capture(err)
+	} else if err == nil {
+		cUUIDStr = retrievedConstraintUUID.ConstraintUUID
+	}
+
+	// Cleanup tags, spaces and zones from their join tables.
+	if err := tx.Query(ctx, deleteConstraintTagsStmt, constraintUUID{ConstraintUUID: cUUIDStr}).Run(); err != nil {
+		return errors.Capture(err)
+	}
+	if err := tx.Query(ctx, deleteConstraintSpacesStmt, constraintUUID{ConstraintUUID: cUUIDStr}).Run(); err != nil {
+		return errors.Capture(err)
+	}
+	if err := tx.Query(ctx, deleteConstraintZonesStmt, constraintUUID{ConstraintUUID: cUUIDStr}).Run(); err != nil {
+		return errors.Capture(err)
+	}
+
+	constraints := encodeConstraints(cUUIDStr, cons, containerTypeID.ID)
+
+	if err := tx.Query(ctx, insertConstraintsStmt, constraints).Run(); err != nil {
+		return errors.Capture(err)
+	}
+
+	if cons.Tags != nil {
+		for _, tag := range *cons.Tags {
+			constraintTag := setConstraintTag{ConstraintUUID: cUUIDStr, Tag: tag}
+			if err := tx.Query(ctx, insertConstraintTagsStmt, constraintTag).Run(); err != nil {
+				return errors.Capture(err)
+			}
+		}
+	}
+
+	if cons.Spaces != nil {
+		for _, space := range *cons.Spaces {
+			// Make sure the space actually exists.
+			var spaceUUID spaceUUID
+			err := tx.Query(ctx, selectSpaceStmt, spaceName{Name: space.SpaceName}).Get(&spaceUUID)
 			if errors.Is(err, sqlair.ErrNoRows) {
-				st.logger.Warningf(ctx, "cannot set constraints, container type %q does not exist", *cons.Container)
+				st.logger.Warningf(ctx, "cannot set constraints, space %q does not exist", space)
 				return applicationerrors.InvalidApplicationConstraints
 			}
 			if err != nil {
 				return errors.Capture(err)
 			}
-		}
 
-		// First check if the constraint already exists, in that case
-		// we need to update it, unsetting the nil values.
-		var retrievedConstraintUUID constraintUUID
-		err := tx.Query(ctx, selectConstraintUUIDStmt, applicationUUID{ApplicationUUID: appID.String()}).Get(&retrievedConstraintUUID)
-		if err != nil && !errors.Is(err, sqlair.ErrNoRows) {
-			return errors.Capture(err)
-		} else if err == nil {
-			cUUIDStr = retrievedConstraintUUID.ConstraintUUID
-		}
-
-		// Cleanup tags, spaces and zones from their join tables.
-		if err := tx.Query(ctx, deleteConstraintTagsStmt, constraintUUID{ConstraintUUID: cUUIDStr}).Run(); err != nil {
-			return errors.Capture(err)
-		}
-		if err := tx.Query(ctx, deleteConstraintSpacesStmt, constraintUUID{ConstraintUUID: cUUIDStr}).Run(); err != nil {
-			return errors.Capture(err)
-		}
-		if err := tx.Query(ctx, deleteConstraintZonesStmt, constraintUUID{ConstraintUUID: cUUIDStr}).Run(); err != nil {
-			return errors.Capture(err)
-		}
-
-		constraints := encodeConstraints(cUUIDStr, cons, containerTypeID.ID)
-
-		if err := tx.Query(ctx, insertConstraintsStmt, constraints).Run(); err != nil {
-			return errors.Capture(err)
-		}
-
-		if cons.Tags != nil {
-			for _, tag := range *cons.Tags {
-				constraintTag := setConstraintTag{ConstraintUUID: cUUIDStr, Tag: tag}
-				if err := tx.Query(ctx, insertConstraintTagsStmt, constraintTag).Run(); err != nil {
-					return errors.Capture(err)
-				}
+			constraintSpace := setConstraintSpace{ConstraintUUID: cUUIDStr, Space: space.SpaceName, Exclude: space.Exclude}
+			if err := tx.Query(ctx, insertConstraintSpacesStmt, constraintSpace).Run(); err != nil {
+				return errors.Capture(err)
 			}
 		}
+	}
 
-		if cons.Spaces != nil {
-			for _, space := range *cons.Spaces {
-				// Make sure the space actually exists.
-				var spaceUUID spaceUUID
-				err := tx.Query(ctx, selectSpaceStmt, spaceName{Name: space.SpaceName}).Get(&spaceUUID)
-				if errors.Is(err, sqlair.ErrNoRows) {
-					st.logger.Warningf(ctx, "cannot set constraints, space %q does not exist", space)
-					return applicationerrors.InvalidApplicationConstraints
-				}
-				if err != nil {
-					return errors.Capture(err)
-				}
-
-				constraintSpace := setConstraintSpace{ConstraintUUID: cUUIDStr, Space: space.SpaceName, Exclude: space.Exclude}
-				if err := tx.Query(ctx, insertConstraintSpacesStmt, constraintSpace).Run(); err != nil {
-					return errors.Capture(err)
-				}
+	if cons.Zones != nil {
+		for _, zone := range *cons.Zones {
+			constraintZone := setConstraintZone{ConstraintUUID: cUUIDStr, Zone: zone}
+			if err := tx.Query(ctx, insertConstraintZonesStmt, constraintZone).Run(); err != nil {
+				return errors.Capture(err)
 			}
 		}
+	}
 
-		if cons.Zones != nil {
-			for _, zone := range *cons.Zones {
-				constraintZone := setConstraintZone{ConstraintUUID: cUUIDStr, Zone: zone}
-				if err := tx.Query(ctx, insertConstraintZonesStmt, constraintZone).Run(); err != nil {
-					return errors.Capture(err)
-				}
-			}
-		}
-
-		return errors.Capture(
-			tx.Query(ctx, insertAppConstraintsStmt, setApplicationConstraint{
-				ApplicationUUID: appID.String(),
-				ConstraintUUID:  cUUIDStr,
-			}).Run(),
-		)
-	})
+	return errors.Capture(
+		tx.Query(ctx, insertAppConstraintsStmt, setApplicationConstraint{
+			ApplicationUUID: appID.String(),
+			ConstraintUUID:  cUUIDStr,
+		}).Run(),
+	)
 }
 
 // GetDeviceConstraints returns the device constraints for an application.
@@ -3069,9 +3096,10 @@ func encodeConstraints(constraintUUID string, cons constraints.Constraints, cont
 func (st *State) lookupApplication(ctx context.Context, tx *sqlair.TX, name string) (coreapplication.ID, error) {
 	app := applicationIDAndName{Name: name}
 	queryApplicationStmt, err := st.Prepare(`
-SELECT uuid AS &applicationIDAndName.uuid
-FROM application
-WHERE name = $applicationIDAndName.name
+SELECT a.uuid AS &applicationIDAndName.uuid
+FROM application AS a
+JOIN charm AS c ON c.uuid = a.charm_uuid
+WHERE a.name = $applicationIDAndName.name AND c.source_id < 2;
 `, app)
 	if err != nil {
 		return "", errors.Capture(err)
@@ -3083,29 +3111,6 @@ WHERE name = $applicationIDAndName.name
 		return "", errors.Errorf("looking up UUID for application %q: %w", name, err)
 	}
 	return app.ID, nil
-}
-
-func (st *State) checkApplicationCharm(ctx context.Context, tx *sqlair.TX, ident applicationID, charmID charmID) error {
-	query := `
-SELECT COUNT(*) AS &countResult.count
-FROM application
-WHERE uuid = $applicationID.uuid
-AND charm_uuid = $charmID.uuid;
-	`
-	stmt, err := st.Prepare(query, countResult{}, ident, charmID)
-	if err != nil {
-		return errors.Errorf("preparing verification query: %w", err)
-	}
-
-	// Ensure that the charm is the same as the one we're trying to set.
-	var count countResult
-	if err := tx.Query(ctx, stmt, ident, charmID).Get(&count); err != nil {
-		return errors.Errorf("verifying charm: %w", err)
-	}
-	if count.Count == 0 {
-		return applicationerrors.ApplicationHasDifferentCharm
-	}
-	return nil
 }
 
 func (st *State) getApplicationConfigWithDefaults(ctx context.Context, tx *sqlair.TX, appID applicationID) ([]applicationConfig, error) {

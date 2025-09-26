@@ -6,13 +6,16 @@ CREATE TABLE application_remote_offerer (
     -- application_uuid is the synthetic application in the consumer model.
     -- Locating charm is done through the application.
     application_uuid TEXT NOT NULL,
+    -- offer_uuid is the offer uuid that ties both the offerer and the consumer
+    -- together.
+    offer_uuid TEXT NOT NULL,
     -- version is the unique version number that is incremented when the 
     -- consumer model changes the offerer application.
     version INT NOT NULL,
     -- offerer_controller_uuid is the offering controller where the
     -- offerer application is located. There is no FK constraint on it,
     -- because that information is located in the controller DB.
-    offerer_controller_uuid TEXT NOT NULL,
+    offerer_controller_uuid TEXT,
     -- offerer_model_uuid is the model in the offering controller where
     -- the offerer application is located. There is no FK constraint on it,
     -- because we don't have the model locally.
@@ -26,6 +29,14 @@ CREATE TABLE application_remote_offerer (
     FOREIGN KEY (life_id)
     REFERENCES life (id)
 );
+
+-- Ensure that an offer can only be consumed once in a model.
+CREATE UNIQUE INDEX idx_application_remote_offerer_offer_uuid
+ON application_remote_offerer (offer_uuid);
+
+-- Ensure that an application can only be used once as a remote offerer.
+CREATE UNIQUE INDEX idx_application_remote_offerer_application_uuid
+ON application_remote_offerer (application_uuid);
 
 -- application_remote_consumer represents a remote consumer application
 -- inside of the offering model.

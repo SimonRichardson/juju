@@ -128,7 +128,7 @@ func (s *watcherSuite) TestWatchCharm(c *tc.C) {
 
 	removalSt := removalstatemodel.NewState(modelDB, loggertesting.WrapCheckLog(c))
 	harness.AddTest(c, func(c *tc.C) {
-		_, err := removalSt.EnsureApplicationNotAliveCascade(c.Context(), appID.String())
+		_, err := removalSt.EnsureApplicationNotAliveCascade(c.Context(), appID.String(), false)
 		c.Assert(err, tc.ErrorIsNil)
 		err = removalSt.DeleteApplication(c.Context(), appID.String())
 		c.Assert(err, tc.ErrorIsNil)
@@ -1316,8 +1316,10 @@ func (s *watcherSuite) TestWatchApplications(c *tc.C) {
 	harness.AddTest(c, func(c *tc.C) {
 		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
 			_, err := tx.ExecContext(ctx, `
-	UPDATE application SET name = ?
-	WHERE uuid=?`, "bar", appID)
+UPDATE application 
+SET name = ?
+WHERE uuid=?
+`, "bar", appID)
 			return err
 		})
 		c.Assert(err, tc.ErrorIsNil)
@@ -1326,7 +1328,7 @@ func (s *watcherSuite) TestWatchApplications(c *tc.C) {
 	})
 
 	harness.AddTest(c, func(c *tc.C) {
-		_, err := removalSt.EnsureApplicationNotAliveCascade(c.Context(), appID.String())
+		_, err := removalSt.EnsureApplicationNotAliveCascade(c.Context(), appID.String(), false)
 		c.Assert(err, tc.ErrorIsNil)
 		err = removalSt.DeleteApplication(c.Context(), appID.String())
 		c.Assert(err, tc.ErrorIsNil)

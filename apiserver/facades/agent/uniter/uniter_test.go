@@ -20,6 +20,7 @@ import (
 	apiservertesting "github.com/juju/juju/apiserver/testing"
 	coreapplication "github.com/juju/juju/core/application"
 	applicationtesting "github.com/juju/juju/core/application/testing"
+	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/life"
 	coremachine "github.com/juju/juju/core/machine"
 	coremachinetesting "github.com/juju/juju/core/machine/testing"
@@ -1141,9 +1142,9 @@ func (s *uniterSuite) TestBeginActions(c *tc.C) {
 
 	// Arrange
 	s.badTag = names.NewUnitTag("foo/0")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), "42").Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), "42").Return("bar/0", nil)
 	s.operationService.EXPECT().StartTask(gomock.Any(), "42").Return(nil)
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), "47").Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), "47").Return("bar/0", nil)
 	s.operationService.EXPECT().StartTask(gomock.Any(), "47").Return(nil)
 
 	// Act
@@ -1162,13 +1163,13 @@ func (s *uniterSuite) TestFinishActions(c *tc.C) {
 
 	// Arrange
 	s.badTag = names.NewUnitTag("foo/0")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), "42").Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), "42").Return("bar/0", nil)
 	taskOne := operation.CompletedTaskResult{
 		TaskID: "42",
 		Status: status.Completed.String(),
 	}
 	s.operationService.EXPECT().FinishTask(gomock.Any(), taskOne).Return(nil)
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), "47").Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), "47").Return("bar/0", nil)
 	taskTwo := operation.CompletedTaskResult{
 		TaskID: "47",
 		Status: status.Cancelled.String(),
@@ -1193,7 +1194,7 @@ func (s *uniterSuite) TestActions(c *tc.C) {
 	s.badTag = names.NewUnitTag("foo/0")
 
 	tagOne := names.NewActionTag("42")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), tagOne.Id()).Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), tagOne.Id()).Return("bar/0", nil)
 	taskOne := operation.TaskArgs{
 		ActionName: "one",
 		Parameters: map[string]interface{}{"foo": "bar"},
@@ -1201,7 +1202,7 @@ func (s *uniterSuite) TestActions(c *tc.C) {
 	s.operationService.EXPECT().GetPendingTaskByTaskID(gomock.Any(), tagOne.Id()).Return(taskOne, nil)
 
 	tagTwo := names.NewActionTag("47")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), tagTwo.Id()).Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), tagTwo.Id()).Return("bar/0", nil)
 	taskTwo := operation.TaskArgs{
 		ActionName: "two",
 		Parameters: map[string]interface{}{"baz": "bar"},
@@ -1234,7 +1235,7 @@ func (s *uniterSuite) TestActionsTaskNotPending(c *tc.C) {
 	s.badTag = names.NewUnitTag("foo/0")
 
 	tagOne := names.NewActionTag("42")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), tagOne.Id()).Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), tagOne.Id()).Return("bar/0", nil)
 
 	s.operationService.EXPECT().GetPendingTaskByTaskID(gomock.Any(), tagOne.Id()).Return(operation.TaskArgs{}, operationerrors.TaskNotPending)
 
@@ -1249,12 +1250,45 @@ func (s *uniterSuite) TestActionsTaskNotPending(c *tc.C) {
 	c.Check(results.Results[0].Error, tc.ErrorMatches, "action no longer available")
 }
 
+func (s *uniterSuite) TestActionStatus(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	// Arrange, 3 task status with one authentication failure.
+	s.badTag = names.NewUnitTag("foo/0")
+
+	taskIDOne := "42"
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), taskIDOne).Return("bar/0", nil)
+	s.operationService.EXPECT().GetTaskStatusByID(gomock.Any(), taskIDOne).Return(status.Pending.String(), nil)
+
+	taskIDTwo := "47"
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), taskIDTwo).Return("bar/0", nil)
+	s.operationService.EXPECT().GetTaskStatusByID(gomock.Any(), taskIDTwo).Return(status.Running.String(), nil)
+
+	taskIDThree := "8"
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), taskIDThree).Return("", coreerrors.NotFound)
+
+	// Act
+	results, err := s.uniter.ActionStatus(c.Context(), params.Entities{Entities: []params.Entity{
+		{Tag: "action-42"},
+		{Tag: "action-47"},
+		{Tag: "action-8"},
+	}})
+
+	// Assert
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(results, tc.DeepEquals, params.StringResults{Results: []params.StringResult{
+		{Result: status.Pending.String()},
+		{Result: status.Running.String()},
+		{Error: &params.Error{Message: "not found", Code: "not found"}},
+	}})
+}
+
 func (s *uniterSuite) TestAuthTaskID(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 
 	// Arrange
 	s.badTag = names.NewUnitTag("foo/0")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), "42").Return("bar/0", nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), "42").Return("bar/0", nil)
 	canAccess, _ := s.uniter.accessUnit(c.Context())
 
 	// Act
@@ -1270,7 +1304,7 @@ func (s *uniterSuite) TestAuthTaskIDUnitErrPerm(c *tc.C) {
 
 	// Arrange
 	s.badTag = names.NewUnitTag("foo/0")
-	s.operationService.EXPECT().ReceiverFromTask(gomock.Any(), "42").Return(s.badTag.Id(), nil)
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), "42").Return(s.badTag.Id(), nil)
 	canAccess, _ := s.uniter.accessUnit(c.Context())
 
 	// Act
@@ -1278,6 +1312,42 @@ func (s *uniterSuite) TestAuthTaskIDUnitErrPerm(c *tc.C) {
 
 	// Assert
 	c.Assert(err, tc.ErrorMatches, "permission denied")
+}
+
+func (s *uniterSuite) TestLogActionsMessages(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	// Arrange, 3 task logs with one authentication failure.
+	s.badTag = names.NewUnitTag("foo/0")
+
+	taskIDOne := "42"
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), taskIDOne).Return("bar/0", nil)
+	msgOne := "message one"
+	s.operationService.EXPECT().LogTaskMessage(gomock.Any(), taskIDOne, msgOne).Return(nil)
+
+	taskIDTwo := "47"
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), taskIDTwo).Return("bar/0", nil)
+	msgTwo := "message two"
+	s.operationService.EXPECT().LogTaskMessage(gomock.Any(), taskIDTwo, msgTwo).Return(nil)
+
+	taskIDThree := "8"
+	s.operationService.EXPECT().GetReceiverFromTaskID(gomock.Any(), taskIDThree).Return("", coreerrors.NotFound)
+	msgThree := "message three"
+
+	// Act
+	results, err := s.uniter.LogActionsMessages(c.Context(), params.ActionMessageParams{Messages: []params.EntityString{
+		{Tag: "action-42", Value: msgOne},
+		{Tag: "action-47", Value: msgTwo},
+		{Tag: "action-8", Value: msgThree},
+	}})
+
+	// Assert
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(results, tc.DeepEquals, params.ErrorResults{Results: []params.ErrorResult{
+		{},
+		{},
+		{Error: &params.Error{Message: "not found", Code: "not found"}},
+	}})
 }
 
 func (s *uniterSuite) expectedGetConfigSettings(unitName coreunit.Name, settings map[string]any, err error) {
