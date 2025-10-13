@@ -5,12 +5,9 @@ package state
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/canonical/sqlair"
@@ -619,7 +616,7 @@ AND     application_uuid = $entityUUID.uuid
 	var output scope
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		// Check if the relation exists.
-		relationFound, err := st.checkExistsByUUID(ctx, tx, "relation", relUUID.String())
+		relationFound, err := st.checkRelationExists(ctx, tx, relUUID.String())
 		if err != nil {
 			return errors.Capture(err)
 		} else if !relationFound {
@@ -682,7 +679,7 @@ AND    re.relation_uuid = $relationEndpointArgs.relation_uuid
 				return errors.Capture(err)
 			}
 			// Check if the relation exists.
-			relationFound, err := st.checkExistsByUUID(ctx, tx, "relation", args.RelationUUID.String())
+			relationFound, err := st.checkRelationExists(ctx, tx, args.RelationUUID.String())
 			if err != nil {
 				return errors.Capture(err)
 			}
@@ -2166,7 +2163,12 @@ func (st *State) setRelationUnitSettings(
 	}
 
 	// Hash the new settings.
-	hash, err := hashSettings(newSettings)
+	hash, err := domainrelation.HashSettings(transform.Slice(newSettings, func(s relationSetting) domainrelation.Setting {
+		return domainrelation.Setting{
+			Key:   s.Key,
+			Value: s.Value,
+		}
+	}))
 	if err != nil {
 		return errors.Errorf("generating hash of relation unit settings: %w", err)
 	}
@@ -2203,23 +2205,6 @@ ON CONFLICT (relation_endpoint_uuid) DO UPDATE SET sha256 = excluded.sha256
 	}
 
 	return nil
-}
-
-func hashSettings(settings []relationSetting) (string, error) {
-	h := sha256.New()
-
-	// Ensure we have a stable order for the keys.
-	sort.Slice(settings, func(i, j int) bool {
-		return settings[i].Key < settings[j].Key
-	})
-
-	for _, s := range settings {
-		if _, err := h.Write([]byte(s.Key + " " + s.Value + " ")); err != nil {
-			return "", errors.Errorf("writing relation setting: %w", err)
-		}
-	}
-
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (st *State) getApplicationSettings(
@@ -2437,7 +2422,7 @@ AND    re.relation_uuid = $relationAndApplicationUUID.relation_uuid
 	err = tx.Query(ctx, stmt, id).Get(&endpointUUID)
 	if errors.Is(err, sqlair.ErrNoRows) {
 		// Check if we got no rows because the relation does not exist.
-		relationExists, err := st.checkExistsByUUID(ctx, tx, "relation", relationUUID.String())
+		relationExists, err := st.checkRelationExists(ctx, tx, relationUUID.String())
 		if err != nil {
 			return "", errors.Capture(err)
 		} else if !relationExists {
@@ -2717,6 +2702,32 @@ func (st *State) checkApplicationExists(ctx context.Context, tx *sqlair.TX, uuid
 	checkStmt, err := st.Prepare(`
 SELECT &search.*
 FROM   application 
+WHERE  uuid = $search.uuid
+`, searched)
+	if err != nil {
+		return false, errors.Capture(err)
+	}
+
+	err = tx.Query(ctx, checkStmt, searched).Get(&searched)
+	if errors.Is(err, sqlair.ErrNoRows) {
+		return false, nil
+	} else if err != nil {
+		return false, errors.Errorf("getting application %q: %w", uuid, err)
+	}
+	return true, nil
+}
+
+// checkRelationExists checks if the relation with the specified UUID
+// exists in the given table using a transaction and context.
+func (st *State) checkRelationExists(ctx context.Context, tx *sqlair.TX, uuid string) (bool, error) {
+	type search struct {
+		UUID string `db:"uuid"`
+	}
+
+	searched := search{UUID: uuid}
+	checkStmt, err := st.Prepare(`
+SELECT &search.*
+FROM   relation 
 WHERE  uuid = $search.uuid
 `, searched)
 	if err != nil {
@@ -3423,7 +3434,12 @@ func (st *State) setRelationApplicationSettings(
 	}
 
 	// Hash the new settings.
-	hash, err := hashSettings(newSettings)
+	hash, err := domainrelation.HashSettings(transform.Slice(newSettings, func(s relationSetting) domainrelation.Setting {
+		return domainrelation.Setting{
+			Key:   s.Key,
+			Value: s.Value,
+		}
+	}))
 	if err != nil {
 		return errors.Errorf("generating hash of relation application settings: %w", err)
 	}

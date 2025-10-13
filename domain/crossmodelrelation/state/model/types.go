@@ -273,3 +273,26 @@ type suspendedState struct {
 	Suspended bool   `db:"suspended"`
 	Message   string `db:"message"`
 }
+
+type keys []string
+
+type relationSetting struct {
+	Key   string `db:"key"`
+	Value string `db:"value"`
+}
+
+type relationApplicationSetting struct {
+	UUID  string `db:"relation_endpoint_uuid"`
+	Key   string `db:"key"`
+	Value string `db:"value"`
+}
+
+type relationAndApplicationUUID struct {
+	RelationUUID    string `db:"relation_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+}
+
+type applicationSettingsHash struct {
+	RelationEndpointUUID string `db:"relation_endpoint_uuid"`
+	Hash                 string `db:"sha256"`
+}

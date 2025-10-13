@@ -256,6 +256,8 @@ type OffererRelationChangeArgs struct {
 	Suspended bool
 	// SuspendedReason provides a reason for the suspension, if applicable.
 	SuspendedReason string
+	// Settings is the new settings for the relation.
+	ApplicationSettings map[string]string
 	// Remove indicates whether the application and relation should be removed.
 	Remove bool
 	// ForceRemoval indicates whether the application and relation should be
