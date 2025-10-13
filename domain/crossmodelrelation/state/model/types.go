@@ -268,3 +268,8 @@ type charmRelationName struct {
 	UUID string `db:"uuid"`
 	Name string `db:"name"`
 }
+
+type suspendedState struct {
+	Suspended bool   `db:"suspended"`
+	Message   string `db:"message"`
+}

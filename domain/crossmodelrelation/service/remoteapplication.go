@@ -38,8 +38,27 @@ type ModelRemoteApplicationState interface {
 		crossmodelrelation.AddRemoteApplicationOffererArgs,
 	) error
 
-	// AddRemoteApplicationConsumer adds a new synthetic application representing
-	// the remote relation on the consuming model, to this, the offering model.
+	// RemoteApplicationOffererExists checks whether a remote application
+	// offerer with the given application UUID exists in the local model.
+	RemoteApplicationOffererExists(context.Context, string) error
+
+	// SuspendRelation suspends the specified relation in the local model
+	// with the given reason. This will also update the status of the associated
+	// relation to Suspended with the given reason.
+	SuspendRelation(ctx context.Context, appUUID, relUUID string, reason string) error
+
+	// ProcessOffererRelationChange process the offerer relation changes
+	// from the offerer side. Ensuring that all values are correctly reflected
+	// in the consumer model.
+	ProcessOffererRelationChange(
+		ctx context.Context,
+		appUUID, relUUID string,
+		args crossmodelrelation.OffererRelationChangeArgs,
+	) error
+
+	// AddRemoteApplicationConsumer adds a new synthetic application
+	// representing the remote relation on the consuming model, to this, the
+	// offering model.
 	AddRemoteApplicationConsumer(
 		context.Context,
 		string,
@@ -249,10 +268,27 @@ func (s *Service) SetRemoteApplicationOffererStatus(context.Context, coreapplica
 
 // SuspendRelation suspends the specified relation in the local model
 // with the given reason. This will also update the status of the associated
-// synthetic application to Error with the given reason.
+// synthetic application to Suspended with the given reason.
 func (s *Service) SuspendRelation(ctx context.Context, appUUID coreapplication.UUID, relUUID corerelation.UUID, reason string) error {
-	_, span := trace.Start(ctx, trace.NameFromFunc())
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
 	defer span.End()
+
+	if err := appUUID.Validate(); err != nil {
+		return internalerrors.Errorf("application UUID %q is not valid: %w", appUUID, err).Add(errors.NotValid)
+	}
+	if err := relUUID.Validate(); err != nil {
+		return internalerrors.Errorf("relation UUID %q is not valid: %w", relUUID, err).Add(errors.NotValid)
+	}
+
+	// First check that the remote application offerer exists.
+	if err := s.modelState.RemoteApplicationOffererExists(ctx, appUUID.String()); err != nil {
+		return internalerrors.Capture(err)
+	}
+
+	// Write the changes to the model.
+	if err := s.modelState.SuspendRelation(ctx, appUUID.String(), relUUID.String(), reason); err != nil {
+		return internalerrors.Errorf("processing offerer relation change: %w", err)
+	}
 
 	return nil
 }
@@ -263,10 +299,35 @@ func (s *Service) ConsumeRemoteSecretChanges(context.Context) error {
 	return nil
 }
 
-// ProcessRelationChange processes any pending relation changes from the
+// ProcessOffererRelationChange processes any pending relation changes from the
 // offerer side of the relation. This ensures that we have a mirror image
 // of the relation data in the consumer model.
-func (s *Service) ProcessRelationChange(context.Context) error {
+func (s *Service) ProcessOffererRelationChange(
+	ctx context.Context,
+	appUUID coreapplication.UUID,
+	relUUID corerelation.UUID,
+	change crossmodelrelation.OffererRelationChangeArgs,
+) error {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	if err := appUUID.Validate(); err != nil {
+		return internalerrors.Errorf("application UUID %q is not valid: %w", appUUID, err).Add(errors.NotValid)
+	}
+	if err := relUUID.Validate(); err != nil {
+		return internalerrors.Errorf("relation UUID %q is not valid: %w", relUUID, err).Add(errors.NotValid)
+	}
+
+	// First check that the remote application offerer exists.
+	if err := s.modelState.RemoteApplicationOffererExists(ctx, appUUID.String()); err != nil {
+		return internalerrors.Capture(err)
+	}
+
+	// Write the changes to the model.
+	if err := s.modelState.ProcessOffererRelationChange(ctx, appUUID.String(), relUUID.String(), change); err != nil {
+		return internalerrors.Errorf("processing offerer relation change: %w", err)
+	}
+
 	return nil
 }
 

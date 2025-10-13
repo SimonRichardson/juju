@@ -244,9 +244,9 @@ type AddRemoteApplicationArgs struct {
 	OfferUUID string
 }
 
-// RemoteRelationChangedArgs contains the parameters required to process a
+// OffererRelationChangeArgs contains the parameters required to process a
 // remote relation change event.
-type RemoteRelationChangedArgs struct {
+type OffererRelationChangeArgs struct {
 	// RelationUUID is used to identify the relation that has changed.
 	RelationUUID relation.UUID
 	// ApplicationUUID is used to identify the remote application that
@@ -256,6 +256,11 @@ type RemoteRelationChangedArgs struct {
 	Suspended bool
 	// SuspendedReason provides a reason for the suspension, if applicable.
 	SuspendedReason string
+	// Remove indicates whether the application and relation should be removed.
+	Remove bool
+	// ForceRemoval indicates whether the application and relation should be
+	// removed even if there are local applications connected to the relation.
+	ForceRemoval bool
 }
 
 // ApplicationRemoteRelation represents a remote relation mapping between the

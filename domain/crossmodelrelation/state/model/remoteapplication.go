@@ -198,6 +198,148 @@ WHERE   aro.life_id < 2;`
 	return result, nil
 }
 
+// RemoteApplicationOffererExists checks whether a remote application
+// offerer with the given application UUID exists in the local model.
+func (st *State) RemoteApplicationOffererExists(ctx context.Context, appUUID string) error {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	uuid := uuid{UUID: appUUID}
+
+	var result countResult
+	query := `
+SELECT COUNT(*) AS &countResult.count
+FROM application_remote_offerer
+WHERE application_uuid = $uuid.uuid AND life_id < 2;
+`
+	queryStmt, err := st.Prepare(query, uuid, result)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := tx.Query(ctx, queryStmt, uuid).Get(&result); errors.Is(err, sqlair.ErrNoRows) || result.Count == 0 {
+			return applicationerrors.ApplicationNotFound
+		} else if err != nil {
+			return errors.Capture(err)
+		}
+
+		return nil
+	}); err != nil {
+		return errors.Capture(err)
+	}
+
+	return nil
+}
+
+// SuspendRelation suspends the specified relation in the local model
+// with the given reason. This will also update the status of the associated
+// synthetic application to Error with the given reason.
+func (st *State) SuspendRelation(ctx context.Context, appUUID, relUUID string, reason string) error {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		return st.setRelationSuspended(ctx, tx, relUUID, reason)
+	}); err != nil {
+		return errors.Capture(err)
+	}
+
+	return nil
+}
+
+// ProcessOffererRelationChange process the offerer relation changes
+// from the offerer side. Ensuring that all values are correctly reflected
+// in the consumer model.
+func (st *State) ProcessOffererRelationChange(ctx context.Context, appUUID, relUUID string, args crossmodelrelation.OffererRelationChangeArgs) error {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := st.handleOffererRelationSuspension(ctx, tx, relUUID, args.Suspended, args.SuspendedReason); err != nil {
+			return errors.Capture(err)
+		}
+
+		if args.Remove {
+			if err := st.handleOffererRelationRemoval(ctx, tx, relUUID, args.ForceRemoval); err != nil {
+				return errors.Capture(err)
+			}
+		}
+
+	}); err != nil {
+		return errors.Capture(err)
+	}
+
+	return nil
+}
+
+func (st *State) handleOffererRelationSuspension(
+	ctx context.Context,
+	tx *sqlair.TX,
+	relUUID string,
+	suspended bool,
+	suspendedReason string,
+) error {
+	if suspended {
+		return st.setRelationSuspended(ctx, tx, relUUID, suspendedReason)
+	}
+
+	return st.setRelationJoining(ctx, tx, relUUID)
+}
+
+func (st *State) setRelationSuspended(ctx context.Context, tx *sqlair.TX, relUUID string, suspendedReason string) error {
+	var (
+		state      = suspendedState{Message: suspendedReason}
+		entityUUID = uuid{UUID: relUUID}
+	)
+
+	updateQuery := `
+INSERT INTO relation_status (relation_uuid, relation_status_type_id, message)
+VALUES ($entityUUID.uuid, 4, $state.message)
+ON CONFLICT (relation_uuid) DO UPDATE SET
+    relation_status_type_id=excluded.relation_status_type_id,
+    message=excluded.message;`
+	updateStmt, err := st.Prepare(updateQuery, state, entityUUID)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := tx.Query(ctx, updateStmt, state, entityUUID).Run(); err != nil {
+		return errors.Errorf("setting relation %q suspended: %w", relUUID, err)
+	}
+	return nil
+}
+
+func (st *State) setRelationJoining(ctx context.Context, tx *sqlair.TX, relUUID string) error {
+	entityUUID := uuid{UUID: relUUID}
+
+	updateQuery := `
+INSERT INTO relation_status (relation_uuid, relation_status_type_id, message)
+VALUES ($entityUUID.uuid, 0, "")
+ON CONFLICT (relation_uuid) DO UPDATE SET
+    relation_status_type_id=excluded.relation_status_type_id,
+    message="";`
+	updateStmt, err := st.Prepare(updateQuery, entityUUID)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := tx.Query(ctx, updateStmt, entityUUID).Run(); err != nil {
+		return errors.Errorf("setting relation %q joining: %w", relUUID, err)
+	}
+	return nil
+}
+
+func (st *State) handleOffererRelationRemoval(ctx context.Context, tx *sqlair.TX, relUUID string, force bool) error {
+
+}
+
 // GetRemoteApplicationConsumers returns all the current non-dead remote
 // application consumers in the local model.
 func (st *State) GetRemoteApplicationConsumers(ctx context.Context) ([]crossmodelrelation.RemoteApplicationConsumer, error) {

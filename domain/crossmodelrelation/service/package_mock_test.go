@@ -647,6 +647,82 @@ func (c *MockModelStateNamespaceRemoteApplicationOfferersCall) DoAndReturn(f fun
 	return c
 }
 
+// ProcessOffererRelationChange mocks base method.
+func (m *MockModelState) ProcessOffererRelationChange(arg0 context.Context, arg1, arg2 string, arg3 crossmodelrelation.OffererRelationChangeArgs) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessOffererRelationChange", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ProcessOffererRelationChange indicates an expected call of ProcessOffererRelationChange.
+func (mr *MockModelStateMockRecorder) ProcessOffererRelationChange(arg0, arg1, arg2, arg3 any) *MockModelStateProcessOffererRelationChangeCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOffererRelationChange", reflect.TypeOf((*MockModelState)(nil).ProcessOffererRelationChange), arg0, arg1, arg2, arg3)
+	return &MockModelStateProcessOffererRelationChangeCall{Call: call}
+}
+
+// MockModelStateProcessOffererRelationChangeCall wrap *gomock.Call
+type MockModelStateProcessOffererRelationChangeCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockModelStateProcessOffererRelationChangeCall) Return(arg0 error) *MockModelStateProcessOffererRelationChangeCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockModelStateProcessOffererRelationChangeCall) Do(f func(context.Context, string, string, crossmodelrelation.OffererRelationChangeArgs) error) *MockModelStateProcessOffererRelationChangeCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockModelStateProcessOffererRelationChangeCall) DoAndReturn(f func(context.Context, string, string, crossmodelrelation.OffererRelationChangeArgs) error) *MockModelStateProcessOffererRelationChangeCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// RemoteApplicationOffererExists mocks base method.
+func (m *MockModelState) RemoteApplicationOffererExists(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoteApplicationOffererExists", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoteApplicationOffererExists indicates an expected call of RemoteApplicationOffererExists.
+func (mr *MockModelStateMockRecorder) RemoteApplicationOffererExists(arg0, arg1 any) *MockModelStateRemoteApplicationOffererExistsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteApplicationOffererExists", reflect.TypeOf((*MockModelState)(nil).RemoteApplicationOffererExists), arg0, arg1)
+	return &MockModelStateRemoteApplicationOffererExistsCall{Call: call}
+}
+
+// MockModelStateRemoteApplicationOffererExistsCall wrap *gomock.Call
+type MockModelStateRemoteApplicationOffererExistsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockModelStateRemoteApplicationOffererExistsCall) Return(arg0 error) *MockModelStateRemoteApplicationOffererExistsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockModelStateRemoteApplicationOffererExistsCall) Do(f func(context.Context, string) error) *MockModelStateRemoteApplicationOffererExistsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockModelStateRemoteApplicationOffererExistsCall) DoAndReturn(f func(context.Context, string) error) *MockModelStateRemoteApplicationOffererExistsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // SaveMacaroonForRelation mocks base method.
 func (m *MockModelState) SaveMacaroonForRelation(arg0 context.Context, arg1 string, arg2 []byte) error {
 	m.ctrl.T.Helper()
