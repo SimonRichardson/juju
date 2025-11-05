@@ -1095,7 +1095,7 @@ func (srv *Server) apiHandler(w http.ResponseWriter, req *http.Request) {
 
 	// Create a new offer auth context. This will be used to bake new
 	// macaroons for offers, and to validate incoming macaroons.
-	crossModelAuthContext, err := srv.shared.NewCrossModelAuthContext(req.Context(), req.Host)
+	crossModelAuthContext, err := srv.shared.NewCrossModelAuthContext(req.Host)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to create offer auth context: %v", err), http.StatusInternalServerError)
 		return
@@ -1255,7 +1255,6 @@ func (srv *Server) monitoredHandler(handler http.Handler, label string) http.Han
 }
 
 func newOfferAuthContext(
-	ctx context.Context,
 	accessService AccessService,
 	macaroonService MacaroonService,
 	keyPair *bakery.KeyPair,
