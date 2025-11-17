@@ -495,6 +495,65 @@ AND    life_id = 1`, machineUUID)
 	}))
 }
 
+// MarkInstanceAndMachineAsDead marks both the instance and machine with the
+// input UUID as dead.
+// The following errors are returned:
+// - [machineerrors.MachineNotFound] if the machine does not exist.
+// - [removalerrors.EntityStillAlive] if the machine is alive.
+// - [removalerrors.MachineHasContainers] if the machine hosts containers.
+// - [removalerrors.MachineHasUnits] if the machine hosts units.
+// - [removalerrors.MachineHasStorage] if the machine hosts storage.
+func (st *State) MarkInstanceAndMachineAsDead(ctx context.Context, mUUID string) error {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	machineUUID := entityUUID{UUID: mUUID}
+	updateMachineStmt, err := st.Prepare(`
+UPDATE machine
+SET    life_id = 2
+WHERE  uuid = $entityUUID.uuid
+AND    life_id = 1`, machineUUID)
+	if err != nil {
+		return errors.Errorf("preparing machine life update: %w", err)
+	}
+	updateInstanceStmt, err := st.Prepare(`
+UPDATE machine_cloud_instance
+SET    life_id = 2
+WHERE  machine_uuid = $entityUUID.uuid
+AND    life_id = 1`, machineUUID)
+	if err != nil {
+		return errors.Errorf("preparing instance life update: %w", err)
+	}
+	return errors.Capture(db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if l, err := st.getMachineLife(ctx, tx, mUUID); err != nil {
+			return errors.Errorf("getting machine life: %w", err)
+		} else if l == life.Dead {
+			return nil
+		} else if l == life.Alive {
+			return removalerrors.EntityStillAlive
+		}
+
+		err = st.checkNoMachineDependents(ctx, tx, machineUUID)
+		if err != nil {
+			return errors.Capture(err)
+		}
+
+		err = tx.Query(ctx, updateInstanceStmt, machineUUID).Run()
+		if err != nil {
+			return errors.Errorf("marking machine instance as dead: %w", err)
+		}
+
+		err = tx.Query(ctx, updateMachineStmt, machineUUID).Run()
+		if err != nil {
+			return errors.Errorf("marking machine as dead: %w", err)
+		}
+
+		return nil
+	}))
+}
+
 // DeleteMachine deletes the specified machine and any dependent child records.
 func (st *State) DeleteMachine(ctx context.Context, mUUID string) error {
 	db, err := st.DB(ctx)

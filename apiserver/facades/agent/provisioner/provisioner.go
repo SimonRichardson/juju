@@ -1578,7 +1578,7 @@ func (api *ProvisionerAPI) Remove(ctx context.Context, args params.Entities) (pa
 			continue
 		}
 
-		err = api.removalService.DeleteMachine(ctx, machineUUID)
+		err = api.removalService.MarkInstanceAndMachineAsDead(ctx, machineUUID)
 		if errors.Is(err, machineerrors.MachineNotFound) {
 			result.Results[i].Error = apiservererrors.ParamsErrorf(params.CodeNotFound, "machine %q not found", tag.Id())
 			continue
