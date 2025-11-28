@@ -9,7 +9,7 @@ import (
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/worker/v4"
-	"github.com/juju/worker/v4/catacomb"
+	"gopkg.in/tomb.v2"
 
 	"github.com/juju/juju/api"
 	"github.com/juju/juju/core/logger"
@@ -39,7 +39,7 @@ func (c *WorkerConfig) Validate() error {
 }
 
 type controllerWorker struct {
-	catacomb catacomb.Catacomb
+	tomb tomb.Tomb
 
 	cfg WorkerConfig
 }
@@ -58,26 +58,19 @@ func newWorker(config WorkerConfig) (worker.Worker, error) {
 		cfg: config,
 	}
 
-	err := catacomb.Invoke(catacomb.Plan{
-		Name: "controller-presence",
-		Site: &w.catacomb,
-		Work: w.loop,
-	})
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
+	w.tomb.Go(w.loop)
 
 	return w, nil
 }
 
 // Kill is part of the worker.Worker interface.
 func (w *controllerWorker) Kill() {
-	w.catacomb.Kill(nil)
+	w.tomb.Kill(nil)
 }
 
 // Wait is part of the worker.Worker interface.
 func (w *controllerWorker) Wait() error {
-	return w.catacomb.Wait()
+	return w.tomb.Wait()
 }
 
 // Report returns a map of internal state for the controllerWorker.
@@ -87,16 +80,19 @@ func (w *controllerWorker) Report() map[string]any {
 }
 
 func (w *controllerWorker) loop() error {
-	ctx := w.catacomb.Context(context.Background())
+	ctx := w.tomb.Context(context.Background())
 
 	remoteCallers := w.cfg.APIRemoteCallers
 
-	subscriber := remoteCallers.SubscribeChanges()
+	subscriber, err := remoteCallers.SubscribeChanges()
+	if err != nil {
+		return errors.Trace(err)
+	}
 	defer subscriber.Close()
 
 	for {
 		select {
-		case <-w.catacomb.Dying():
+		case <-w.tomb.Dying():
 			return nil
 
 		case _, ok := <-subscriber.Changes():
@@ -104,26 +100,23 @@ func (w *controllerWorker) loop() error {
 				return nil
 			}
 
-			// Remove all existing runners, we will recreate them as needed.
-
 			callers, err := remoteCallers.GetAPIRemotes()
 			if err != nil {
 				return errors.Trace(err)
 			}
 
 			for _, caller := range callers {
-				if err := caller.Connection(ctx, w.connection); err != nil {
+				if err := caller.Connection(ctx, func(ctx context.Context, c api.Connection) error {
+					select {
+					case <-w.tomb.Dying():
+						return nil
+					case <-c.Broken():
+						return nil
+					}
+				}); err != nil {
 					return errors.Trace(err)
 				}
 			}
 		}
 	}
-}
-
-func (w *controllerWorker) connection(ctx context.Context, conn api.Connection) error {
-	// Start a runner that will monitory the connection. If it's borken, remove
-	// the machine presence.
-	// If the context is done... whilst we're starting the worker, just exit.
-	// If the runner already exists, just kill it and create a new one.
-	return nil
 }

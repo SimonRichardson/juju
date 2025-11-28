@@ -28,7 +28,7 @@ type APIRemoteCallers interface {
 
 	// SubscribeChanges returns a channel that will be closed when the set of
 	// API remotes changes.
-	SubscribeChanges() Subscription
+	SubscribeChanges() (Subscription, error)
 }
 
 // Subscription represents a subscription to changes in the set of API remotes.

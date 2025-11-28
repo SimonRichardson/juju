@@ -5,6 +5,7 @@ package apiremotecaller
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/juju/clock"
@@ -85,7 +86,8 @@ type remoteWorker struct {
 
 	cfg WorkerConfig
 
-	runner *worker.Runner
+	runner             *worker.Runner
+	subscriberRequests chan *subscriber
 }
 
 // NewWorker exposes the remoteWorker as a Worker.
@@ -113,9 +115,10 @@ func newWorker(cfg WorkerConfig, internalState chan string) (*remoteWorker, erro
 		return nil, errors.Trace(err)
 	}
 	w := &remoteWorker{
-		cfg:            cfg,
-		runner:         runner,
-		internalStates: internalState,
+		cfg:                cfg,
+		runner:             runner,
+		subscriberRequests: make(chan *subscriber),
+		internalStates:     internalState,
 	}
 
 	err = catacomb.Invoke(catacomb.Plan{
@@ -157,6 +160,18 @@ func (w *remoteWorker) GetAPIRemotes() ([]RemoteConnection, error) {
 	return remotes, nil
 }
 
+// SubscribeChanges returns a channel that will be closed when the set of
+// API remotes changes.
+func (w *remoteWorker) SubscribeChanges() (Subscription, error) {
+	subscriber := newAPIRemoteSubscriber()
+	select {
+	case <-w.catacomb.Dying():
+		return nil, w.catacomb.ErrDying()
+	case w.subscriberRequests <- subscriber:
+	}
+	return subscriber, nil
+}
+
 // Kill is part of the worker.Worker interface.
 func (w *remoteWorker) Kill() {
 	w.catacomb.Kill(nil)
@@ -191,6 +206,7 @@ func (w *remoteWorker) loop() error {
 		return errors.Trace(err)
 	}
 
+	var subscribers []*subscriber
 	for {
 		select {
 		case <-w.catacomb.Dying():
@@ -255,7 +271,20 @@ func (w *remoteWorker) loop() error {
 
 			w.cfg.Logger.Debugf(ctx, "remote workers updated: %v", required)
 
+			var dispatched []*subscriber
+			for _, sub := range subscribers {
+				if sent := sub.Notify(); !sent {
+					continue
+				}
+
+				dispatched = append(dispatched, sub)
+			}
+			subscribers = dispatched
+
 			w.reportInternalState(stateChanged)
+
+		case subscriber := <-w.subscriberRequests:
+			subscribers = append(subscribers, subscriber)
 		}
 	}
 }
@@ -344,4 +373,34 @@ func (w *remoteWorker) reportInternalState(state string) {
 	case w.internalStates <- state:
 	default:
 	}
+}
+
+type subscriber struct {
+	changes chan struct{}
+	once    sync.Once
+}
+
+func newAPIRemoteSubscriber() *subscriber {
+	return &subscriber{
+		changes: make(chan struct{}),
+	}
+}
+
+// Notify signals to the subscriber that a change has occurred.
+func (s *subscriber) Notify() bool {
+	_, ok := <-s.changes
+	return ok
+}
+
+// Changes returns a channel that signals when the set of API remotes has
+// changed.
+func (s *subscriber) Changes() <-chan struct{} {
+	return s.changes
+}
+
+// Close closes the subscription.
+func (s *subscriber) Close() {
+	s.once.Do(func() {
+		close(s.changes)
+	})
 }
