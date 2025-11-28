@@ -134,3 +134,7 @@ type noopAPIRemoteCallers struct{}
 func (noopAPIRemoteCallers) GetAPIRemotes() ([]apiremotecaller.RemoteConnection, error) {
 	return nil, nil
 }
+
+func (noopAPIRemoteCallers) SubscribeChanges() (apiremotecaller.Subscription, error) {
+	return nil, errors.New("subscriptions not supported in noopAPIRemoteCallers")
+}

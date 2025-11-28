@@ -71,6 +71,7 @@ import (
 	lxdbroker "github.com/juju/juju/internal/worker/containerbroker"
 	"github.com/juju/juju/internal/worker/containerprovisioner"
 	"github.com/juju/juju/internal/worker/controlleragentconfig"
+	"github.com/juju/juju/internal/worker/controllerpresence"
 	"github.com/juju/juju/internal/worker/controlsocket"
 	"github.com/juju/juju/internal/worker/credentialvalidator"
 	"github.com/juju/juju/internal/worker/dbaccessor"
@@ -276,7 +277,6 @@ type ManifoldsConfig struct {
 //
 // Thou Shalt Not Use String Literals In This Function. Or Else.
 func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
-
 	// connectFilter exists:
 	//  1) to let us retry api connections immediately on password change,
 	//     rather than causing the dependency engine to wait for a while;
@@ -894,6 +894,16 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			Clock:                       config.Clock,
 		}),
 
+		controllerPresenceName: controllerpresence.Manifold(controllerpresence.ManifoldConfig{
+			APIRemoteCallerName:         apiRemoteCallerName,
+			DomainServicesName:          domainServicesName,
+			GetDomainServices:           controllerpresence.GetDomainServices,
+			GetControllerDomainServices: controllerpresence.GetControllerDomainServices,
+			NewWorker:                   controllerpresence.NewWorker,
+			Logger:                      internallogger.GetLogger("juju.worker.controllerpresence"),
+			Clock:                       config.Clock,
+		}),
+
 		jwtParserName: ifController(jwtparser.Manifold(jwtparser.ManifoldConfig{
 			GetControllerConfigService: jwtparser.GetControllerConfigService,
 			DomainServicesName:         domainServicesName,
@@ -1351,6 +1361,7 @@ const (
 	changeStreamName              = "change-stream"
 	changeStreamPrunerName        = "change-stream-pruner"
 	controllerAgentConfigName     = "controller-agent-config"
+	controllerPresenceName        = "controller-presence"
 	controlSocketName             = "control-socket"
 	dbAccessorName                = "db-accessor"
 	deployerName                  = "deployer"
