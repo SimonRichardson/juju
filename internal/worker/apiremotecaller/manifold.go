@@ -25,6 +25,20 @@ type APIRemoteCallers interface {
 	// that the connection is still valid. The caller must not cache the
 	// connections as they may change over time.
 	GetAPIRemotes() ([]RemoteConnection, error)
+
+	// SubscribeChanges returns a channel that will be closed when the set of
+	// API remotes changes.
+	SubscribeChanges() Subscription
+}
+
+// Subscription represents a subscription to changes in the set of API remotes.
+type Subscription interface {
+	// Changes returns a channel that signals when the set of API remotes has
+	// changed.
+	Changes() <-chan struct{}
+
+	// Close closes the subscription.
+	Close()
 }
 
 // ManifoldConfig defines the names of the manifolds on which a Manifold will
