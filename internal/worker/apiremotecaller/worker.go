@@ -5,7 +5,7 @@ package apiremotecaller
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/juju/clock"
@@ -86,8 +86,9 @@ type remoteWorker struct {
 
 	cfg WorkerConfig
 
-	runner             *worker.Runner
-	subscriberRequests chan *subscriber
+	runner                *worker.Runner
+	connectionEstablished chan struct{}
+	subscriberRequests    chan *subscriber
 }
 
 // NewWorker exposes the remoteWorker as a Worker.
@@ -115,10 +116,11 @@ func newWorker(cfg WorkerConfig, internalState chan string) (*remoteWorker, erro
 		return nil, errors.Trace(err)
 	}
 	w := &remoteWorker{
-		cfg:                cfg,
-		runner:             runner,
-		subscriberRequests: make(chan *subscriber),
-		internalStates:     internalState,
+		cfg:                   cfg,
+		runner:                runner,
+		connectionEstablished: make(chan struct{}),
+		subscriberRequests:    make(chan *subscriber),
+		internalStates:        internalState,
 	}
 
 	err = catacomb.Invoke(catacomb.Plan{
@@ -271,28 +273,23 @@ func (w *remoteWorker) loop() error {
 
 			w.cfg.Logger.Criticalf(ctx, "remote workers updated: %v", required)
 
-			subscribers = w.dispatchChanges(subscribers)
-
 			w.reportInternalState(stateChanged)
 
 		case subscriber := <-w.subscriberRequests:
-			if subscriber.Notify() {
-				subscribers = append(subscribers, subscriber)
+			subscribers = append(subscribers, subscriber)
+
+		case <-w.connectionEstablished:
+			var dispatched []*subscriber
+			for _, sub := range subscribers {
+				if sent := sub.Notify(); !sent {
+					continue
+				}
+
+				dispatched = append(dispatched, sub)
 			}
+			subscribers = dispatched
 		}
 	}
-}
-
-func (w *remoteWorker) dispatchChanges(subscribers []*subscriber) []*subscriber {
-	var dispatched []*subscriber
-	for _, sub := range subscribers {
-		if sent := sub.Notify(); !sent {
-			continue
-		}
-
-		dispatched = append(dispatched, sub)
-	}
-	return dispatched
 }
 
 func (w *remoteWorker) newRemoteServer(ctx context.Context, controllerID string, addresses []string) (RemoteServer, error) {
@@ -308,7 +305,23 @@ func (w *remoteWorker) newRemoteServer(ctx context.Context, controllerID string,
 			Logger:       w.cfg.Logger,
 			ControllerID: controllerID,
 			APIInfo:      &apiInfo,
-			APIOpener:    w.cfg.APIOpener,
+			APIOpener: func(ctx context.Context, apiInfo *api.Info, opts api.DialOpts) (api.Connection, error) {
+				conn, err := w.cfg.APIOpener(ctx, apiInfo, opts)
+				if err != nil {
+					return nil, errors.Trace(err)
+				}
+
+				go func() {
+					select {
+					case <-w.catacomb.Dying():
+						return
+					case w.connectionEstablished <- struct{}{}:
+						w.cfg.Logger.Debugf(ctx, "remote worker for %q started", controllerID)
+					}
+				}()
+
+				return conn, nil
+			},
 		}), nil
 	})
 	if err != nil && !errors.Is(err, errors.AlreadyExists) {
@@ -383,25 +396,22 @@ func (w *remoteWorker) reportInternalState(state string) {
 
 type subscriber struct {
 	changes chan struct{}
-	closed  chan struct{}
-	once    sync.Once
+	closed  atomic.Bool
 }
 
 func newAPIRemoteSubscriber() *subscriber {
 	return &subscriber{
 		changes: make(chan struct{}),
-		closed:  make(chan struct{}),
 	}
 }
 
 // Notify signals to the subscriber that a change has occurred.
 func (s *subscriber) Notify() bool {
-	select {
-	case <-s.closed:
+	if s.closed.Load() {
 		return false
-	case s.changes <- struct{}{}:
-		return true
 	}
+	s.changes <- struct{}{}
+	return true
 }
 
 // Changes returns a channel that signals when the set of API remotes has
@@ -412,8 +422,5 @@ func (s *subscriber) Changes() <-chan struct{} {
 
 // Close closes the subscription.
 func (s *subscriber) Close() {
-	s.once.Do(func() {
-		close(s.changes)
-		close(s.closed)
-	})
+	s.closed.Store(true)
 }

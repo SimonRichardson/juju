@@ -16,7 +16,6 @@ import (
 	jujuerrors "github.com/juju/errors"
 	"gopkg.in/tomb.v2"
 
-	"github.com/juju/juju/api"
 	"github.com/juju/juju/core/database"
 	"github.com/juju/juju/core/logger"
 	"github.com/juju/juju/internal/errors"
@@ -129,7 +128,7 @@ func (r *BlobRetriever) retrieve(ctx context.Context, remote apiremotecaller.Rem
 	var reader io.ReadCloser
 	var size int64
 
-	err := remote.Connection(ctx, func(connectionContext context.Context, conn api.Connection) error {
+	err := remote.Connection(ctx, func(connectionContext context.Context, conn apiremotecaller.Connection) error {
 		httpClient, err := conn.RootHTTPClient()
 		if err != nil {
 			return errors.Errorf("failed to get root HTTP client: %w", err).Add(HTTPError)

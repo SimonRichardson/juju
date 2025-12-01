@@ -5,6 +5,7 @@ package apiremotecaller
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/juju/clock"
@@ -21,11 +22,22 @@ const (
 	newChangeRequestError = errors.ConstError("new change request")
 )
 
+// Connection is an interface that represents a connection to a remote API
+// server. It extends the api.Connection interface with an ControllerID method
+// that returns the ID of the controller.
+type Connection interface {
+	api.Connection
+}
+
 // RemoteConnection is an interface that represents a connection to a remote
 // API server.
 type RemoteConnection interface {
 	// Connection returns the connection to the remote API server.
-	Connection(context.Context, func(context.Context, api.Connection) error) error
+	Connection(context.Context, func(context.Context, Connection) error) error
+
+	// ControllerID returns the ID of the controller that this connection is
+	// connected to.
+	ControllerID() string
 }
 
 // RemoteServer represents the public interface of the worker
@@ -67,6 +79,7 @@ type remoteServer struct {
 
 	changes     chan []string
 	connections chan chan api.Connection
+	connected   atomic.Bool
 }
 
 // NewRemoteServer creates a new RemoteServer that will connect to the remote
@@ -90,13 +103,19 @@ func newRemoteServer(config RemoteServerConfig, internalStates chan string) Remo
 	return w
 }
 
+// ControllerID returns the ID of the controller that this connection is
+// connected to.
+func (w *remoteServer) ControllerID() string {
+	return w.controllerID
+}
+
 // Connection returns the current connection to the remote API server if it's
 // available, otherwise it will send the connection once it has connected
 // to the remote API server.
 // No updates about the connection will be sent to the connection channel,
 // instead it's up to the caller to watch for the broken connection and then
 // reconnect if necessary.
-func (w *remoteServer) Connection(ctx context.Context, fn func(context.Context, api.Connection) error) error {
+func (w *remoteServer) Connection(ctx context.Context, fn func(context.Context, Connection) error) error {
 	ch := make(chan api.Connection, 1)
 
 	select {
@@ -138,6 +157,7 @@ func (w *remoteServer) Report() map[string]any {
 	report := make(map[string]any)
 	report["controller-id"] = w.controllerID
 	report["addresses"] = w.info.Addrs
+	report["connected"] = w.connected.Load()
 	return report
 }
 
@@ -210,7 +230,6 @@ func (w *remoteServer) loop() error {
 	})
 
 	var (
-		connected  bool
 		monitor    <-chan struct{}
 		connection api.Connection
 
@@ -238,7 +257,7 @@ func (w *remoteServer) loop() error {
 			w.logger.Debugf(ctx, "addresses for %q have changed: %v", w.controllerID, addresses)
 
 			// If the addresses already exist, we don't need to do anything.
-			if connected && w.addressesAlreadyExist(addresses) {
+			if w.connected.Load() && w.addressesAlreadyExist(addresses) {
 				w.logger.Tracef(ctx, "addresses for %q have not changed", w.controllerID)
 				continue
 			}
@@ -286,7 +305,7 @@ func (w *remoteServer) loop() error {
 			// We've successfully connected to the remote server, so update the
 			// addresses.
 			w.info.Addrs = addresses
-			connected = true
+			w.connected.Store(true)
 
 			w.reportInternalState(stateChanged)
 
@@ -303,7 +322,7 @@ func (w *remoteServer) loop() error {
 		case ch := <-w.connections:
 			// If we don't have a connection, we'll add the channel to the list
 			// of channels that are waiting for a connection.
-			if !connected {
+			if !w.connected.Load() {
 				channels = append(channels, ch)
 				continue
 			}
@@ -381,7 +400,7 @@ func (w *remoteServer) connect(ctx context.Context, addresses []string) (api.Con
 
 // callFunc calls the given function with the given connection. It will
 // cancel the context if the connection is broken.
-func (w *remoteServer) callFunc(ctx context.Context, conn api.Connection, fn func(context.Context, api.Connection) error) error {
+func (w *remoteServer) callFunc(ctx context.Context, conn api.Connection, fn func(context.Context, Connection) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

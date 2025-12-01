@@ -6,13 +6,14 @@ package controllerpresence
 import (
 	"context"
 	"strconv"
+	"sync/atomic"
+	"time"
 
 	"github.com/juju/clock"
-	"github.com/juju/loggo"
 	"github.com/juju/worker/v4"
+	"github.com/juju/worker/v4/catacomb"
 	"gopkg.in/tomb.v2"
 
-	"github.com/juju/juju/api"
 	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/logger"
 	"github.com/juju/juju/core/machine"
@@ -20,6 +21,12 @@ import (
 	"github.com/juju/juju/environs/bootstrap"
 	"github.com/juju/juju/internal/errors"
 	"github.com/juju/juju/internal/worker/apiremotecaller"
+)
+
+const (
+	// BrokenConnection is returned when the connection to the remote API
+	// server is broken.
+	BrokenConnection = errors.ConstError("connection to remote API server is broken")
 )
 
 // StatusService is an interface that defines the status service required by the
@@ -63,7 +70,8 @@ func (c *WorkerConfig) Validate() error {
 }
 
 type controllerWorker struct {
-	tomb tomb.Tomb
+	catacomb catacomb.Catacomb
+	runner   *worker.Runner
 
 	cfg WorkerConfig
 }
@@ -78,33 +86,56 @@ func newWorker(config WorkerConfig) (worker.Worker, error) {
 		return nil, errors.Capture(err)
 	}
 
-	w := &controllerWorker{
-		cfg: config,
+	runner, err := worker.NewRunner(worker.RunnerParams{
+		Name: "controller-presence",
+		IsFatal: func(err error) bool {
+			return false
+		},
+		ShouldRestart: func(err error) bool {
+			return errors.Is(err, BrokenConnection)
+		},
+		RestartDelay: time.Second * 5,
+	})
+	if err != nil {
+		return nil, errors.Capture(err)
 	}
 
-	w.tomb.Go(w.loop)
+	w := &controllerWorker{
+		cfg:    config,
+		runner: runner,
+	}
+
+	if err := catacomb.Invoke(catacomb.Plan{
+		Name: "controller-presence",
+		Site: &w.catacomb,
+		Work: w.loop,
+		Init: []worker.Worker{runner},
+	}); err != nil {
+		return nil, errors.Capture(err)
+	}
 
 	return w, nil
 }
 
 // Kill is part of the worker.Worker interface.
 func (w *controllerWorker) Kill() {
-	w.tomb.Kill(nil)
+	w.catacomb.Kill(nil)
 }
 
 // Wait is part of the worker.Worker interface.
 func (w *controllerWorker) Wait() error {
-	return w.tomb.Wait()
+	return w.catacomb.Wait()
 }
 
 // Report returns a map of internal state for the controllerWorker.
 func (w *controllerWorker) Report() map[string]any {
 	report := make(map[string]any)
+	report["runner"] = w.runner.Report()
 	return report
 }
 
 func (w *controllerWorker) loop() error {
-	ctx := w.tomb.Context(context.Background())
+	ctx := w.catacomb.Context(context.Background())
 
 	remoteCallers := w.cfg.APIRemoteCallers
 
@@ -114,60 +145,151 @@ func (w *controllerWorker) loop() error {
 	}
 	defer subscriber.Close()
 
-	loggo.GetLogger("***").Criticalf(">>> 1")
+	w.cfg.Logger.Criticalf(ctx, ">>> 1")
+
+	if err := w.ensureConnectionTrackers(ctx); err != nil {
+		return errors.Capture(err)
+	}
 
 	for {
 		select {
-		case <-w.tomb.Dying():
-			return nil
+		case <-w.catacomb.Dying():
+			return w.catacomb.ErrDying()
 
-		case _, ok := <-subscriber.Changes():
-			if !ok {
-				return nil
-			}
-
-			loggo.GetLogger("***").Criticalf(">>> 2")
-
-			callers, err := remoteCallers.GetAPIRemotes()
-			if err != nil {
-				return errors.Capture(err)
-			}
-
-			loggo.GetLogger("***").Criticalf(">>> 3 %v %v", len(callers), callers)
-
-			for _, caller := range callers {
-				if err := caller.Connection(ctx, func(ctx context.Context, c api.Connection) error {
-					// Start a runner to handle the connection, once it dies
-					// we need to clean up presence information.
-				}); err != nil {
+		case <-subscriber.Changes():
+			// Remove all existing tracking runner workers.
+			for _, name := range w.runner.WorkerNames() {
+				if err := w.runner.StopAndRemoveWorker(name, w.catacomb.Dying()); err != nil {
+					w.cfg.Logger.Criticalf(ctx, "stopping connection tracker worker %q: %v", name, err)
 					return errors.Capture(err)
 				}
+			}
+
+			w.cfg.Logger.Criticalf(ctx, ">>> 2")
+
+			if err := w.ensureConnectionTrackers(ctx); err != nil {
+				w.cfg.Logger.Criticalf(ctx, "ensuring connection trackers: %v", err)
+				return errors.Capture(err)
 			}
 		}
 	}
 }
 
-func (w *controllerWorker) handleBrokenConnection(ctx context.Context, c api.Connection) error {
+func (w *controllerWorker) ensureConnectionTrackers(ctx context.Context) error {
+	remoteCallers := w.cfg.APIRemoteCallers
+	callers, err := remoteCallers.GetAPIRemotes()
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	w.cfg.Logger.Criticalf(ctx, ">>> 3 %v %v", len(callers), callers)
+
+	for _, caller := range callers {
+		// Start a runner to handle the connection, once it dies
+		// we need to clean up presence information.
+		workerName := "controller-" + caller.ControllerID()
+
+		w.cfg.Logger.Criticalf(ctx, ">>> 4 %v", workerName)
+		if err := w.runner.StartWorker(ctx, workerName, func(ctx context.Context) (worker.Worker, error) {
+			return newConnectionTracker(caller.ControllerID(), caller, w.cfg.StatusService, w.cfg.Logger)
+		}); err != nil && !errors.Is(err, coreerrors.AlreadyExists) {
+			return errors.Capture(err)
+		}
+	}
+	return nil
+}
+
+var id atomic.Int64
+
+type connectionTracker struct {
+	tomb tomb.Tomb
+
+	controllerID  string
+	connection    apiremotecaller.RemoteConnection
+	statusService StatusService
+	logger        logger.Logger
+
+	connected atomic.Bool
+
+	id int64
+}
+
+func newConnectionTracker(controllerID string, conn apiremotecaller.RemoteConnection, statusService StatusService, logger logger.Logger) (worker.Worker, error) {
+	w := &connectionTracker{
+		controllerID:  controllerID,
+		connection:    conn,
+		statusService: statusService,
+		logger:        logger,
+		id:            id.Add(1),
+	}
+
+	w.tomb.Go(w.loop)
+
+	return w, nil
+}
+
+// Kill is part of the worker.Worker interface.
+func (w *connectionTracker) Kill() {
+	w.tomb.Kill(nil)
+}
+
+// Wait is part of the worker.Worker interface.
+func (w *connectionTracker) Wait() error {
+	return w.tomb.Wait()
+}
+
+// Report returns a map of internal state for the connectionTracker.
+func (w *connectionTracker) Report() map[string]any {
+	report := make(map[string]any)
+	report["controller-id"] = w.controllerID
+	report["connected"] = w.connected.Load()
+	report["id"] = w.id
+	return report
+}
+
+func (w *connectionTracker) loop() error {
+	ctx := w.tomb.Context(context.Background())
+
+	if err := w.connection.Connection(ctx, func(_ context.Context, c apiremotecaller.Connection) error {
+		isBroken := c.IsBroken(ctx)
+		w.connected.Store(!isBroken)
+		if isBroken {
+			return BrokenConnection
+		}
+
+		select {
+		case <-w.tomb.Dying():
+			return nil
+		case <-c.Broken():
+			w.connected.Store(true)
+			return w.handleBrokenConnection(ctx)
+		}
+	}); err != nil {
+		return errors.Capture(err)
+	}
+
+	return nil
+}
+
+func (w *connectionTracker) handleBrokenConnection(ctx context.Context) error {
 	// For a broken connection we want to remove any presence information for
 	// machines and units that belong to this controller.
-	controllerID := c.ControllerTag().Id()
+	w.logger.Criticalf(ctx, "API remote caller connection to controller %q broken", w.controllerID)
 
-	w.cfg.Logger.Criticalf(ctx, "API remote caller connection to controller %q broken", controllerID)
-
-	machineName := machine.Name(controllerID)
-	if err := w.cfg.StatusService.DeleteMachinePresence(ctx, machineName); err != nil {
+	machineName := machine.Name(w.controllerID)
+	if err := w.statusService.DeleteMachinePresence(ctx, machineName); err != nil {
 		return errors.Errorf("deleting presence for machine %q: %w", machineName, err)
 	}
 
-	unitID, err := strconv.Atoi(controllerID)
+	unitID, err := strconv.Atoi(w.controllerID)
 	if err != nil {
-		return errors.Errorf("parsing controller ID %q as unit number: %w", controllerID, err)
+		return errors.Errorf("parsing controller ID %q as unit number: %w", w.controllerID, err)
 	}
 	unitName, err := coreunit.NewNameFromParts(bootstrap.ControllerApplicationName, unitID)
 	if err != nil {
-		return errors.Errorf("creating unit name for controller ID %q: %w", controllerID, err)
+		return errors.Errorf("creating unit name for controller ID %q: %w", w.controllerID, err)
 	}
-	if err := w.cfg.StatusService.DeleteUnitPresence(ctx, unitName); err != nil {
+	if err := w.statusService.DeleteUnitPresence(ctx, unitName); err != nil {
 		return errors.Errorf("deleting presence for unit %q: %w", unitName, err)
 	}
 
