@@ -213,7 +213,7 @@ func (w *remoteWorker) loop() error {
 			return w.catacomb.ErrDying()
 
 		case <-watcher.Changes():
-			w.cfg.Logger.Debugf(ctx, "remoteWorker API server change")
+			w.cfg.Logger.Criticalf(ctx, "remoteWorker API server change")
 
 			// Get the latest API addresses for all controller nodes.
 			servers, err := w.cfg.ControllerNodeService.GetAPIAddressesByControllerIDForAgents(ctx)
@@ -228,7 +228,7 @@ func (w *remoteWorker) loop() error {
 				return errors.Trace(err)
 			}
 
-			w.cfg.Logger.Tracef(ctx, "remoteWorker API servers: %v %v", servers, w.cfg.Origin.Id())
+			w.cfg.Logger.Criticalf(ctx, "remoteWorker API servers: %v %v", servers, w.cfg.Origin.Id())
 
 			// Locate the current workers, so we can remove any workers that are
 			// no longer required.
@@ -269,24 +269,30 @@ func (w *remoteWorker) loop() error {
 				}
 			}
 
-			w.cfg.Logger.Debugf(ctx, "remote workers updated: %v", required)
+			w.cfg.Logger.Criticalf(ctx, "remote workers updated: %v", required)
 
-			var dispatched []*subscriber
-			for _, sub := range subscribers {
-				if sent := sub.Notify(); !sent {
-					continue
-				}
-
-				dispatched = append(dispatched, sub)
-			}
-			subscribers = dispatched
+			subscribers = w.dispatchChanges(subscribers)
 
 			w.reportInternalState(stateChanged)
 
 		case subscriber := <-w.subscriberRequests:
-			subscribers = append(subscribers, subscriber)
+			if subscriber.Notify() {
+				subscribers = append(subscribers, subscriber)
+			}
 		}
 	}
+}
+
+func (w *remoteWorker) dispatchChanges(subscribers []*subscriber) []*subscriber {
+	var dispatched []*subscriber
+	for _, sub := range subscribers {
+		if sent := sub.Notify(); !sent {
+			continue
+		}
+
+		dispatched = append(dispatched, sub)
+	}
+	return dispatched
 }
 
 func (w *remoteWorker) newRemoteServer(ctx context.Context, controllerID string, addresses []string) (RemoteServer, error) {
@@ -377,19 +383,25 @@ func (w *remoteWorker) reportInternalState(state string) {
 
 type subscriber struct {
 	changes chan struct{}
+	closed  chan struct{}
 	once    sync.Once
 }
 
 func newAPIRemoteSubscriber() *subscriber {
 	return &subscriber{
 		changes: make(chan struct{}),
+		closed:  make(chan struct{}),
 	}
 }
 
 // Notify signals to the subscriber that a change has occurred.
 func (s *subscriber) Notify() bool {
-	_, ok := <-s.changes
-	return ok
+	select {
+	case <-s.closed:
+		return false
+	case s.changes <- struct{}{}:
+		return true
+	}
 }
 
 // Changes returns a channel that signals when the set of API remotes has
@@ -402,5 +414,6 @@ func (s *subscriber) Changes() <-chan struct{} {
 func (s *subscriber) Close() {
 	s.once.Do(func() {
 		close(s.changes)
+		close(s.closed)
 	})
 }
