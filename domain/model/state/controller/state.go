@@ -935,33 +935,6 @@ func (s *State) Delete(
 	})
 }
 
-// ClearControllerImportingStatus removes the entry from the
-// model_migration_import table in the controller database, indicating that the
-// model import has completed or been aborted.
-func (s *State) ClearControllerImportingStatus(ctx context.Context, modelID coremodel.UUID) error {
-	db, err := s.DB(ctx)
-	if err != nil {
-		return errors.Capture(err)
-	}
-
-	mUUID := dbUUID{UUID: modelID.String()}
-
-	stmt, err := s.Prepare(`
-DELETE FROM model_migration_import
-WHERE model_uuid = $dbUUID.uuid
-	`, mUUID)
-	if err != nil {
-		return errors.Capture(err)
-	}
-
-	return db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		if err := tx.Query(ctx, stmt, mUUID).Run(); err != nil {
-			return errors.Errorf("clearing importing status for model %q in controller database: %w", modelID, err)
-		}
-		return nil
-	})
-}
-
 // Activate is responsible for setting a model as fully constructed and
 // indicates the final system state for the model is ready for use. This is used
 // because the model creation process involves several transactions with which

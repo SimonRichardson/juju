@@ -54,15 +54,23 @@ type Service struct {
 
 	// resourceProviderGetter is a getter for getting access to the model's
 	// [ResourceProvider]
-	resourceProviderGettter func(context.Context) (ResourceProvider, error)
+	resourceProviderGetter func(context.Context) (ResourceProvider, error)
 
-	st        State
-	modelUUID string
+	controllerState ControllerState
+	modelState      ModelState
+	modelUUID       string
 }
 
-// State defines the interface required for accessing the underlying state of
+// ControllerState defines the interface required for accessing the underlying state of
 // the model during migration.
-type State interface {
+type ControllerState interface {
+}
+
+// ModelState defines the interface required for accessing the underlying state
+// of the model during migration.
+type ModelState interface {
+	// GetControllerUUID returns the UUID of the controller that owns this
+	// model.
 	GetControllerUUID(context.Context) (string, error)
 	// GetAllInstanceIDs returns all instance IDs from the current model as
 	// juju/collections set.
@@ -75,16 +83,18 @@ type State interface {
 // NewService is responsible for constructing a new [Service] to handle model migration
 // tasks.
 func NewService(
+	controllerState ControllerState,
+	modelState ModelState,
 	modelUUID string,
 	instanceProviderGetter providertracker.ProviderGetter[InstanceProvider],
 	resourceProviderGetter providertracker.ProviderGetter[ResourceProvider],
-	st State,
 ) *Service {
 	return &Service{
-		instanceProviderGetter:  instanceProviderGetter,
-		resourceProviderGettter: resourceProviderGetter,
-		st:                      st,
-		modelUUID:               modelUUID,
+		controllerState:        controllerState,
+		modelState:             modelState,
+		instanceProviderGetter: instanceProviderGetter,
+		resourceProviderGetter: resourceProviderGetter,
+		modelUUID:              modelUUID,
 	}
 }
 
@@ -97,7 +107,7 @@ func (s *Service) AdoptResources(
 	ctx, span := trace.Start(ctx, trace.NameFromFunc())
 	defer span.End()
 
-	provider, err := s.resourceProviderGettter(ctx)
+	provider, err := s.resourceProviderGetter(ctx)
 
 	// Provider doesn't support adopting resources and this is ok!
 	if errors.Is(err, coreerrors.NotSupported) {
@@ -109,7 +119,7 @@ func (s *Service) AdoptResources(
 		)
 	}
 
-	controllerUUID, err := s.st.GetControllerUUID(ctx)
+	controllerUUID, err := s.modelState.GetControllerUUID(ctx)
 	if err != nil {
 		return errors.Errorf(
 			"cannot get controller uuid while adopting model cloud resources: %w",
@@ -170,7 +180,7 @@ func (s *Service) CheckMachines(
 		providerInstanceIDsSet.Add(instance.Id().String())
 	}
 
-	instanceIDsSet, err := s.st.GetAllInstanceIDs(ctx)
+	instanceIDsSet, err := s.modelState.GetAllInstanceIDs(ctx)
 	if err != nil {
 		return nil, errors.Errorf("cannot get all instance IDs for model when checking machines: %w", err)
 	}
@@ -283,32 +293,11 @@ func (s *Service) MinionReports(ctx context.Context) (migration.MinionReports, e
 	return migration.MinionReports{}, errors.ConstError("getting minion reports is not implemented")
 }
 
-// AbortImport stops the import of the model by clearing the model_migrating
-// table entry in the model database.
-// Note: This only clears the model database. The controller database's
-// model_migration_import table must be cleared separately by the controller
-// service.
-func (s *Service) AbortImport(ctx context.Context) error {
-	ctx, span := trace.Start(ctx, trace.NameFromFunc())
-	defer span.End()
-
-	if err := s.st.ClearModelImportingStatus(ctx, s.modelUUID); err != nil {
-		return errors.Errorf("clearing importing status for model %q: %w", s.modelUUID, err)
-	}
-	return nil
-}
-
 // ActivateImport finalises the import of the model by clearing the
 // model_migrating table entry in the model database.
-// Note: This only clears the model database. The controller database's
-// model_migration_import table must be cleared separately by the controller
-// service.
 func (s *Service) ActivateImport(ctx context.Context) error {
 	ctx, span := trace.Start(ctx, trace.NameFromFunc())
 	defer span.End()
 
-	if err := s.st.ClearModelImportingStatus(ctx, s.modelUUID); err != nil {
-		return errors.Errorf("clearing importing status for model %q: %w", s.modelUUID, err)
-	}
 	return nil
 }

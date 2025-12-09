@@ -12,7 +12,6 @@ import (
 	"github.com/juju/juju/core/agentbinary"
 	coreconstraints "github.com/juju/juju/core/constraints"
 	"github.com/juju/juju/core/credential"
-	coredatabase "github.com/juju/juju/core/database"
 	coreerrors "github.com/juju/juju/core/errors"
 	coreinstance "github.com/juju/juju/core/instance"
 	"github.com/juju/juju/core/logger"
@@ -24,7 +23,6 @@ import (
 	accessservice "github.com/juju/juju/domain/access/service"
 	accessstate "github.com/juju/juju/domain/access/state"
 	domainmodel "github.com/juju/juju/domain/model"
-	modelerrors "github.com/juju/juju/domain/model/errors"
 	modelservice "github.com/juju/juju/domain/model/service"
 	modelmigrationservice "github.com/juju/juju/domain/model/service/migration"
 	statecontroller "github.com/juju/juju/domain/model/state/controller"
@@ -58,9 +56,6 @@ type ModelImportService interface {
 	// imported. Returns an activator function that must be called to mark
 	// the model as alive.
 	ImportModel(context.Context, domainmodel.ModelImportArgs) (func(context.Context) error, error)
-
-	// DeleteModel is responsible for removing a model from the system.
-	DeleteModel(context.Context, coremodel.UUID) error
 }
 
 // ModelDetailService defines a service for interacting with the
@@ -151,7 +146,6 @@ func (i *importModelOperation) Name() string {
 func (i *importModelOperation) Setup(scope modelmigration.Scope) error {
 	i.modelImportService = modelmigrationservice.NewMigrationService(
 		statecontroller.NewState(scope.ControllerDB()),
-		scope.ModelDeleter(),
 		i.logger,
 	)
 
@@ -239,8 +233,6 @@ func (i *importModelOperation) Execute(ctx context.Context, model description.Mo
 		UUID: modelID,
 	}
 
-	// NOTE: Try to get all things that can fail before creating the model in
-	// the database.
 	activator, err := i.modelImportService.ImportModel(ctx, args)
 	if err != nil {
 		return errors.Errorf(
@@ -264,33 +256,12 @@ func (i *importModelOperation) Execute(ctx context.Context, model description.Mo
 		)
 	}
 
-	// activator needs to be called as the last operation to mark the model
-	// as alive and ready to use.
+	// Activation needs to be called as the last operation to mark the model
+	// as useable. Though, the model is not fully imported and useable. For
+	// that to be true the entire migration must complete successfully.
 	if err := activator(ctx); err != nil {
 		return errors.Errorf(
 			"activating imported model %q with uuid %q: %w", modelName, modelID, err,
-		)
-	}
-
-	return nil
-}
-
-// Rollback will attempt to roll back the import operation if it was
-// unsuccessful.
-func (i *importModelOperation) Rollback(ctx context.Context, model description.Model) error {
-	// Attempt to roll back the model database if it was created.
-	modelName, modelID, err := i.getModelNameAndUUID(model)
-	if err != nil {
-		return errors.Errorf("rollback of model during migration %w", coreerrors.NotValid)
-	}
-
-	// If the model isn't found, we can simply ignore the error.
-	if err := i.modelImportService.DeleteModel(ctx, modelID); err != nil &&
-		!errors.Is(err, modelerrors.NotFound) &&
-		!errors.Is(err, coredatabase.ErrDBNotFound) {
-		return errors.Errorf(
-			"rollback of model %q with uuid %q during migration: %w",
-			modelName, modelID, err,
 		)
 	}
 

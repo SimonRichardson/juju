@@ -1,7 +1,7 @@
 // Copyright 2024 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package state
+package model
 
 import (
 	"context"
@@ -38,14 +38,14 @@ func (s *State) GetControllerUUID(
 	}
 
 	stmt, err := s.Prepare(`
-SELECT (controller_uuid) AS (&ModelInfo.*)
-FROM model`, ModelInfo{})
+SELECT (controller_uuid) AS (&modelInfo.*)
+FROM model`, modelInfo{})
 
 	if err != nil {
 		return "", errors.Errorf("preparing get controller uuid statement: %w", err)
 	}
 
-	result := ModelInfo{}
+	result := modelInfo{}
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		err := tx.Query(ctx, stmt).Get(&result)
 		if errors.Is(err, sqlair.ErrNoRows) {

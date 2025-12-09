@@ -91,11 +91,6 @@ type ControllerState interface {
 	// The following errors may be returned:
 	// - [modelerrors.NotFound] when the model no longer exists.
 	HasValidCredential(context.Context, coremodel.UUID) (bool, error)
-
-	// ClearControllerImportingStatus removes the entry from the
-	// model_migration_import table in the controller database, indicating that
-	// the model import has completed or been aborted.
-	ClearControllerImportingStatus(context.Context, coremodel.UUID) error
 }
 
 // ModelResourcesProvider mirrors the [environs.ModelResources] interface that is

@@ -95,12 +95,6 @@ type CreateModelState interface {
 	ImportModel(context.Context, coremodel.UUID, coremodel.ModelType, model.GlobalModelCreationArgs) error
 }
 
-// DeleteModelState represents the state required for deleting a model.
-type DeleteModelState interface {
-	// Delete removes a model and all of it's associated data from Juju.
-	Delete(context.Context, coremodel.UUID) error
-}
-
 // ProviderControllerState is the controller state required by the provider service.
 type ProviderControllerState interface {
 	// GetModelCloudAndCredential returns the cloud and credential UUID for the model.
@@ -115,7 +109,6 @@ type ProviderControllerState interface {
 // State is the model state required by this service.
 type State interface {
 	CreateModelState
-	DeleteModelState
 	ProviderControllerState
 
 	// CheckModelExists is a check that allows the caller to find out if a model
@@ -205,11 +198,6 @@ type State interface {
 	// InitialWatchModelTableName returns the name of the model table to be used
 	// for the initial watch statement.
 	InitialWatchModelTableName() string
-
-	// ClearControllerImportingStatus removes the entry from the
-	// model_migration_import table in the controller database, indicating that
-	// the model import has completed or been aborted.
-	ClearControllerImportingStatus(context.Context, coremodel.UUID) error
 }
 
 // Service defines a service for interacting with the underlying state based
@@ -467,16 +455,6 @@ func (s *Service) Model(ctx context.Context, uuid coremodel.UUID) (coremodel.Mod
 	}
 
 	return s.st.GetModel(ctx, uuid)
-}
-
-// ClearControllerImportingStatus removes the entry from the
-// model_migration_import table in the controller database, indicating that the
-// model import has completed or been aborted.
-func (s *Service) ClearControllerImportingStatus(ctx context.Context, uuid coremodel.UUID) error {
-	ctx, span := trace.Start(ctx, trace.NameFromFunc())
-	defer span.End()
-
-	return s.st.ClearControllerImportingStatus(ctx, uuid)
 }
 
 // GetModelUUIDs returns a list of all model UUIDs in the controller that are

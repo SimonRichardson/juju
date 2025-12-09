@@ -1005,7 +1005,6 @@ func (ctx *facadeContext) migrationScope(modelUUID model.UUID) coremodelmigratio
 		changestream.NewTxnRunnerFactory(func(c context.Context) (changestream.WatchableDB, error) {
 			return ctx.modelDB(c, modelUUID)
 		}),
-		ctx.r.shared.dbDeleter,
 		modelUUID,
 	)
 }

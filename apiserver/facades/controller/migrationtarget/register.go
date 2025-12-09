@@ -118,6 +118,13 @@ func makeFacade(
 		}
 		return svc.Agent(), nil
 	}
+	removalServiceGetter := func(c context.Context, modelId model.UUID) (RemovalService, error) {
+		svc, err := ctx.DomainServicesForModel(c, modelId)
+		if err != nil {
+			return nil, errors.Errorf("retrieving domain services for model %q: %w", modelId, err)
+		}
+		return svc.Removal(), nil
+	}
 
 	return NewAPI(
 		ctx,
@@ -130,6 +137,7 @@ func makeFacade(
 		domainServices.Machine(),
 		modelAgentServiceGetter,
 		modelMigrationServiceGetter,
+		removalServiceGetter,
 		facadeVersions,
 		ctx.LogDir(),
 	)

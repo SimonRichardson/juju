@@ -65,7 +65,8 @@ import (
 	modeldefaultsservice "github.com/juju/juju/domain/modeldefaults/service"
 	modeldefaultsstate "github.com/juju/juju/domain/modeldefaults/state"
 	modelmigrationservice "github.com/juju/juju/domain/modelmigration/service"
-	modelmigrationstate "github.com/juju/juju/domain/modelmigration/state"
+	modelmigrationstatecontroller "github.com/juju/juju/domain/modelmigration/state/controller"
+	modelmigrationstatemodel "github.com/juju/juju/domain/modelmigration/state/model"
 	modelproviderservice "github.com/juju/juju/domain/modelprovider/service"
 	modelproviderstate "github.com/juju/juju/domain/modelprovider/state"
 	networkservice "github.com/juju/juju/domain/network/service"
@@ -402,10 +403,11 @@ func (s *ModelServices) Secret() *secretservice.WatchableService {
 // operations.
 func (s *ModelServices) ModelMigration() *modelmigrationservice.Service {
 	return modelmigrationservice.NewService(
+		modelmigrationstatecontroller.New(changestream.NewTxnRunnerFactory(s.controllerDB)),
+		modelmigrationstatemodel.New(changestream.NewTxnRunnerFactory(s.modelDB)),
 		s.modelUUID.String(),
 		providertracker.ProviderRunner[modelmigrationservice.InstanceProvider](s.providerFactory, s.modelUUID.String()),
 		providertracker.ProviderRunner[modelmigrationservice.ResourceProvider](s.providerFactory, s.modelUUID.String()),
-		modelmigrationstate.New(changestream.NewTxnRunnerFactory(s.modelDB)),
 	)
 }
 

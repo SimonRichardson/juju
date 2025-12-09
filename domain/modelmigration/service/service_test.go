@@ -21,33 +21,14 @@ import (
 )
 
 type serviceSuite struct {
+	controllerState  *MockControllerState
+	modelState       *MockModelState
 	instanceProvider *MockInstanceProvider
 	resourceProvider *MockResourceProvider
-	state            *MockState
 }
 
 func TestServiceSuite(t *testing.T) {
 	tc.Run(t, &serviceSuite{})
-}
-
-func (s *serviceSuite) setupMocks(c *tc.C) *gomock.Controller {
-	ctrl := gomock.NewController(c)
-	s.instanceProvider = NewMockInstanceProvider(ctrl)
-	s.resourceProvider = NewMockResourceProvider(ctrl)
-	s.state = NewMockState(ctrl)
-	return ctrl
-}
-
-func (s *serviceSuite) instanceProviderGetter(_ *tc.C) providertracker.ProviderGetter[InstanceProvider] {
-	return func(_ context.Context) (InstanceProvider, error) {
-		return s.instanceProvider, nil
-	}
-}
-
-func (s *serviceSuite) resourceProviderGetter(_ *tc.C) providertracker.ProviderGetter[ResourceProvider] {
-	return func(_ context.Context) (ResourceProvider, error) {
-		return s.resourceProvider, nil
-	}
 }
 
 // TestAdoptResources is testing the happy path of adopting a models cloud
@@ -58,7 +39,7 @@ func (s *serviceSuite) TestAdoptResources(c *tc.C) {
 	sourceControllerVersion, err := semversion.Parse("4.1.1")
 	c.Assert(err, tc.ErrorIsNil)
 
-	s.state.EXPECT().GetControllerUUID(gomock.Any()).Return(
+	s.modelState.EXPECT().GetControllerUUID(gomock.Any()).Return(
 		"deadbeef-1bad-500d-9000-4b1d0d06f00d",
 		nil,
 	)
@@ -69,10 +50,11 @@ func (s *serviceSuite) TestAdoptResources(c *tc.C) {
 	).Return(nil)
 
 	err = NewService(
+		s.controllerState,
+		s.modelState,
 		"test-model-uuid",
 		s.instanceProviderGetter(c),
 		s.resourceProviderGetter(c),
-		s.state,
 	).AdoptResources(c.Context(), sourceControllerVersion)
 	c.Check(err, tc.ErrorIsNil)
 }
@@ -90,16 +72,17 @@ func (s *serviceSuite) TestAdoptResourcesProviderNotSupported(c *tc.C) {
 	sourceControllerVersion, err := semversion.Parse("4.1.1")
 	c.Assert(err, tc.ErrorIsNil)
 
-	s.state.EXPECT().GetControllerUUID(gomock.Any()).Return(
+	s.modelState.EXPECT().GetControllerUUID(gomock.Any()).Return(
 		"deadbeef-1bad-500d-9000-4b1d0d06f00d",
 		nil,
 	).AnyTimes()
 
 	err = NewService(
+		s.controllerState,
+		s.modelState,
 		"test-model-uuid",
 		s.instanceProviderGetter(c),
 		resourceGetter,
-		s.state,
 	).AdoptResources(c.Context(), sourceControllerVersion)
 	c.Check(err, tc.ErrorIsNil)
 }
@@ -113,7 +96,7 @@ func (s *serviceSuite) TestAdoptResourcesProviderNotImplemented(c *tc.C) {
 	sourceControllerVersion, err := semversion.Parse("4.1.1")
 	c.Assert(err, tc.ErrorIsNil)
 
-	s.state.EXPECT().GetControllerUUID(gomock.Any()).Return(
+	s.modelState.EXPECT().GetControllerUUID(gomock.Any()).Return(
 		"deadbeef-1bad-500d-9000-4b1d0d06f00d",
 		nil,
 	)
@@ -124,10 +107,11 @@ func (s *serviceSuite) TestAdoptResourcesProviderNotImplemented(c *tc.C) {
 	).Return(coreerrors.NotImplemented)
 
 	err = NewService(
+		s.controllerState,
+		s.modelState,
 		"test-model-uuid",
 		s.instanceProviderGetter(c),
 		s.resourceProviderGetter(c),
-		s.state,
 	).AdoptResources(c.Context(), sourceControllerVersion)
 	c.Check(err, tc.ErrorIsNil)
 }
@@ -147,14 +131,15 @@ func (s *serviceSuite) TestMachinesFromProviderNotInModel(c *tc.C) {
 			},
 		},
 			nil)
-	s.state.EXPECT().GetAllInstanceIDs(gomock.Any()).
+	s.modelState.EXPECT().GetAllInstanceIDs(gomock.Any()).
 		Return(set.NewStrings("instance0"), nil)
 
 	_, err := NewService(
+		s.controllerState,
+		s.modelState,
 		"test-model-uuid",
 		s.instanceProviderGetter(c),
 		s.resourceProviderGetter(c),
-		s.state,
 	).CheckMachines(c.Context())
 	c.Check(err, tc.ErrorMatches, "provider instance IDs.*instance1.*")
 }
@@ -172,16 +157,48 @@ func (s *serviceSuite) TestMachineInstanceIDsNotInProvider(c *tc.C) {
 			},
 		},
 			nil)
-	s.state.EXPECT().GetAllInstanceIDs(gomock.Any()).
+	s.modelState.EXPECT().GetAllInstanceIDs(gomock.Any()).
 		Return(set.NewStrings("instance0", "instance1"), nil)
 
 	_, err := NewService(
+		s.controllerState,
+		s.modelState,
 		"test-model-uuid",
 		s.instanceProviderGetter(c),
 		s.resourceProviderGetter(c),
-		s.state,
 	).CheckMachines(c.Context())
 	c.Check(err, tc.ErrorMatches, "instance IDs.*instance1.*")
+}
+
+func (s *serviceSuite) setupMocks(c *tc.C) *gomock.Controller {
+	ctrl := gomock.NewController(c)
+
+	s.controllerState = NewMockControllerState(ctrl)
+	s.modelState = NewMockModelState(ctrl)
+
+	s.instanceProvider = NewMockInstanceProvider(ctrl)
+	s.resourceProvider = NewMockResourceProvider(ctrl)
+
+	c.Cleanup(func() {
+		s.controllerState = nil
+		s.modelState = nil
+		s.instanceProvider = nil
+		s.resourceProvider = nil
+	})
+
+	return ctrl
+}
+
+func (s *serviceSuite) instanceProviderGetter(_ *tc.C) providertracker.ProviderGetter[InstanceProvider] {
+	return func(_ context.Context) (InstanceProvider, error) {
+		return s.instanceProvider, nil
+	}
+}
+
+func (s *serviceSuite) resourceProviderGetter(_ *tc.C) providertracker.ProviderGetter[ResourceProvider] {
+	return func(_ context.Context) (ResourceProvider, error) {
+		return s.resourceProvider, nil
+	}
 }
 
 type instanceStub struct {

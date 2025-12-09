@@ -218,6 +218,19 @@ func (s *Service) removeModel(
 	return modelJobUUID, nil
 }
 
+// DeleteImportingModel removes the model that is currently being imported.
+func (s *Service) DeleteImportingModel(ctx context.Context, modelUUID model.UUID) error {
+	_, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	// Ensure that the model is marked as importing and it's alive.
+	// Return an error if it is not.
+
+	// Then nuke it.
+
+	return nil
+}
+
 // DeleteModel removes the model with the given UUID from the controller
 // database. It is expected that this will only ever be called when the
 // model is set to dead, even with force.
@@ -236,9 +249,10 @@ func (s *Service) DeleteModel(ctx context.Context, modelUUID model.UUID) error {
 	// if this is either a clean or forced removal, the model should have been
 	// set to dead prior to this call. There isn't away to get here, other than
 	// via the undertaker, without the model being dead.
-	if controllerLife == life.Alive {
+	switch controllerLife {
+	case life.Alive:
 		return errors.Errorf("model %q is still alive", modelUUID).Add(removalerrors.EntityStillAlive)
-	} else if controllerLife == life.Dying {
+	case life.Dying:
 		return errors.Errorf("model %q is dying", modelUUID).Add(removalerrors.EntityNotDead)
 	}
 

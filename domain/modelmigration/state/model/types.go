@@ -1,11 +1,11 @@
 // Copyright 2024 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package state
+package model
 
-// ModelInfo represents the model's read only information from the model table
+// modelInfo represents the model's read only information from the model table
 // in the model database.
-type ModelInfo struct {
+type modelInfo struct {
 	// ControllerUUID is the controllers unique id.
 	ControllerUUID string `db:"controller_uuid"`
 }

@@ -68,7 +68,6 @@ type Operation interface {
 type Scope struct {
 	controllerDB database.TxnRunnerFactory
 	modelDB      database.TxnRunnerFactory
-	modelDeleter database.DBDeleter
 	modelUUID    model.UUID
 }
 
@@ -76,11 +75,10 @@ type Scope struct {
 type ScopeForModel func(modelUUID model.UUID) Scope
 
 // NewScope creates a new scope with the given database txn runners.
-func NewScope(controllerDB database.TxnRunnerFactory, modelDB database.TxnRunnerFactory, modelDeleter database.DBDeleter, modelUUID model.UUID) Scope {
+func NewScope(controllerDB database.TxnRunnerFactory, modelDB database.TxnRunnerFactory, modelUUID model.UUID) Scope {
 	return Scope{
 		controllerDB: controllerDB,
 		modelDB:      modelDB,
-		modelDeleter: modelDeleter,
 		modelUUID:    modelUUID,
 	}
 }
@@ -93,11 +91,6 @@ func (s Scope) ControllerDB() database.TxnRunnerFactory {
 // ModelDB returns the database txn runner for the model.
 func (s Scope) ModelDB() database.TxnRunnerFactory {
 	return s.modelDB
-}
-
-// ModelDeleter returns the database deleter for the model.
-func (s Scope) ModelDeleter() database.DBDeleter {
-	return s.modelDeleter
 }
 
 // ModelUUID returns the UUID of the model being migrated.
@@ -145,14 +138,14 @@ func (m *Coordinator) Perform(ctx context.Context, scope Scope, model descriptio
 	var current int
 	defer func() {
 		if err != nil {
-			m.logger.Errorf(context.TODO(), "import failed: %s", err.Error())
+			m.logger.Errorf(ctx, "import failed: %s", err.Error())
 
 			for ; current >= 0; current-- {
 				op := m.operations[current]
 
-				m.logger.Infof(context.TODO(), "rolling back operation: %s", op.Name())
+				m.logger.Infof(ctx, "rolling back operation: %s", op.Name())
 				if rollbackErr := op.Rollback(ctx, model); rollbackErr != nil {
-					m.logger.Errorf(context.TODO(), "rollback operation for %s failed: %s", op.Name(), rollbackErr)
+					m.logger.Errorf(ctx, "rollback operation for %s failed: %s", op.Name(), rollbackErr)
 					err = errors.Errorf("rollback operation at %d with %v: %w", current, rollbackErr, err)
 				}
 			}
@@ -162,7 +155,7 @@ func (m *Coordinator) Perform(ctx context.Context, scope Scope, model descriptio
 	var op Operation
 	for current, op = range m.operations {
 		opName := op.Name()
-		m.logger.Infof(context.TODO(), "running operation: %s", opName)
+		m.logger.Infof(ctx, "running operation: %s", opName)
 
 		if err := op.Setup(scope); err != nil {
 			return errors.Errorf("setup operation %s: %w", opName, err)

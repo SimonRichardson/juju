@@ -80,9 +80,6 @@ type ModelMigrationService interface {
 	// any discrepancies.
 	CheckMachines(context.Context) ([]modelmigration.MigrationMachineDiscrepancy, error)
 
-	// AbortImport stops the import of the model.
-	AbortImport(ctx context.Context) error
-
 	// ActivateImport finalises the import of the model.
 	ActivateImport(ctx context.Context) error
 
@@ -116,6 +113,10 @@ type ModelAgentService interface {
 // ModelMigrationServiceGetter describes a function that is able to return the
 // [ModelMigrationService] for a given model id.
 type ModelMigrationServiceGetter func(context.Context, coremodel.UUID) (ModelMigrationService, error)
+
+// RemovalServiceGetter describes a function that is able to return the
+// [RemovalService] for a given model id.
+type RemoveServiceGetter func(context.Context, coremodel.UUID) (RemovalService, error)
 
 // ModelAgentServiceGetter describes a function that is able to return the
 // [ModelAgentService] for a given model id.
@@ -166,6 +167,13 @@ type MachineService interface {
 	GetMachineBase(ctx context.Context, mName machine.Name) (base.Base, error)
 }
 
+// RemovalService defines the methods required to remove an importing model
+// that has failed to import completely.
+type RemovalService interface {
+	// DeleteImportingModel removes the model that is in the importing state.
+	DeleteImportingModel(ctx context.Context, modelUUID coremodel.UUID) error
+}
+
 // APIV4 implements the APIV4.
 type APIV4 struct {
 	*APIV5
@@ -196,8 +204,8 @@ type API struct {
 	externalControllerService   ExternalControllerService
 	modelAgentServiceGetter     ModelAgentServiceGetter
 	modelMigrationServiceGetter ModelMigrationServiceGetter
-
-	authorizer facade.Authorizer
+	removalServiceGetter        RemoveServiceGetter
+	authorizer                  facade.Authorizer
 
 	requiredMigrationFacadeVersions facades.FacadeVersions
 
@@ -217,6 +225,7 @@ func NewAPI(
 	machineService MachineService,
 	modelAgentServiceGetter ModelAgentServiceGetter,
 	modelMigrationServiceGetter ModelMigrationServiceGetter,
+	removalServiceGetter RemoveServiceGetter,
 	requiredMigrationFacadeVersions facades.FacadeVersions,
 	logDir string,
 ) (*API, error) {
@@ -342,12 +351,12 @@ func (api *API) Abort(ctx context.Context, args params.ModelArgs) error {
 	}
 
 	modelUUID := coremodel.UUID(modelTag.Id())
-	modelMigrationService, err := api.modelMigrationServiceGetter(ctx, modelUUID)
+	removalServiceGetter, err := api.removalServiceGetter(ctx, modelUUID)
 	if err != nil {
 		return errors.Capture(err)
 	}
 
-	err = modelMigrationService.AbortImport(ctx)
+	err = removalServiceGetter.DeleteImportingModel(ctx, modelUUID)
 	if err != nil {
 		return errors.Capture(err)
 	}

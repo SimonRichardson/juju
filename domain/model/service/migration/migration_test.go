@@ -13,7 +13,6 @@ import (
 	"github.com/juju/juju/cloud"
 	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/domain/model"
-	modelerrors "github.com/juju/juju/domain/model/errors"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	"github.com/juju/juju/internal/testhelpers"
 )
@@ -21,8 +20,7 @@ import (
 type migrationServiceSuite struct {
 	testhelpers.IsolationSuite
 
-	state   *MockState
-	deleter *MockModelDeleter
+	state *MockState
 }
 
 func TestMigrationServiceSuite(t *testing.T) {
@@ -30,7 +28,7 @@ func TestMigrationServiceSuite(t *testing.T) {
 }
 
 func (s *migrationServiceSuite) newService(c *tc.C) *MigrationService {
-	return NewMigrationService(s.state, s.deleter, loggertesting.WrapCheckLog(c))
+	return NewMigrationService(s.state, loggertesting.WrapCheckLog(c))
 }
 
 func (s *migrationServiceSuite) TestImportModelIAAS(c *tc.C) {
@@ -107,43 +105,13 @@ func (s *migrationServiceSuite) TestImportModelActivate(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 }
 
-func (s *migrationServiceSuite) TestDeleteModel(c *tc.C) {
-	defer s.setupMocks(c).Finish()
-
-	uuid := tc.Must(c, coremodel.NewUUID)
-
-	s.state.EXPECT().Delete(gomock.Any(), uuid).Return(nil)
-	s.deleter.EXPECT().DeleteDB(uuid.String()).Return(nil)
-
-	svc := s.newService(c)
-
-	err := svc.DeleteModel(c.Context(), uuid)
-	c.Assert(err, tc.ErrorIsNil)
-}
-
-func (s *migrationServiceSuite) TestDeleteModelNotFound(c *tc.C) {
-	defer s.setupMocks(c).Finish()
-
-	uuid := tc.Must(c, coremodel.NewUUID)
-
-	s.state.EXPECT().Delete(gomock.Any(), uuid).Return(modelerrors.NotFound)
-	s.deleter.EXPECT().DeleteDB(uuid.String()).Return(nil)
-
-	svc := s.newService(c)
-
-	err := svc.DeleteModel(c.Context(), uuid)
-	c.Assert(err, tc.ErrorIsNil)
-}
-
 func (s *migrationServiceSuite) setupMocks(c *tc.C) *gomock.Controller {
 	ctrl := gomock.NewController(c)
 
 	s.state = NewMockState(ctrl)
-	s.deleter = NewMockModelDeleter(ctrl)
 
 	c.Cleanup(func() {
 		s.state = nil
-		s.deleter = nil
 	})
 
 	return ctrl
