@@ -29,9 +29,3 @@ func (s StubDBGetter) GetWatchableDB(_ context.Context, namespace string) (chang
 	}
 	return nil, nil
 }
-
-type StubDBDeleter struct{}
-
-func (s StubDBDeleter) DeleteDB(namespace string) error {
-	return nil
-}

@@ -244,9 +244,6 @@ type ServerConfig struct {
 	// DBGetter returns WatchableDB implementations based on namespace.
 	DBGetter changestream.WatchableDBGetter
 
-	// DBDeleter is used to delete databases by namespace.
-	DBDeleter database.DBDeleter
-
 	// TracerGetter returns a tracer for the given namespace, this is used
 	// for opentelmetry tracing.
 	TracerGetter trace.TracerGetter
@@ -298,9 +295,6 @@ func (c ServerConfig) Validate() error {
 	}
 	if c.DBGetter == nil {
 		return errors.NotValidf("missing DBGetter")
-	}
-	if c.DBDeleter == nil {
-		return errors.NotValidf("missing DBDeleter")
 	}
 	if c.DomainServicesGetter == nil {
 		return errors.NotValidf("missing DomainServicesGetter")
@@ -379,7 +373,6 @@ func newServer(ctx context.Context, cfg ServerConfig) (_ *Server, err error) {
 		charmhubHTTPClient:       cfg.CharmhubHTTPClient,
 		macaroonHTTPClient:       cfg.MacaroonHTTPClient,
 		dbGetter:                 cfg.DBGetter,
-		dbDeleter:                cfg.DBDeleter,
 		domainServicesGetter:     cfg.DomainServicesGetter,
 		controllerDomainServices: controllerDomainServices,
 		tracerGetter:             cfg.TracerGetter,

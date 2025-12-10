@@ -255,7 +255,6 @@ func (s *ApiServerSuite) setupAPIServer(c *tc.C, controllerCfg controller.Config
 	cfg := DefaultServerConfig(c, s.Clock)
 	cfg.Mux = s.mux
 	cfg.DBGetter = stubDBGetter{db: stubWatchableDB{TxnRunner: s.TxnRunner()}}
-	cfg.DBDeleter = stubDBDeleter{}
 	cfg.DomainServicesGetter = s.DomainServicesGetter(c, s.NoopObjectStore(c), s.NoopLeaseManager(c))
 	cfg.ControllerConfigService = s.ControllerDomainServices(c).ControllerConfig()
 	cfg.PublicDNSName = controllerCfg.AutocertDNSName()
@@ -557,12 +556,6 @@ func (s stubDBGetter) GetWatchableDB(ctx context.Context, namespace string) (cha
 		return nil, errors.Errorf(`expected a request for "controller" DB; got %q`, namespace)
 	}
 	return s.db, nil
-}
-
-type stubDBDeleter struct{}
-
-func (s stubDBDeleter) DeleteDB(namespace string) error {
-	return nil
 }
 
 type stubTracerGetter struct{}

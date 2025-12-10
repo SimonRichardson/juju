@@ -147,10 +147,10 @@ func (s *stateSuite) SetUpTest(c *tc.C) {
 	s.createModel(c, s.modelUUID, s.userUUID)
 }
 
-// TestDeleteImportingStatusSuccess tests that clearing an existing
+// TestDeleteModelImportingStatusSuccess tests that clearing an existing
 // model_migration_import entry succeeds and actually removes the entry from the
 // database.
-func (s *stateSuite) TestDeleteImportingStatusSuccess(c *tc.C) {
+func (s *stateSuite) TestDeleteModelImportingStatusSuccess(c *tc.C) {
 	db := s.DB()
 	st := New(s.TxnRunnerFactory())
 
@@ -170,7 +170,7 @@ func (s *stateSuite) TestDeleteImportingStatusSuccess(c *tc.C) {
 	c.Check(count, tc.Equals, 1)
 
 	// Clear the importing status.
-	err = st.DeleteImportingStatus(c.Context(), s.modelUUID.String())
+	err = st.DeleteModelImportingStatus(c.Context(), s.modelUUID.String())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify the entry has been deleted.
@@ -181,9 +181,9 @@ func (s *stateSuite) TestDeleteImportingStatusSuccess(c *tc.C) {
 	c.Check(count, tc.Equals, 0)
 }
 
-// TestDeleteImportingStatusNoEntry tests that clearing a non-existent
+// TestDeleteModelImportingStatusNoEntry tests that clearing a non-existent
 // model_migration_import entry succeeds without error (idempotent behavior).
-func (s *stateSuite) TestDeleteImportingStatusNoEntry(c *tc.C) {
+func (s *stateSuite) TestDeleteModelImportingStatusNoEntry(c *tc.C) {
 	db := s.DB()
 	st := New(s.TxnRunnerFactory())
 
@@ -196,7 +196,7 @@ func (s *stateSuite) TestDeleteImportingStatusNoEntry(c *tc.C) {
 	c.Check(count, tc.Equals, 0)
 
 	// Clear should succeed even when there's nothing to delete.
-	err = st.DeleteImportingStatus(c.Context(), s.modelUUID.String())
+	err = st.DeleteModelImportingStatus(c.Context(), s.modelUUID.String())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify still no entries.
@@ -207,9 +207,9 @@ func (s *stateSuite) TestDeleteImportingStatusNoEntry(c *tc.C) {
 	c.Check(count, tc.Equals, 0)
 }
 
-// TestDeleteImportingStatusVerifyCorrectEntry tests that clearing
+// TestDeleteModelImportingStatusVerifyCorrectEntry tests that clearing
 // deletes the correct entry and verifies by UUID.
-func (s *stateSuite) TestDeleteImportingStatusVerifyCorrectEntry(c *tc.C) {
+func (s *stateSuite) TestDeleteModelImportingStatusVerifyCorrectEntry(c *tc.C) {
 	db := s.DB()
 	st := New(s.TxnRunnerFactory())
 
@@ -229,7 +229,7 @@ func (s *stateSuite) TestDeleteImportingStatusVerifyCorrectEntry(c *tc.C) {
 	c.Check(retrievedModelUUID, tc.Equals, s.modelUUID.String())
 
 	// Clear the importing status.
-	err = st.DeleteImportingStatus(c.Context(), s.modelUUID.String())
+	err = st.DeleteModelImportingStatus(c.Context(), s.modelUUID.String())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify the entry no longer exists.
@@ -241,10 +241,10 @@ func (s *stateSuite) TestDeleteImportingStatusVerifyCorrectEntry(c *tc.C) {
 	c.Check(count, tc.Equals, 0)
 }
 
-// TestDeleteImportingStatusWrongModelUUID tests that clearing with a
+// TestDeleteModelImportingStatusWrongModelUUID tests that clearing with a
 // non-existent model UUID succeeds without error and doesn't affect other
 // entries.
-func (s *stateSuite) TestDeleteImportingStatusWrongModelUUID(c *tc.C) {
+func (s *stateSuite) TestDeleteModelImportingStatusWrongModelUUID(c *tc.C) {
 	db := s.DB()
 	st := New(s.TxnRunnerFactory())
 
@@ -257,7 +257,7 @@ func (s *stateSuite) TestDeleteImportingStatusWrongModelUUID(c *tc.C) {
 
 	// Try to clear with a different (non-existent) model UUID.
 	differentModelUUID := uuid.MustNewUUID().String()
-	err = st.DeleteImportingStatus(c.Context(), differentModelUUID)
+	err = st.DeleteModelImportingStatus(c.Context(), differentModelUUID)
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify the original entry still exists.
@@ -269,9 +269,9 @@ func (s *stateSuite) TestDeleteImportingStatusWrongModelUUID(c *tc.C) {
 	c.Check(count, tc.Equals, 1)
 }
 
-// TestDeleteImportingStatusIdempotent tests that calling
-// DeleteImportingStatus multiple times is safe and idempotent.
-func (s *stateSuite) TestDeleteImportingStatusIdempotent(c *tc.C) {
+// TestDeleteModelImportingStatusIdempotent tests that calling
+// DeleteModelImportingStatus multiple times is safe and idempotent.
+func (s *stateSuite) TestDeleteModelImportingStatusIdempotent(c *tc.C) {
 	db := s.DB()
 	st := New(s.TxnRunnerFactory())
 
@@ -283,13 +283,13 @@ func (s *stateSuite) TestDeleteImportingStatusIdempotent(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Clear the importing status multiple times.
-	err = st.DeleteImportingStatus(c.Context(), s.modelUUID.String())
+	err = st.DeleteModelImportingStatus(c.Context(), s.modelUUID.String())
 	c.Assert(err, tc.ErrorIsNil)
 
-	err = st.DeleteImportingStatus(c.Context(), s.modelUUID.String())
+	err = st.DeleteModelImportingStatus(c.Context(), s.modelUUID.String())
 	c.Assert(err, tc.ErrorIsNil)
 
-	err = st.DeleteImportingStatus(c.Context(), s.modelUUID.String())
+	err = st.DeleteModelImportingStatus(c.Context(), s.modelUUID.String())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify no entries exist.

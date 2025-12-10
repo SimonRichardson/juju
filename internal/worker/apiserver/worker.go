@@ -18,7 +18,6 @@ import (
 	"github.com/juju/juju/apiserver/authentication/macaroon"
 	"github.com/juju/juju/core/auditlog"
 	"github.com/juju/juju/core/changestream"
-	"github.com/juju/juju/core/database"
 	"github.com/juju/juju/core/flightrecorder"
 	"github.com/juju/juju/core/lease"
 	corelogger "github.com/juju/juju/core/logger"
@@ -51,7 +50,6 @@ type Config struct {
 
 	// DBGetter supplies WatchableDB implementations by namespace.
 	DBGetter                changestream.WatchableDBGetter
-	DBDeleter               database.DBDeleter
 	DomainServicesGetter    services.DomainServicesGetter
 	TracerGetter            trace.TracerGetter
 	ObjectStoreGetter       objectstore.ObjectStoreGetter
@@ -113,9 +111,6 @@ func (config Config) Validate() error {
 	}
 	if config.DBGetter == nil {
 		return errors.NotValidf("nil DBGetter")
-	}
-	if config.DBDeleter == nil {
-		return errors.NotValidf("nil DBDeleter")
 	}
 	if config.TracerGetter == nil {
 		return errors.NotValidf("nil TracerGetter")
@@ -194,7 +189,6 @@ func NewWorker(ctx context.Context, config Config) (worker.Worker, error) {
 		CharmhubHTTPClient:            config.CharmhubHTTPClient,
 		MacaroonHTTPClient:            config.MacaroonHTTPClient,
 		DBGetter:                      config.DBGetter,
-		DBDeleter:                     config.DBDeleter,
 		DomainServicesGetter:          config.DomainServicesGetter,
 		ControllerConfigService:       config.ControllerConfigService,
 		TracerGetter:                  config.TracerGetter,

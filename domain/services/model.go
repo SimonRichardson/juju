@@ -403,8 +403,8 @@ func (s *ModelServices) Secret() *secretservice.WatchableService {
 // operations.
 func (s *ModelServices) ModelMigration() *modelmigrationservice.Service {
 	return modelmigrationservice.NewService(
-		modelmigrationstatecontroller.New(changestream.NewTxnRunnerFactory(s.controllerDB), s.modelUUID),
-		modelmigrationstatemodel.New(changestream.NewTxnRunnerFactory(s.modelDB)),
+		modelmigrationstatecontroller.New(changestream.NewTxnRunnerFactory(s.controllerDB)),
+		modelmigrationstatemodel.New(changestream.NewTxnRunnerFactory(s.modelDB), s.modelUUID),
 		s.modelUUID.String(),
 		providertracker.ProviderRunner[modelmigrationservice.InstanceProvider](s.providerFactory, s.modelUUID.String()),
 		providertracker.ProviderRunner[modelmigrationservice.ResourceProvider](s.providerFactory, s.modelUUID.String()),

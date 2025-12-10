@@ -70,7 +70,6 @@ func (s *sharedServerContextSuite) newConfig(c *tc.C) sharedServerConfig {
 		controllerDomainServices: s.controllerDomainServices,
 		logger:                   loggertesting.WrapCheckLog(c),
 		dbGetter:                 StubDBGetter{},
-		dbDeleter:                StubDBDeleter{},
 		domainServicesGetter:     &StubDomainServicesGetter{},
 		watcherRegistryGetter:    &StubWatcherRegistryGetter{},
 		tracerGetter:             &StubTracerGetter{},

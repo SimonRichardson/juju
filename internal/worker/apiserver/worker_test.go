@@ -46,7 +46,6 @@ type workerFixture struct {
 	charmhubHTTPClient      *http.Client
 	macaroonHTTPClient      *http.Client
 	dbGetter                stubWatchableDBGetter
-	dbDeleter               stubDBDeleter
 	tracerGetter            stubTracerGetter
 	objectStoreGetter       stubObjectStoreGetter
 	controllerConfigService *MockControllerConfigService
@@ -99,7 +98,6 @@ func (s *workerFixture) SetUpTest(c *tc.C) {
 		CharmhubHTTPClient:                s.charmhubHTTPClient,
 		MacaroonHTTPClient:                s.macaroonHTTPClient,
 		DBGetter:                          s.dbGetter,
-		DBDeleter:                         s.dbDeleter,
 		ControllerConfigService:           s.controllerConfigService,
 		ModelService:                      s.modelService,
 		DomainServicesGetter:              s.domainServicesGetter,

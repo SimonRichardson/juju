@@ -17,7 +17,6 @@ import (
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/changestream"
-	"github.com/juju/juju/core/database"
 	"github.com/juju/juju/core/flightrecorder"
 	"github.com/juju/juju/core/lease"
 	corelogger "github.com/juju/juju/core/logger"
@@ -48,10 +47,6 @@ type sharedServerContext struct {
 	// dbGetter is used to access databases from the API server. Along with
 	// creating a new database for new models and during model migrations.
 	dbGetter changestream.WatchableDBGetter
-
-	// dbDeleter is used to delete the database when a model migration fails
-	// and the model is being removed.
-	dbDeleter database.DBDeleter
 
 	// DomainServicesGetter is used to get the domain services for controllers
 	// and models.
@@ -101,7 +96,6 @@ type sharedServerConfig struct {
 	macaroonHTTPClient      facade.HTTPClient
 
 	dbGetter                 changestream.WatchableDBGetter
-	dbDeleter                database.DBDeleter
 	domainServicesGetter     services.DomainServicesGetter
 	controllerDomainServices services.ControllerDomainServices
 	tracerGetter             trace.TracerGetter
@@ -127,9 +121,6 @@ func (c *sharedServerConfig) validate() error {
 	}
 	if c.dbGetter == nil {
 		return errors.NotValidf("nil dbGetter")
-	}
-	if c.dbDeleter == nil {
-		return errors.NotValidf("nil dbDeleter")
 	}
 	if c.domainServicesGetter == nil {
 		return errors.NotValidf("nil domainServicesGetter")
@@ -178,7 +169,6 @@ func newSharedServerContext(config sharedServerConfig) (*sharedServerContext, er
 		charmhubHTTPClient:       config.charmhubHTTPClient,
 		macaroonHTTPClient:       config.macaroonHTTPClient,
 		dbGetter:                 config.dbGetter,
-		dbDeleter:                config.dbDeleter,
 		domainServicesGetter:     config.domainServicesGetter,
 		controllerDomainServices: config.controllerDomainServices,
 		tracerGetter:             config.tracerGetter,

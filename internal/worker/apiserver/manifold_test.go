@@ -63,7 +63,6 @@ type ManifoldSuite struct {
 	charmhubHTTPClient      *http.Client
 	macaroonHTTPClient      *http.Client
 	dbGetter                stubWatchableDBGetter
-	dbDeleter               stubDBDeleter
 	domainServicesGetter    *stubDomainServicesGetter
 	controllerConfigService *MockControllerConfigService
 	modelService            *MockModelService
@@ -100,7 +99,6 @@ func (s *ManifoldSuite) SetUpTest(c *tc.C) {
 	s.jwtParser = &jwtparser.Parser{}
 	s.stub.ResetCalls()
 	s.domainServicesGetter = &stubDomainServicesGetter{}
-	s.dbDeleter = stubDBDeleter{}
 	s.watcherRegistryGetter = &stubWatcherRegistryGetter{}
 	s.flightRecorder = flightrecorder.NoopRecorder{}
 
@@ -119,7 +117,6 @@ func (s *ManifoldSuite) SetUpTest(c *tc.C) {
 		TraceName:                         "trace",
 		ObjectStoreName:                   "object-store",
 		ChangeStreamName:                  "change-stream",
-		DBAccessorName:                    "db-accessor",
 		JWTParserName:                     "jwt-parser",
 		WatcherRegistryName:               "watcher-registry",
 		FlightRecorderName:                "flight-recorder",
@@ -148,7 +145,6 @@ func (s *ManifoldSuite) newGetter(overlay map[string]interface{}) dependency.Get
 		"log-sink":            s.logSink,
 		"http-client":         s.httpClientGetter,
 		"change-stream":       s.dbGetter,
-		"db-accessor":         s.dbDeleter,
 		"domain-services":     s.domainServicesGetter,
 		"trace":               s.tracerGetter,
 		"object-store":        s.objectStoreGetter,
@@ -188,7 +184,7 @@ var expectedInputs = []string{
 	"agent", "authenticator", "clock", "mux",
 	"upgrade", "auditconfig-updater", "lease-manager",
 	"http-client", "change-stream",
-	"domain-services", "trace", "object-store", "log-sink", "db-accessor",
+	"domain-services", "trace", "object-store", "log-sink",
 	"jwt-parser", "watcher-registry",
 	"flight-recorder",
 }
@@ -237,7 +233,6 @@ func (s *ManifoldSuite) TestStart(c *tc.C) {
 		LogSink:                    s.logSink,
 		CharmhubHTTPClient:         s.charmhubHTTPClient,
 		DBGetter:                   s.dbGetter,
-		DBDeleter:                  s.dbDeleter,
 		DomainServicesGetter:       s.domainServicesGetter,
 		ControllerConfigService:    s.controllerConfigService,
 		TracerGetter:               s.tracerGetter,
@@ -375,12 +370,6 @@ func (s stubWatchableDBGetter) GetWatchableDB(ctx context.Context, namespace str
 		return nil, errors.Errorf(`expected a request for "controller" DB; got %q`, namespace)
 	}
 	return nil, nil
-}
-
-type stubDBDeleter struct{}
-
-func (s stubDBDeleter) DeleteDB(namespace string) error {
-	return nil
 }
 
 type stubDomainServicesGetter struct {

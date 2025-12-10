@@ -26,10 +26,10 @@ func New(modelFactory database.TxnRunnerFactory) *State {
 	}
 }
 
-// DeleteImportingStatus removes the entry from the model_migration_import table
-// in the controller database, indicating that the model import has completed or
-// been aborted.
-func (s *State) DeleteImportingStatus(ctx context.Context, modelUUID string) error {
+// DeleteModelImportingStatus removes the entry from the model_migration_import
+// table in the controller database, indicating that the model import has
+// completed or been aborted.
+func (s *State) DeleteModelImportingStatus(ctx context.Context, modelUUID string) error {
 	db, err := s.DB(ctx)
 	if err != nil {
 		return errors.Capture(err)

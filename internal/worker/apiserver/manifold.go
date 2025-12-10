@@ -22,7 +22,6 @@ import (
 	"github.com/juju/juju/cmd/juju/commands"
 	"github.com/juju/juju/core/auditlog"
 	"github.com/juju/juju/core/changestream"
-	"github.com/juju/juju/core/database"
 	coredependency "github.com/juju/juju/core/dependency"
 	"github.com/juju/juju/core/flightrecorder"
 	corehttp "github.com/juju/juju/core/http"
@@ -77,7 +76,6 @@ type ManifoldConfig struct {
 	WatcherRegistryName    string
 	FlightRecorderName     string
 
-	DBAccessorName     string
 	ChangeStreamName   string
 	DomainServicesName string
 	TraceName          string
@@ -131,9 +129,6 @@ func (config ManifoldConfig) Validate() error {
 	if config.WatcherRegistryName == "" {
 		return errors.NotValidf("empty WatcherRegistryName")
 	}
-	if config.DBAccessorName == "" {
-		return errors.NotValidf("empty DBAccessorName")
-	}
 	if config.ChangeStreamName == "" {
 		return errors.NotValidf("empty ChangeStreamName")
 	}
@@ -181,7 +176,6 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			config.AuditConfigUpdaterName,
 			config.LeaseManagerName,
 			config.HTTPClientName,
-			config.DBAccessorName,
 			config.ChangeStreamName,
 			config.DomainServicesName,
 			config.TraceName,
@@ -265,11 +259,6 @@ func (config ManifoldConfig) start(ctx context.Context, getter dependency.Getter
 		return nil, errors.Trace(err)
 	}
 
-	var dbDeleter database.DBDeleter
-	if err := getter.Get(config.DBAccessorName, &dbDeleter); err != nil {
-		return nil, errors.Trace(err)
-	}
-
 	var domainServicesGetter services.DomainServicesGetter
 	if err := getter.Get(config.DomainServicesName, &domainServicesGetter); err != nil {
 		return nil, errors.Trace(err)
@@ -333,7 +322,6 @@ func (config ManifoldConfig) start(ctx context.Context, getter dependency.Getter
 		CharmhubHTTPClient:                charmhubHTTPClient,
 		MacaroonHTTPClient:                macaroonHTTPClient,
 		DBGetter:                          dbGetter,
-		DBDeleter:                         dbDeleter,
 		DomainServicesGetter:              domainServicesGetter,
 		ControllerConfigService:           controllerConfigService,
 		TracerGetter:                      tracerGetter,
