@@ -225,6 +225,78 @@ func (st *State) EnsureModelNotAliveCascade(ctx context.Context, modelUUID strin
 	return artifacts, nil
 }
 
+// EnsureModelDeadCascade ensures that all entities that have a life
+// state associated with the model identified by the input model UUID
+// are set to dead. This includes the model itself. This should only be
+// used for models that are importing/migrating.
+func (st *State) EnsureModelDeadCascade(ctx context.Context, modelUUID string) error {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	eUUID := entityUUID{
+		UUID: modelUUID,
+	}
+
+	updateModelLife, err := st.Prepare(`UPDATE model_life SET life_id = 2 WHERE model_uuid = $entityUUID.uuid`, eUUID)
+	if err != nil {
+		return errors.Errorf("preparing update model life query: %w", err)
+	}
+	updateUnits, err := st.Prepare(`UPDATE unit SET life_id = 2`)
+	if err != nil {
+		return errors.Errorf("preparing update units query: %w", err)
+	}
+	updateApplications, err := st.Prepare(`UPDATE application SET life_id = 2`)
+	if err != nil {
+		return errors.Errorf("preparing update applications query: %w", err)
+	}
+	updateRelations, err := st.Prepare(`UPDATE relation SET life_id = 2`)
+	if err != nil {
+		return errors.Errorf("preparing update relations query: %w", err)
+	}
+	updateMachines, err := st.Prepare(`UPDATE machine SET life_id = 2`)
+	if err != nil {
+		return errors.Errorf("preparing update machines query: %w", err)
+	}
+	updateMachineInstances, err := st.Prepare(`UPDATE machine_cloud_instance SET life_id = 2`)
+	if err != nil {
+		return errors.Errorf("preparing update machine instances query: %w", err)
+	}
+
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		// Update the model life to dead.
+		if err := tx.Query(ctx, updateModelLife, eUUID).Run(); err != nil {
+			return errors.Errorf("setting model life to dying: %w", err)
+		}
+
+		// Update the life of each entity to dead.
+
+		if err := tx.Query(ctx, updateUnits).Run(); err != nil {
+			return errors.Errorf("updating units: %w", err)
+		}
+		if err := tx.Query(ctx, updateApplications).Run(); err != nil {
+			return errors.Errorf("updating applications: %w", err)
+		}
+		if err := tx.Query(ctx, updateRelations).Run(); err != nil {
+			return errors.Errorf("updating relations: %w", err)
+		}
+		if err := tx.Query(ctx, updateMachines).Run(); err != nil {
+			return errors.Errorf("updating machines: %w", err)
+		}
+		if err := tx.Query(ctx, updateMachineInstances).Run(); err != nil {
+			return errors.Errorf("updating machine instances: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return errors.Errorf("ensuring model %q is dead: %w", modelUUID, err)
+	}
+
+	return nil
+}
+
 // ModelScheduleRemoval schedules the removal job for a model.
 //
 // We don't care if the model does not exist at this point because:

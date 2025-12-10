@@ -990,40 +990,40 @@ func (m *MockRemovalService) EXPECT() *MockRemovalServiceMockRecorder {
 	return m.recorder
 }
 
-// DeleteImportingModel mocks base method.
-func (m *MockRemovalService) DeleteImportingModel(arg0 context.Context, arg1 model.UUID) error {
+// RemoveMigratingModel mocks base method.
+func (m *MockRemovalService) RemoveMigratingModel(arg0 context.Context, arg1 model.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteImportingModel", arg0, arg1)
+	ret := m.ctrl.Call(m, "RemoveMigratingModel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteImportingModel indicates an expected call of DeleteImportingModel.
-func (mr *MockRemovalServiceMockRecorder) DeleteImportingModel(arg0, arg1 any) *MockRemovalServiceDeleteImportingModelCall {
+// RemoveMigratingModel indicates an expected call of RemoveMigratingModel.
+func (mr *MockRemovalServiceMockRecorder) RemoveMigratingModel(arg0, arg1 any) *MockRemovalServiceRemoveMigratingModelCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteImportingModel", reflect.TypeOf((*MockRemovalService)(nil).DeleteImportingModel), arg0, arg1)
-	return &MockRemovalServiceDeleteImportingModelCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMigratingModel", reflect.TypeOf((*MockRemovalService)(nil).RemoveMigratingModel), arg0, arg1)
+	return &MockRemovalServiceRemoveMigratingModelCall{Call: call}
 }
 
-// MockRemovalServiceDeleteImportingModelCall wrap *gomock.Call
-type MockRemovalServiceDeleteImportingModelCall struct {
+// MockRemovalServiceRemoveMigratingModelCall wrap *gomock.Call
+type MockRemovalServiceRemoveMigratingModelCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockRemovalServiceDeleteImportingModelCall) Return(arg0 error) *MockRemovalServiceDeleteImportingModelCall {
+func (c *MockRemovalServiceRemoveMigratingModelCall) Return(arg0 error) *MockRemovalServiceRemoveMigratingModelCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRemovalServiceDeleteImportingModelCall) Do(f func(context.Context, model.UUID) error) *MockRemovalServiceDeleteImportingModelCall {
+func (c *MockRemovalServiceRemoveMigratingModelCall) Do(f func(context.Context, model.UUID) error) *MockRemovalServiceRemoveMigratingModelCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRemovalServiceDeleteImportingModelCall) DoAndReturn(f func(context.Context, model.UUID) error) *MockRemovalServiceDeleteImportingModelCall {
+func (c *MockRemovalServiceRemoveMigratingModelCall) DoAndReturn(f func(context.Context, model.UUID) error) *MockRemovalServiceRemoveMigratingModelCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -224,40 +224,56 @@ func (s *modelSuite) TestRemoveModelNotFoundInBothControllerAndModel(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, modelerrors.NotFound)
 }
 
-func (s *modelSuite) TestDeleteImportingModel(c *tc.C) {
+func (s *modelSuite) TestRemoveMigratingModel(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 
 	cExp := s.controllerState.EXPECT()
 	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(true, nil)
-	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
+	cExp.MarkModelAsDead(gomock.Any(), "some-model-uuid").Return(nil)
 
-	s.provider.EXPECT().Destroy(gomock.Any()).Return(nil)
+	mExp := s.modelState.EXPECT()
+	mExp.IsControllerModel(gomock.Any(), "some-model-uuid").Return(false, nil)
+	mExp.EnsureModelDeadCascade(gomock.Any(), "some-model-uuid").Return(nil)
 
-	err := s.newService(c).DeleteImportingModel(c.Context(), "some-model-uuid")
+	err := s.newService(c).RemoveMigratingModel(c.Context(), "some-model-uuid")
 	c.Assert(err, tc.ErrorIsNil)
 }
 
-func (s *modelSuite) TestDeleteImportingModelNotImporting(c *tc.C) {
+func (s *modelSuite) TestRemoveMigratingModelControllerModel(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	mExp := s.modelState.EXPECT()
+	mExp.IsControllerModel(gomock.Any(), "some-model-uuid").Return(true, nil)
+
+	err := s.newService(c).RemoveMigratingModel(c.Context(), "some-model-uuid")
+	c.Assert(err, tc.ErrorMatches, `.*cannot remove controller model.*`)
+}
+
+func (s *modelSuite) TestRemoveMigratingModelNotImporting(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 
 	cExp := s.controllerState.EXPECT()
 	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(false, nil)
 
-	err := s.newService(c).DeleteImportingModel(c.Context(), "some-model-uuid")
+	mExp := s.modelState.EXPECT()
+	mExp.IsControllerModel(gomock.Any(), "some-model-uuid").Return(false, nil)
+
+	err := s.newService(c).RemoveMigratingModel(c.Context(), "some-model-uuid")
 	c.Assert(err, tc.ErrorMatches, `.*is not importing`)
 }
 
-func (s *modelSuite) TestDeleteImportingModelFailedProviderDestroy(c *tc.C) {
+func (s *modelSuite) TestRemoveMigratingModelEnsureDeadFailure(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 
 	cExp := s.controllerState.EXPECT()
 	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(true, nil)
-	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
 
-	s.provider.EXPECT().Destroy(gomock.Any()).Return(errors.Errorf("front fell off"))
+	mExp := s.modelState.EXPECT()
+	mExp.IsControllerModel(gomock.Any(), "some-model-uuid").Return(false, nil)
+	mExp.EnsureModelDeadCascade(gomock.Any(), "some-model-uuid").Return(errors.Errorf("front fell off"))
 
-	err := s.newService(c).DeleteImportingModel(c.Context(), "some-model-uuid")
-	c.Assert(err, tc.ErrorIsNil)
+	err := s.newService(c).RemoveMigratingModel(c.Context(), "some-model-uuid")
+	c.Assert(err, tc.ErrorMatches, `.*front fell off`)
 }
 
 func (s *modelSuite) TestDeleteModel(c *tc.C) {

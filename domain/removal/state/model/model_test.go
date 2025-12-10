@@ -123,6 +123,28 @@ func (s *modelSuite) TestEnsureModelNotAliveCascadeEmpty(c *tc.C) {
 	c.Check(artifacts.Empty(), tc.IsTrue)
 }
 
+func (s *modelSuite) TestEnsureModelDeadCascade(c *tc.C) {
+	svc := s.setupApplicationService(c)
+
+	appUUID := s.createIAASApplication(c, svc, "some-app", applicationservice.AddIAASUnitArg{})
+	units, machines := s.getAllUnitAndMachineUUIDs(c)
+	c.Assert(units, tc.HasLen, 1)
+	c.Assert(machines, tc.HasLen, 1)
+
+	st := NewState(s.TxnRunnerFactory(), loggertesting.WrapCheckLog(c))
+
+	modelUUID := s.getModelUUID(c)
+
+	err := st.EnsureModelDeadCascade(c.Context(), modelUUID)
+	c.Assert(err, tc.ErrorIsNil)
+
+	s.checkModelLife(c, modelUUID, life.Dead)
+	s.checkUnitLife(c, units[0].String(), life.Dead)
+	s.checkMachineLife(c, machines[0].String(), life.Dead)
+	s.checkInstanceLife(c, machines[0].String(), life.Dead)
+	s.checkApplicationLife(c, appUUID.String(), life.Dead)
+}
+
 func (s *modelSuite) TestModelRemovalNormalSuccess(c *tc.C) {
 	modelUUID := s.getModelUUID(c)
 

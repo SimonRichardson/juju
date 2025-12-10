@@ -166,8 +166,8 @@ type MachineService interface {
 // RemovalService defines the methods required to remove an importing model
 // that has failed to import completely.
 type RemovalService interface {
-	// DeleteImportingModel removes the model that is in the importing state.
-	DeleteImportingModel(ctx context.Context, modelUUID coremodel.UUID) error
+	// RemoveMigratingModel removes the model that is in the importing state.
+	RemoveMigratingModel(ctx context.Context, modelUUID coremodel.UUID) error
 }
 
 // APIV4 implements the APIV4.
@@ -352,7 +352,7 @@ func (api *API) Abort(ctx context.Context, args params.ModelArgs) error {
 		return errors.Capture(err)
 	}
 
-	err = removalServiceGetter.DeleteImportingModel(ctx, modelUUID)
+	err = removalServiceGetter.RemoveMigratingModel(ctx, modelUUID)
 	if err != nil {
 		return errors.Capture(err)
 	}

@@ -45,6 +45,12 @@ type ModelState interface {
 	// not alive.
 	EnsureModelNotAliveCascade(ctx context.Context, modelUUID string, force bool) (removal.ModelArtifacts, error)
 
+	// EnsureModelDeadCascade ensures that all entities that have a life
+	// state associated with the model identified by the input model UUID
+	// are set to dead. This includes the model itself. This should only be
+	// used for models that are importing/migrating.
+	EnsureModelDeadCascade(ctx context.Context, modelUUID string) error
+
 	// ModelScheduleRemoval schedules a removal job for the model with the
 	// input UUID, qualified with the input force boolean.
 	// We don't care if the unit does not exist at this point because:
@@ -97,6 +103,46 @@ func (s *Service) RemoveModel(
 	}
 
 	return s.removeModel(ctx, modelUUID, force, wait)
+}
+
+// RemoveMigratingModel removes a model that is currently importing/migrating.
+// The model is guaranteed after this call to be dead. All it's associated
+// entities (units, machines, applications, relations, etc) will also be dead.
+func (s *Service) RemoveMigratingModel(
+	ctx context.Context,
+	modelUUID model.UUID,
+) error {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	if controllerModel, err := s.modelState.IsControllerModel(ctx, modelUUID.String()); err != nil {
+		return errors.Capture(err)
+	} else if controllerModel {
+		return errors.Errorf("cannot remove controller model %q", modelUUID)
+	}
+
+	if migrating, err := s.controllerState.IsMigratingModel(ctx, modelUUID.String()); err != nil {
+		return errors.Errorf("getting model %q migrating status in controller: %w", modelUUID, err)
+	} else if !migrating {
+		return errors.Errorf("model %q is not importing", modelUUID)
+	}
+
+	// Ensure all the model entities are dead, so that the entities can be
+	// notified correctly.
+
+	if err := s.modelState.EnsureModelDeadCascade(ctx, modelUUID.String()); err != nil {
+		return errors.Errorf("model %q: %w", modelUUID, err)
+	}
+
+	// Once all entities are dead, we can mark the model as dead in the
+	// controller database. This will cause the undertaker to delete the model
+	// database.
+
+	if err := s.controllerState.MarkModelAsDead(ctx, modelUUID.String()); err != nil {
+		return errors.Errorf("marking controller model %q as dead: %w", modelUUID, err)
+	}
+
+	return nil
 }
 
 func (s *Service) removeModel(
@@ -216,40 +262,6 @@ func (s *Service) removeModel(
 	}
 
 	return modelJobUUID, nil
-}
-
-// DeleteImportingModel removes the model that is currently being imported.
-func (s *Service) DeleteImportingModel(ctx context.Context, modelUUID model.UUID) error {
-	_, span := trace.Start(ctx, trace.NameFromFunc())
-	defer span.End()
-
-	// Ensure that the model is currently importing, thus we can delete it.
-	// Otherwise, we might be deleting a model that is being used.
-
-	migrating, err := s.controllerState.IsMigratingModel(ctx, modelUUID.String())
-	if err != nil {
-		return errors.Errorf("getting model %q migrating status in controller: %w", modelUUID, err)
-	} else if !migrating {
-		return errors.Errorf("model %q is not importing", modelUUID)
-	}
-
-	// Attempt to destroy the provider of the model. This is best effort,
-	// because we might not have all the model information available to do so.
-	provider, err := s.providerGetter(ctx)
-	if err != nil && !errors.Is(err, coreerrors.NotSupported) {
-		s.logger.Errorf(ctx, "failed to get model provider: %v", err)
-	} else if err == nil {
-		if err := provider.Destroy(ctx); err != nil {
-			s.logger.Errorf(ctx, "failed to destroy model provider: %v", err)
-		}
-	}
-
-	// If this fails, the undertaker will retry the deletion later.
-	if err := s.controllerState.DeleteModel(ctx, modelUUID.String()); err != nil {
-		return errors.Errorf("deleting model: %w", err)
-	}
-
-	return nil
 }
 
 // DeleteModel removes the model with the given UUID from the controller
