@@ -211,21 +211,16 @@ func (s *Suite) TestImport(c *tc.C) {
 }
 
 func (s *Suite) TestAbort(c *tc.C) {
-	c.Skip("re-implment testing import when model migration is implemented on dqlite")
 	defer s.setupMocks(c).Finish()
 
 	s.expectImportModel(c)
+	s.removalService.EXPECT().RemoveMigratingModel(gomock.Any(), gomock.Any()).Return(nil)
 
 	api := s.mustNewAPI(c, c.MkDir())
 	tag := s.importModel(c, api)
 
 	err := api.Abort(c.Context(), params.ModelArgs{ModelTag: tag.String()})
 	c.Assert(err, tc.ErrorIsNil)
-
-	// The model should no longer exist.
-	//exists, err := s.State.ModelExists(tag.Id())
-	//c.Assert(err, tc.ErrorIsNil)
-	//c.Check(exists, tc.IsFalse)
 }
 
 func (s *Suite) TestAbortNotATag(c *tc.C) {
@@ -245,25 +240,11 @@ func (s *Suite) TestAbortMissingModel(c *tc.C) {
 	c.Assert(err, tc.ErrorMatches, `model "`+newUUID+`" not found`)
 }
 
-func (s *Suite) TestAbortNotImportingModel(c *tc.C) {
-	c.Skip("re-implment testing import when model migration is implemented on dqlite")
-	defer s.setupMocks(c).Finish()
-
-	//st := s.Factory.MakeModel(c, nil)
-	//defer st.Close()
-	//model, err := st.Model()
-	//c.Assert(err, tc.ErrorIsNil)
-
-	//api := s.mustNewAPI(c, c.MkDir())
-	//err = api.Abort(c.Context(), params.ModelArgs{ModelTag: model.ModelTag().String()})
-	//c.Assert(err, tc.ErrorMatches, `migration mode for the model is not importing`)
-}
-
 func (s *Suite) TestActivate(c *tc.C) {
-	c.Skip("re-implment testing import when model migration is implemented on dqlite")
 	defer s.setupMocks(c).Finish()
 
 	s.expectImportModel(c)
+	s.modelMigrationService.EXPECT().ActivateImport(gomock.Any()).Return(nil)
 
 	api := s.mustNewAPI(c, c.MkDir())
 	tag := s.importModel(c, api)
@@ -287,10 +268,6 @@ func (s *Suite) TestActivate(c *tc.C) {
 		SourceCACert:    jujutesting.CACert,
 	})
 	c.Assert(err, tc.ErrorIsNil)
-
-	//mode, err := s.State.MigrationMode()
-	//c.Assert(err, tc.ErrorIsNil)
-	//c.Assert(mode, tc.Equals, state.MigrationModeNone)
 }
 
 func (s *Suite) TestActivateNotATag(c *tc.C) {
