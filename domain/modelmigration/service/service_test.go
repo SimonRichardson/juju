@@ -18,6 +18,7 @@ import (
 	"github.com/juju/juju/core/semversion"
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/environs/instances"
+	"github.com/juju/juju/internal/errors"
 )
 
 type serviceSuite struct {
@@ -168,6 +169,37 @@ func (s *serviceSuite) TestMachineInstanceIDsNotInProvider(c *tc.C) {
 		s.resourceProviderGetter(c),
 	).CheckMachines(c.Context())
 	c.Check(err, tc.ErrorMatches, "instance IDs.*instance1.*")
+}
+
+func (s *serviceSuite) TestActivateImport(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.modelState.EXPECT().DeleteModelImportingStatus(gomock.Any()).Return(nil)
+	s.controllerState.EXPECT().DeleteModelImportingStatus(gomock.Any(), "test-model-uuid").Return(nil)
+
+	err := NewService(
+		s.controllerState,
+		s.modelState,
+		"test-model-uuid",
+		s.instanceProviderGetter(c),
+		s.resourceProviderGetter(c),
+	).ActivateImport(c.Context())
+	c.Check(err, tc.ErrorIsNil)
+}
+
+func (s *serviceSuite) TestActivateImportModelFails(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.modelState.EXPECT().DeleteModelImportingStatus(gomock.Any()).Return(errors.Errorf("front fell off"))
+
+	err := NewService(
+		s.controllerState,
+		s.modelState,
+		"test-model-uuid",
+		s.instanceProviderGetter(c),
+		s.resourceProviderGetter(c),
+	).ActivateImport(c.Context())
+	c.Check(err, tc.ErrorMatches, ".*front fell off")
 }
 
 func (s *serviceSuite) setupMocks(c *tc.C) *gomock.Controller {

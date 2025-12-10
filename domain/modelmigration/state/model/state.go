@@ -10,6 +10,7 @@ import (
 	"github.com/juju/collections/set"
 
 	"github.com/juju/juju/core/database"
+	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/domain"
 	"github.com/juju/juju/internal/errors"
 )
@@ -18,12 +19,15 @@ import (
 // during model migration.
 type State struct {
 	*domain.StateBase
+
+	modelUUID model.UUID
 }
 
 // New creates a new [State]
-func New(modelFactory database.TxnRunnerFactory) *State {
+func New(modelFactory database.TxnRunnerFactory, modelUUID model.UUID) *State {
 	return &State{
 		StateBase: domain.NewStateBase(modelFactory),
+		modelUUID: modelUUID,
 	}
 }
 
@@ -71,7 +75,6 @@ FROM model`, modelInfo{})
 // GetAllInstanceIDs returns all instance IDs from the current model as
 // juju/collections set.
 func (s *State) GetAllInstanceIDs(ctx context.Context) (set.Strings, error) {
-
 	db, err := s.DB(ctx)
 	if err != nil {
 		return nil, errors.Errorf("cannot get database to retrieve instance IDs: %w", err)
@@ -103,34 +106,30 @@ FROM   machine_cloud_instance`
 	return instanceIDs, nil
 }
 
-// ClearModelImportingStatus removes the entry from the model_migrating table
+// DeleteModelImportingStatus removes the entry from the model_migrating table
 // in the model database, indicating that the model import has completed or been
 // aborted.
-func (s *State) ClearModelImportingStatus(ctx context.Context, modelUUID string) error {
+func (s *State) DeleteModelImportingStatus(ctx context.Context) error {
 	db, err := s.DB(ctx)
 	if err != nil {
-		return errors.Errorf("cannot get database to clear importing status: %w", err)
+		return errors.Errorf("cannot get database to delete importing status: %w", err)
 	}
 
-	type dbModelUUID struct {
-		ModelUUID string `db:"model_uuid"`
-	}
-
-	modelUUIDArg := dbModelUUID{
-		ModelUUID: modelUUID,
+	modelUUIDArg := entityUUID{
+		UUID: s.modelUUID.String(),
 	}
 
 	stmt, err := s.Prepare(`
 DELETE FROM model_migrating
-WHERE model_uuid = $dbModelUUID.model_uuid
+WHERE model_uuid = $entityUUID.uuid
 	`, modelUUIDArg)
 	if err != nil {
-		return errors.Errorf("preparing clear importing status statement: %w", err)
+		return errors.Errorf("preparing delete importing status statement: %w", err)
 	}
 
 	return db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		if err := tx.Query(ctx, stmt, modelUUIDArg).Run(); err != nil {
-			return errors.Errorf("clearing importing status for model %q in model database: %w", modelUUID, err)
+			return errors.Errorf("deleting importing status for model %q: %w", s.modelUUID, err)
 		}
 		return nil
 	})

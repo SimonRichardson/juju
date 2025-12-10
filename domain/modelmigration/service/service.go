@@ -64,6 +64,10 @@ type Service struct {
 // ControllerState defines the interface required for accessing the underlying state of
 // the model during migration.
 type ControllerState interface {
+	// DeleteModelImportingStatus removes the entry from the model_migrating
+	// table in the model database, indicating that the model import has
+	// completed or been aborted.
+	DeleteModelImportingStatus(ctx context.Context, modelUUID string) error
 }
 
 // ModelState defines the interface required for accessing the underlying state
@@ -75,9 +79,10 @@ type ModelState interface {
 	// GetAllInstanceIDs returns all instance IDs from the current model as
 	// juju/collections set.
 	GetAllInstanceIDs(ctx context.Context) (set.Strings, error)
-	// ClearModelImportingStatus removes the entry from the model_migrating table
-	// in the model database, indicating that the model import has completed or been aborted.
-	ClearModelImportingStatus(ctx context.Context, modelUUID string) error
+	// DeleteModelImportingStatus removes the entry from the model_migrating
+	// table in the model database, indicating that the model import has
+	// completed or been aborted.
+	DeleteModelImportingStatus(ctx context.Context) error
 }
 
 // NewService is responsible for constructing a new [Service] to handle model migration
@@ -298,6 +303,33 @@ func (s *Service) MinionReports(ctx context.Context) (migration.MinionReports, e
 func (s *Service) ActivateImport(ctx context.Context) error {
 	ctx, span := trace.Start(ctx, trace.NameFromFunc())
 	defer span.End()
+
+	// Delete the migration importing status from the model database. This
+	// should ensure that the model is no longer considered to be importing.
+
+	// As we need to affect both the controller and model databases, we need to
+	// attempt this is a best effort manner. The state layer should ensure
+	// idempotency, so if one operation succeeds and the other fails, we can
+	// retry safely.
+
+	// Attempt to delete the importing status from the model database first, as
+	// that should allow the model to be considered active in this controller.
+	// The controller database entry can be removed later if this step fails,
+	// it shouldn't prevent the model from being used (in theory).
+
+	if err := s.modelState.DeleteModelImportingStatus(ctx); err != nil {
+		return errors.Errorf(
+			"deleting model importing status from model database: %w",
+			err,
+		)
+	}
+
+	if err := s.controllerState.DeleteModelImportingStatus(ctx, s.modelUUID); err != nil {
+		return errors.Errorf(
+			"deleting model importing status from controller database: %w",
+			err,
+		)
+	}
 
 	return nil
 }

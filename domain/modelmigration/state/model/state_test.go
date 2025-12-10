@@ -12,7 +12,6 @@ import (
 
 	"github.com/juju/juju/core/instance"
 	coremodel "github.com/juju/juju/core/model"
-	modeltesting "github.com/juju/juju/core/model/testing"
 	usertesting "github.com/juju/juju/core/user/testing"
 	jujuversion "github.com/juju/juju/core/version"
 	domainagentbinary "github.com/juju/juju/domain/agentbinary"
@@ -30,6 +29,7 @@ type migrationSuite struct {
 	schematesting.ModelSuite
 
 	controllerUUID uuid.UUID
+	modelUUID      coremodel.UUID
 }
 
 func TestMigrationSuite(t *testing.T) {
@@ -39,13 +39,13 @@ func TestMigrationSuite(t *testing.T) {
 func (s *migrationSuite) SetUpTest(c *tc.C) {
 	s.ModelSuite.SetUpTest(c)
 	s.controllerUUID = uuid.MustNewUUID()
+	s.modelUUID = tc.Must0(c, coremodel.NewUUID)
 
 	runner := s.TxnRunnerFactory()
 	state := statemodel.NewState(runner, loggertesting.WrapCheckLog(c))
 
-	id := modeltesting.GenModelUUID(c)
 	args := model.ModelDetailArgs{
-		UUID:               id,
+		UUID:               s.modelUUID,
 		AgentStream:        domainagentbinary.AgentStreamReleased,
 		AgentVersion:       jujuversion.Current,
 		LatestAgentVersion: jujuversion.Current,
@@ -66,7 +66,7 @@ func (s *migrationSuite) SetUpTest(c *tc.C) {
 // TestGetControllerUUID is asserting the happy path of getting the controller
 // uuid from the database.
 func (s *migrationSuite) TestGetControllerUUID(c *tc.C) {
-	controllerId, err := New(s.TxnRunnerFactory()).GetControllerUUID(c.Context())
+	controllerId, err := New(s.TxnRunnerFactory(), s.modelUUID).GetControllerUUID(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(controllerId, tc.Equals, s.controllerUUID.String())
 }
@@ -126,7 +126,7 @@ func (s *migrationSuite) TestGetAllInstanceIDs(c *tc.C) {
 	)
 	c.Assert(err, tc.ErrorIsNil)
 
-	instanceIDs, err := New(s.TxnRunnerFactory()).GetAllInstanceIDs(c.Context())
+	instanceIDs, err := New(s.TxnRunnerFactory(), s.modelUUID).GetAllInstanceIDs(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(instanceIDs, tc.HasLen, 2)
 	c.Check(instanceIDs.Values(), tc.SameContents, []string{"instance-0", "instance-1"})
@@ -135,17 +135,17 @@ func (s *migrationSuite) TestGetAllInstanceIDs(c *tc.C) {
 // TestEmptyInstanceIDs tests that no error is returned when there are no
 // instances in the model.
 func (s *migrationSuite) TestEmptyInstanceIDs(c *tc.C) {
-	instanceIDs, err := New(s.TxnRunnerFactory()).GetAllInstanceIDs(c.Context())
+	instanceIDs, err := New(s.TxnRunnerFactory(), s.modelUUID).GetAllInstanceIDs(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(instanceIDs, tc.HasLen, 0)
 }
 
-// TestClearModelImportingStatusSuccess tests that clearing an existing
+// TestDeleteModelImportingStatusSuccess tests that clearing an existing
 // model_migrating entry succeeds and actually removes the entry from the
 // database.
-func (s *migrationSuite) TestClearModelImportingStatusSuccess(c *tc.C) {
+func (s *migrationSuite) TestDeleteModelImportingStatusSuccess(c *tc.C) {
 	db := s.DB()
-	st := New(s.TxnRunnerFactory())
+	st := New(s.TxnRunnerFactory(), s.modelUUID)
 
 	// Get the model UUID from the database.
 	var modelUUID string
@@ -168,7 +168,7 @@ func (s *migrationSuite) TestClearModelImportingStatusSuccess(c *tc.C) {
 	c.Check(count, tc.Equals, 1)
 
 	// Clear the importing status.
-	err = st.ClearModelImportingStatus(c.Context(), modelUUID)
+	err = st.DeleteModelImportingStatus(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify the entry has been deleted.
@@ -179,53 +179,43 @@ func (s *migrationSuite) TestClearModelImportingStatusSuccess(c *tc.C) {
 	c.Check(count, tc.Equals, 0)
 }
 
-// TestClearModelImportingStatusNoEntry tests that clearing a non-existent
+// TestDeleteModelImportingStatusNoEntry tests that clearing a non-existent
 // model_migrating entry succeeds without error (idempotent behavior).
-func (s *migrationSuite) TestClearModelImportingStatusNoEntry(c *tc.C) {
+func (s *migrationSuite) TestDeleteModelImportingStatusNoEntry(c *tc.C) {
 	db := s.DB()
-	st := New(s.TxnRunnerFactory())
-
-	// Get the model UUID from the database.
-	var modelUUID string
-	err := db.QueryRowContext(c.Context(), "SELECT uuid FROM model").Scan(&modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
+	st := New(s.TxnRunnerFactory(), s.modelUUID)
 
 	// Verify no entry exists.
 	var count int
-	err = db.QueryRowContext(c.Context(),
+	err := db.QueryRowContext(c.Context(),
 		"SELECT COUNT(*) FROM model_migrating WHERE model_uuid = ?",
-		modelUUID).Scan(&count)
+		s.modelUUID).Scan(&count)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(count, tc.Equals, 0)
 
 	// Clear should succeed even when there's nothing to delete.
-	err = st.ClearModelImportingStatus(c.Context(), modelUUID)
+	err = st.DeleteModelImportingStatus(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify still no entries.
 	err = db.QueryRowContext(c.Context(),
 		"SELECT COUNT(*) FROM model_migrating WHERE model_uuid = ?",
-		modelUUID).Scan(&count)
+		s.modelUUID).Scan(&count)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(count, tc.Equals, 0)
 }
 
-// TestClearModelImportingStatusVerifyCorrectEntry tests that clearing
+// TestDeleteModelImportingStatusVerifyCorrectEntry tests that clearing
 // deletes the correct entry and verifies by UUID.
-func (s *migrationSuite) TestClearModelImportingStatusVerifyCorrectEntry(c *tc.C) {
+func (s *migrationSuite) TestDeleteModelImportingStatusVerifyCorrectEntry(c *tc.C) {
 	db := s.DB()
-	st := New(s.TxnRunnerFactory())
-
-	// Get the model UUID from the database.
-	var modelUUID string
-	err := db.QueryRowContext(c.Context(), "SELECT uuid FROM model").Scan(&modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
+	st := New(s.TxnRunnerFactory(), s.modelUUID)
 
 	// Insert a model_migrating entry with a specific UUID.
 	migratingUUID := uuid.MustNewUUID().String()
-	_, err = db.ExecContext(c.Context(),
+	_, err := db.ExecContext(c.Context(),
 		"INSERT INTO model_migrating (uuid, model_uuid) VALUES (?, ?)",
-		migratingUUID, modelUUID)
+		migratingUUID, s.modelUUID)
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify we can query the specific entry by its UUID.
@@ -234,10 +224,10 @@ func (s *migrationSuite) TestClearModelImportingStatusVerifyCorrectEntry(c *tc.C
 		"SELECT model_uuid FROM model_migrating WHERE uuid = ?",
 		migratingUUID).Scan(&retrievedModelUUID)
 	c.Assert(err, tc.ErrorIsNil)
-	c.Check(retrievedModelUUID, tc.Equals, modelUUID)
+	c.Check(retrievedModelUUID, tc.Equals, s.modelUUID.String())
 
 	// Clear the importing status.
-	err = st.ClearModelImportingStatus(c.Context(), modelUUID)
+	err = st.DeleteModelImportingStatus(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify the entry no longer exists.
@@ -249,72 +239,31 @@ func (s *migrationSuite) TestClearModelImportingStatusVerifyCorrectEntry(c *tc.C
 	c.Check(count, tc.Equals, 0)
 }
 
-// TestClearModelImportingStatusWrongModelUUID tests that clearing with a
-// non-existent model UUID succeeds without error and doesn't affect other
-// entries.
-func (s *migrationSuite) TestClearModelImportingStatusWrongModelUUID(c *tc.C) {
+// TestDeleteModelImportingStatusIdempotent tests that calling
+// DeleteModelImportingStatus multiple times is safe and idempotent.
+func (s *migrationSuite) TestDeleteModelImportingStatusIdempotent(c *tc.C) {
 	db := s.DB()
-	st := New(s.TxnRunnerFactory())
-
-	// Get the actual model UUID from the database.
-	var modelUUID string
-	err := db.QueryRowContext(c.Context(), "SELECT uuid FROM model").Scan(&modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
+	st := New(s.TxnRunnerFactory(), s.modelUUID)
 
 	// Insert a model_migrating entry.
 	migratingUUID := uuid.MustNewUUID().String()
-	_, err = db.ExecContext(c.Context(),
+	_, err := db.ExecContext(c.Context(),
 		"INSERT INTO model_migrating (uuid, model_uuid) VALUES (?, ?)",
-		migratingUUID, modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
-
-	// Try to clear with a different (non-existent) model UUID.
-	differentModelUUID := uuid.MustNewUUID().String()
-	err = st.ClearModelImportingStatus(c.Context(), differentModelUUID)
-	c.Assert(err, tc.ErrorIsNil)
-
-	// Verify the original entry still exists.
-	var count int
-	err = db.QueryRowContext(c.Context(),
-		"SELECT COUNT(*) FROM model_migrating WHERE model_uuid = ?",
-		modelUUID).Scan(&count)
-	c.Assert(err, tc.ErrorIsNil)
-	c.Check(count, tc.Equals, 1)
-}
-
-// TestClearModelImportingStatusIdempotent tests that calling
-// ClearModelImportingStatus multiple times is safe and idempotent.
-func (s *migrationSuite) TestClearModelImportingStatusIdempotent(c *tc.C) {
-	db := s.DB()
-	st := New(s.TxnRunnerFactory())
-
-	// Get the model UUID from the database.
-	var modelUUID string
-	err := db.QueryRowContext(c.Context(), "SELECT uuid FROM model").Scan(&modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
-
-	// Insert a model_migrating entry.
-	migratingUUID := uuid.MustNewUUID().String()
-	_, err = db.ExecContext(c.Context(),
-		"INSERT INTO model_migrating (uuid, model_uuid) VALUES (?, ?)",
-		migratingUUID, modelUUID)
+		migratingUUID, s.modelUUID)
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Clear the importing status multiple times.
-	err = st.ClearModelImportingStatus(c.Context(), modelUUID)
+	err = st.DeleteModelImportingStatus(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 
-	err = st.ClearModelImportingStatus(c.Context(), modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
-
-	err = st.ClearModelImportingStatus(c.Context(), modelUUID)
+	err = st.DeleteModelImportingStatus(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 
 	// Verify no entries exist.
 	var count int
 	err = db.QueryRowContext(c.Context(),
 		"SELECT COUNT(*) FROM model_migrating WHERE model_uuid = ?",
-		modelUUID).Scan(&count)
+		s.modelUUID).Scan(&count)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(count, tc.Equals, 0)
 }

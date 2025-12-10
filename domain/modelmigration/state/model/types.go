@@ -15,3 +15,7 @@ type modelInfo struct {
 type instanceID struct {
 	ID string `db:"instance_id"`
 }
+
+type entityUUID struct {
+	UUID string `db:"uuid"`
+}
