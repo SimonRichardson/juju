@@ -224,6 +224,42 @@ func (s *modelSuite) TestRemoveModelNotFoundInBothControllerAndModel(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, modelerrors.NotFound)
 }
 
+func (s *modelSuite) TestDeleteImportingModel(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	cExp := s.controllerState.EXPECT()
+	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(true, nil)
+	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
+
+	s.provider.EXPECT().Destroy(gomock.Any()).Return(nil)
+
+	err := s.newService(c).DeleteImportingModel(c.Context(), "some-model-uuid")
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *modelSuite) TestDeleteImportingModelNotImporting(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	cExp := s.controllerState.EXPECT()
+	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(false, nil)
+
+	err := s.newService(c).DeleteImportingModel(c.Context(), "some-model-uuid")
+	c.Assert(err, tc.ErrorMatches, `.*is not importing`)
+}
+
+func (s *modelSuite) TestDeleteImportingModelFailedProviderDestroy(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	cExp := s.controllerState.EXPECT()
+	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(true, nil)
+	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
+
+	s.provider.EXPECT().Destroy(gomock.Any()).Return(errors.Errorf("front fell off"))
+
+	err := s.newService(c).DeleteImportingModel(c.Context(), "some-model-uuid")
+	c.Assert(err, tc.ErrorIsNil)
+}
+
 func (s *modelSuite) TestDeleteModel(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 

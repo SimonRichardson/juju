@@ -79,6 +79,10 @@ type ControllerDBState interface {
 	// GetActiveModelSecretBackend returns the active secret backend ID and
 	// config for the model with the input UUID.
 	GetActiveModelSecretBackend(ctx context.Context, modelUUID string) (string, *provider.ModelBackendConfig, error)
+
+	// IsMigratingModel returns whether the model with the input UUID
+	// is currently migrating.
+	IsMigratingModel(ctx context.Context, modelUUID string) (bool, error)
 }
 
 // WatcherFactory describes methods for creating watchers.

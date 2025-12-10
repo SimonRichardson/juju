@@ -60,6 +60,29 @@ func (s *modelSuite) TestGetModelLifeNotFound(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, modelerrors.NotFound)
 }
 
+func (s *modelSuite) TestIsMigratingModel(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory(), loggertesting.WrapCheckLog(c))
+
+	modelUUID := s.getModelUUID(c)
+
+	isMigrating, err := st.IsMigratingModel(c.Context(), modelUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(isMigrating, tc.IsFalse)
+
+	// Set the model as migrating.
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO model_migration_import (uuid, model_uuid)
+VALUES ('foo', ?)`, modelUUID)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	isMigrating, err = st.IsMigratingModel(c.Context(), modelUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(isMigrating, tc.IsTrue)
+}
+
 func (s *modelSuite) TestEnsureModelNotAlive(c *tc.C) {
 	st := NewState(s.TxnRunnerFactory(), loggertesting.WrapCheckLog(c))
 
