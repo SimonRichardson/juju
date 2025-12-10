@@ -47,6 +47,7 @@ type Suite struct {
 	objectStoreGetter         *MockModelObjectStoreGetter
 	modelMigrationService     *MockModelMigrationService
 	agentService              *MockModelAgentService
+	removalService            *MockRemovalService
 
 	facadeContext facadetest.ModelContext
 }
@@ -430,6 +431,7 @@ func (s *Suite) setupMocks(c *tc.C) *gomock.Controller {
 	s.modelMigrationService = NewMockModelMigrationService(ctrl)
 
 	s.agentService = NewMockModelAgentService(ctrl)
+	s.removalService = NewMockRemovalService(ctrl)
 
 	s.authorizer = &apiservertesting.FakeAuthorizer{
 		Tag:      names.NewUserTag("fred"),
@@ -455,6 +457,7 @@ func (s *Suite) setupMocks(c *tc.C) *gomock.Controller {
 		s.objectStoreGetter = nil
 		s.statusService = nil
 		s.upgradeService = nil
+		s.removalService = nil
 	})
 
 	return ctrl
@@ -466,6 +469,10 @@ func (s *Suite) migrationServiceGetter(context.Context, model.UUID) (migrationta
 
 func (s *Suite) agentServiceGetter(context.Context, model.UUID) (migrationtarget.ModelAgentService, error) {
 	return s.agentService, nil
+}
+
+func (s *Suite) removalServiceGetter(context.Context, model.UUID) (migrationtarget.RemovalService, error) {
+	return s.removalService, nil
 }
 
 func (s *Suite) newAPI(versions facades.FacadeVersions, logDir string) (*migrationtarget.API, error) {
@@ -480,6 +487,7 @@ func (s *Suite) newAPI(versions facades.FacadeVersions, logDir string) (*migrati
 		s.machineService,
 		s.agentServiceGetter,
 		s.migrationServiceGetter,
+		s.removalServiceGetter,
 		versions,
 		logDir,
 	)
@@ -526,7 +534,7 @@ func (s *Suite) expectImportModel(c *tc.C) {
 	s.domainServicesGetter.EXPECT().ServicesForModel(gomock.Any(), gomock.Any()).Return(s.domainServices, nil)
 	s.modelImporter.EXPECT().ImportModel(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, bytes []byte) error {
 		scope := func(model.UUID) modelmigration.Scope {
-			return modelmigration.NewScope(nil, nil, nil, tc.Must0(c, model.NewUUID))
+			return modelmigration.NewScope(nil, nil, tc.Must0(c, model.NewUUID))
 		}
 		return migration.NewModelImporter(
 			scope,

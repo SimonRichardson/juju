@@ -147,10 +147,6 @@ type ModelService interface {
 	GetAllModels(ctx context.Context) ([]coremodel.Model, error)
 	// Model returns the model associated with the provided uuid.
 	Model(ctx context.Context, uuid coremodel.UUID) (coremodel.Model, error)
-	// ClearControllerImportingStatus removes the entry from the
-	// model_migration_import table in the controller database, indicating that
-	// the model import has completed or been aborted.
-	ClearControllerImportingStatus(ctx context.Context, uuid coremodel.UUID) error
 }
 
 // MachineService is used to get the life of all machines before migrating.
@@ -409,15 +405,9 @@ func (api *API) Activate(ctx context.Context, args params.ActivateModelArgs) err
 		}
 	}
 
-	// Clear the model database's model_migrating table entry
-	err = modelMigrationService.ActivateImport(ctx)
-	if err != nil {
-		return errors.Capture(err)
-	}
-
-	// Clear the controller database's model_migration_import table entry
-	err = api.modelService.ClearControllerImportingStatus(ctx, modelUUID)
-	if err != nil {
+	// Activate the import, this will clear any migration flags and allow the
+	// model to be used normally.
+	if err := modelMigrationService.ActivateImport(ctx); err != nil {
 		return errors.Capture(err)
 	}
 
