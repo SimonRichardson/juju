@@ -289,14 +289,20 @@ func (s *Service) DeleteModel(ctx context.Context, modelUUID model.UUID) error {
 		return errors.Errorf("model %q is dying", modelUUID).Add(removalerrors.EntityNotDead)
 	}
 
-	// Attempt to destroy the provider of the model. This is best effort,
-	// because we might not have all the model information available to do so.
-	provider, err := s.providerGetter(ctx)
-	if err != nil && !errors.Is(err, coreerrors.NotSupported) {
-		s.logger.Errorf(ctx, "failed to get model provider: %v", err)
-	} else if err == nil {
-		if err := provider.Destroy(ctx); err != nil {
-			s.logger.Errorf(ctx, "failed to destroy model provider: %v", err)
+	// Only attempt to destroy the provider if the model is not migrating.
+	if isMigrating, err := s.controllerState.IsMigratingModel(ctx, modelUUID.String()); err != nil {
+		return errors.Errorf("checking if model %q is migrating in controller: %w", modelUUID, err)
+	} else if !isMigrating {
+		// Attempt to destroy the provider of the model. This is best effort,
+		// because we might not have all the model information available to do
+		// so.
+		provider, err := s.providerGetter(ctx)
+		if err != nil && !errors.Is(err, coreerrors.NotSupported) {
+			s.logger.Errorf(ctx, "failed to get model provider: %v", err)
+		} else if err == nil {
+			if err := provider.Destroy(ctx); err != nil {
+				s.logger.Errorf(ctx, "failed to destroy model provider: %v", err)
+			}
 		}
 	}
 

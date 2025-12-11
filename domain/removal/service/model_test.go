@@ -281,9 +281,22 @@ func (s *modelSuite) TestDeleteModel(c *tc.C) {
 
 	cExp := s.controllerState.EXPECT()
 	cExp.GetModelLife(gomock.Any(), "some-model-uuid").Return(life.Dead, nil)
+	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(false, nil)
 	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
 
 	s.provider.EXPECT().Destroy(gomock.Any()).Return(nil)
+
+	err := s.newService(c).DeleteModel(c.Context(), "some-model-uuid")
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *modelSuite) TestDeleteModelIsMigrating(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	cExp := s.controllerState.EXPECT()
+	cExp.GetModelLife(gomock.Any(), "some-model-uuid").Return(life.Dead, nil)
+	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(true, nil)
+	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
 
 	err := s.newService(c).DeleteModel(c.Context(), "some-model-uuid")
 	c.Assert(err, tc.ErrorIsNil)
@@ -314,6 +327,7 @@ func (s *modelSuite) TestDeleteModelControllerGetModelLifeNotFound(c *tc.C) {
 
 	cExp := s.controllerState.EXPECT()
 	cExp.GetModelLife(gomock.Any(), "some-model-uuid").Return(-1, modelerrors.NotFound)
+	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(false, nil)
 	cExp.DeleteModel(gomock.Any(), "some-model-uuid").Return(nil)
 
 	s.provider.EXPECT().Destroy(gomock.Any()).Return(nil)
