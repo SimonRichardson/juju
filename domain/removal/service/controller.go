@@ -39,6 +39,10 @@ type ControllerState interface {
 	// MarkModelAsDead marks the model with the input UUID as dead.
 	MarkModelAsDead(ctx context.Context, modelUUID string) error
 
+	// MarkMigratingModelAsDead marks the migrating model with the input UUID as
+	// dead.
+	MarkMigratingModelAsDead(ctx context.Context, modelUUID string) error
+
 	// DeleteModel removes the model with the input UUID from the database.
 	DeleteModel(ctx context.Context, modelUUID string) error
 }

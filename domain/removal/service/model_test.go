@@ -229,7 +229,7 @@ func (s *modelSuite) TestRemoveMigratingModel(c *tc.C) {
 
 	cExp := s.controllerState.EXPECT()
 	cExp.IsMigratingModel(gomock.Any(), "some-model-uuid").Return(true, nil)
-	cExp.MarkModelAsDead(gomock.Any(), "some-model-uuid").Return(nil)
+	cExp.MarkMigratingModelAsDead(gomock.Any(), "some-model-uuid").Return(nil)
 
 	mExp := s.modelState.EXPECT()
 	mExp.IsControllerModel(gomock.Any(), "some-model-uuid").Return(false, nil)

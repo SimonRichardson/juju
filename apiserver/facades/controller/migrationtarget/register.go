@@ -140,5 +140,6 @@ func makeFacade(
 		removalServiceGetter,
 		facadeVersions,
 		ctx.LogDir(),
+		ctx.Logger().Child("migrationtarget"),
 	)
 }

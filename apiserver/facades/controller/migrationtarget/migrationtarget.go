@@ -206,6 +206,7 @@ type API struct {
 	requiredMigrationFacadeVersions facades.FacadeVersions
 
 	logDir string
+	logger corelogger.Logger
 }
 
 // NewAPI returns a new migration target api. Accepts a NewEnvironFunc and
@@ -224,6 +225,7 @@ func NewAPI(
 	removalServiceGetter RemoveServiceGetter,
 	requiredMigrationFacadeVersions facades.FacadeVersions,
 	logDir string,
+	logger corelogger.Logger,
 ) (*API, error) {
 	return &API{
 		controllerModelUUID:             ctx.ControllerModelUUID(),
@@ -236,9 +238,11 @@ func NewAPI(
 		machineService:                  machineService,
 		modelAgentServiceGetter:         modelAgentServiceGetter,
 		modelMigrationServiceGetter:     modelMigrationServiceGetter,
+		removalServiceGetter:            removalServiceGetter,
 		authorizer:                      authorizer,
 		requiredMigrationFacadeVersions: requiredMigrationFacadeVersions,
 		logDir:                          logDir,
+		logger:                          logger,
 	}, nil
 }
 
@@ -346,6 +350,8 @@ func (api *API) Abort(ctx context.Context, args params.ModelArgs) error {
 		return errors.Capture(err)
 	}
 
+	api.logger.Debugf(ctx, "Abort migrating model %q", args.ModelTag)
+
 	modelUUID := coremodel.UUID(modelTag.Id())
 	removalServiceGetter, err := api.removalServiceGetter(ctx, modelUUID)
 	if err != nil {
@@ -369,6 +375,8 @@ func (api *API) Activate(ctx context.Context, args params.ActivateModelArgs) err
 	if err != nil {
 		return errors.Capture(err)
 	}
+
+	api.logger.Debugf(ctx, "Activate migrating model %q", args.ModelTag)
 
 	modelUUID := coremodel.UUID(modelTag.Id())
 	modelMigrationService, err := api.modelMigrationServiceGetter(ctx, modelUUID)

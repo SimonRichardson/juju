@@ -316,6 +316,44 @@ func (c *MockControllerDBStateIsMigratingModelCall) DoAndReturn(f func(context.C
 	return c
 }
 
+// MarkMigratingModelAsDead mocks base method.
+func (m *MockControllerDBState) MarkMigratingModelAsDead(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkMigratingModelAsDead", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkMigratingModelAsDead indicates an expected call of MarkMigratingModelAsDead.
+func (mr *MockControllerDBStateMockRecorder) MarkMigratingModelAsDead(arg0, arg1 any) *MockControllerDBStateMarkMigratingModelAsDeadCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkMigratingModelAsDead", reflect.TypeOf((*MockControllerDBState)(nil).MarkMigratingModelAsDead), arg0, arg1)
+	return &MockControllerDBStateMarkMigratingModelAsDeadCall{Call: call}
+}
+
+// MockControllerDBStateMarkMigratingModelAsDeadCall wrap *gomock.Call
+type MockControllerDBStateMarkMigratingModelAsDeadCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockControllerDBStateMarkMigratingModelAsDeadCall) Return(arg0 error) *MockControllerDBStateMarkMigratingModelAsDeadCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockControllerDBStateMarkMigratingModelAsDeadCall) Do(f func(context.Context, string) error) *MockControllerDBStateMarkMigratingModelAsDeadCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockControllerDBStateMarkMigratingModelAsDeadCall) DoAndReturn(f func(context.Context, string) error) *MockControllerDBStateMarkMigratingModelAsDeadCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // MarkModelAsDead mocks base method.
 func (m *MockControllerDBState) MarkModelAsDead(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
