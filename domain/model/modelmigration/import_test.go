@@ -199,7 +199,7 @@ func (i *importSuite) TestModelCreate(c *tc.C) {
 		loggertesting.WrapCheckLog(c),
 		modelmigrationtesting.IgnoredSetupOperation(importOp),
 	)
-	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
+	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(activated, tc.IsTrue)
 }
@@ -281,7 +281,7 @@ func (i *importSuite) TestModelCreateWithAgentStream(c *tc.C) {
 		loggertesting.WrapCheckLog(c),
 		modelmigrationtesting.IgnoredSetupOperation(importOp),
 	)
-	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
+	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(activated, tc.IsTrue)
 }
@@ -355,7 +355,7 @@ func (i *importSuite) TestModelCreateRollbacksOnFailure(c *tc.C) {
 		loggertesting.WrapCheckLog(c),
 		modelmigrationtesting.IgnoredSetupOperation(importOp),
 	)
-	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
+	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
 	c.Check(err, tc.ErrorMatches, `.*boom.*`)
 
 	// The activator should not be called when the import fails and rolls back.
@@ -432,7 +432,7 @@ func (i *importSuite) TestModelCreateRollbacksOnFailureIgnoreNotFoundModel(c *tc
 		loggertesting.WrapCheckLog(c),
 		modelmigrationtesting.IgnoredSetupOperation(importOp),
 	)
-	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
+	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
 	c.Check(err, tc.ErrorMatches, `.*boom.*`)
 
 	// The activator should not be called when the import fails and rolls back.
@@ -508,7 +508,7 @@ func (i *importSuite) TestModelCreateRollbacksOnFailureIgnoreNotFoundReadOnlyMod
 		loggertesting.WrapCheckLog(c),
 		modelmigrationtesting.IgnoredSetupOperation(importOp),
 	)
-	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
+	err = coordinator.Perform(c.Context(), modelmigration.NewScope(nil, nil, tc.Must0(c, coremodel.NewUUID)), model)
 	c.Check(err, tc.ErrorMatches, `.*boom.*`)
 
 	// The activator should not be called when the import fails and rolls back.
