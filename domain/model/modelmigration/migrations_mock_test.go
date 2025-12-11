@@ -15,10 +15,9 @@ import (
 
 	agentbinary "github.com/juju/juju/core/agentbinary"
 	constraints "github.com/juju/juju/core/constraints"
-	model "github.com/juju/juju/core/model"
 	semversion "github.com/juju/juju/core/semversion"
 	user "github.com/juju/juju/core/user"
-	model0 "github.com/juju/juju/domain/model"
+	model "github.com/juju/juju/domain/model"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -146,46 +145,8 @@ func (m *MockModelImportService) EXPECT() *MockModelImportServiceMockRecorder {
 	return m.recorder
 }
 
-// DeleteModel mocks base method.
-func (m *MockModelImportService) DeleteModel(arg0 context.Context, arg1 model.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteModel", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteModel indicates an expected call of DeleteModel.
-func (mr *MockModelImportServiceMockRecorder) DeleteModel(arg0, arg1 any) *MockModelImportServiceDeleteModelCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteModel", reflect.TypeOf((*MockModelImportService)(nil).DeleteModel), arg0, arg1)
-	return &MockModelImportServiceDeleteModelCall{Call: call}
-}
-
-// MockModelImportServiceDeleteModelCall wrap *gomock.Call
-type MockModelImportServiceDeleteModelCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockModelImportServiceDeleteModelCall) Return(arg0 error) *MockModelImportServiceDeleteModelCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockModelImportServiceDeleteModelCall) Do(f func(context.Context, model.UUID) error) *MockModelImportServiceDeleteModelCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockModelImportServiceDeleteModelCall) DoAndReturn(f func(context.Context, model.UUID) error) *MockModelImportServiceDeleteModelCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // ImportModel mocks base method.
-func (m *MockModelImportService) ImportModel(arg0 context.Context, arg1 model0.ModelImportArgs) (func(context.Context) error, error) {
+func (m *MockModelImportService) ImportModel(arg0 context.Context, arg1 model.ModelImportArgs) (func(context.Context) error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ImportModel", arg0, arg1)
 	ret0, _ := ret[0].(func(context.Context) error)
@@ -212,13 +173,13 @@ func (c *MockModelImportServiceImportModelCall) Return(arg0 func(context.Context
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockModelImportServiceImportModelCall) Do(f func(context.Context, model0.ModelImportArgs) (func(context.Context) error, error)) *MockModelImportServiceImportModelCall {
+func (c *MockModelImportServiceImportModelCall) Do(f func(context.Context, model.ModelImportArgs) (func(context.Context) error, error)) *MockModelImportServiceImportModelCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockModelImportServiceImportModelCall) DoAndReturn(f func(context.Context, model0.ModelImportArgs) (func(context.Context) error, error)) *MockModelImportServiceImportModelCall {
+func (c *MockModelImportServiceImportModelCall) DoAndReturn(f func(context.Context, model.ModelImportArgs) (func(context.Context) error, error)) *MockModelImportServiceImportModelCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

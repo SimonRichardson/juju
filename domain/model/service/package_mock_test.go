@@ -117,44 +117,6 @@ func (m *MockControllerState) EXPECT() *MockControllerStateMockRecorder {
 	return m.recorder
 }
 
-// ClearControllerImportingStatus mocks base method.
-func (m *MockControllerState) ClearControllerImportingStatus(arg0 context.Context, arg1 model.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClearControllerImportingStatus", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ClearControllerImportingStatus indicates an expected call of ClearControllerImportingStatus.
-func (mr *MockControllerStateMockRecorder) ClearControllerImportingStatus(arg0, arg1 any) *MockControllerStateClearControllerImportingStatusCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearControllerImportingStatus", reflect.TypeOf((*MockControllerState)(nil).ClearControllerImportingStatus), arg0, arg1)
-	return &MockControllerStateClearControllerImportingStatusCall{Call: call}
-}
-
-// MockControllerStateClearControllerImportingStatusCall wrap *gomock.Call
-type MockControllerStateClearControllerImportingStatusCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockControllerStateClearControllerImportingStatusCall) Return(arg0 error) *MockControllerStateClearControllerImportingStatusCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockControllerStateClearControllerImportingStatusCall) Do(f func(context.Context, model.UUID) error) *MockControllerStateClearControllerImportingStatusCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockControllerStateClearControllerImportingStatusCall) DoAndReturn(f func(context.Context, model.UUID) error) *MockControllerStateClearControllerImportingStatusCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetModelSeedInformation mocks base method.
 func (m *MockControllerState) GetModelSeedInformation(arg0 context.Context, arg1 model.UUID) (model.ModelInfo, error) {
 	m.ctrl.T.Helper()
@@ -1275,44 +1237,6 @@ func (c *MockStateCheckModelExistsCall) DoAndReturn(f func(context.Context, mode
 	return c
 }
 
-// ClearControllerImportingStatus mocks base method.
-func (m *MockState) ClearControllerImportingStatus(arg0 context.Context, arg1 model.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClearControllerImportingStatus", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ClearControllerImportingStatus indicates an expected call of ClearControllerImportingStatus.
-func (mr *MockStateMockRecorder) ClearControllerImportingStatus(arg0, arg1 any) *MockStateClearControllerImportingStatusCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearControllerImportingStatus", reflect.TypeOf((*MockState)(nil).ClearControllerImportingStatus), arg0, arg1)
-	return &MockStateClearControllerImportingStatusCall{Call: call}
-}
-
-// MockStateClearControllerImportingStatusCall wrap *gomock.Call
-type MockStateClearControllerImportingStatusCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockStateClearControllerImportingStatusCall) Return(arg0 error) *MockStateClearControllerImportingStatusCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockStateClearControllerImportingStatusCall) Do(f func(context.Context, model.UUID) error) *MockStateClearControllerImportingStatusCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateClearControllerImportingStatusCall) DoAndReturn(f func(context.Context, model.UUID) error) *MockStateClearControllerImportingStatusCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // CloudSupportsAuthType mocks base method.
 func (m *MockState) CloudSupportsAuthType(arg0 context.Context, arg1 string, arg2 cloud.AuthType) (bool, error) {
 	m.ctrl.T.Helper()
@@ -1464,44 +1388,6 @@ func (c *MockStateDefaultCloudCredentialNameForOwnerCall) Do(f func(context.Cont
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockStateDefaultCloudCredentialNameForOwnerCall) DoAndReturn(f func(context.Context, user.Name, string) (string, error)) *MockStateDefaultCloudCredentialNameForOwnerCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Delete mocks base method.
-func (m *MockState) Delete(arg0 context.Context, arg1 model.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Delete indicates an expected call of Delete.
-func (mr *MockStateMockRecorder) Delete(arg0, arg1 any) *MockStateDeleteCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockState)(nil).Delete), arg0, arg1)
-	return &MockStateDeleteCall{Call: call}
-}
-
-// MockStateDeleteCall wrap *gomock.Call
-type MockStateDeleteCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockStateDeleteCall) Return(arg0 error) *MockStateDeleteCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockStateDeleteCall) Do(f func(context.Context, model.UUID) error) *MockStateDeleteCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateDeleteCall) DoAndReturn(f func(context.Context, model.UUID) error) *MockStateDeleteCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
