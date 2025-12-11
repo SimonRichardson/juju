@@ -24,7 +24,6 @@ import (
 	jujuversion "github.com/juju/juju/core/version"
 	usererrors "github.com/juju/juju/domain/access/errors"
 	"github.com/juju/juju/domain/model"
-	modelerrors "github.com/juju/juju/domain/model/errors"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/errors"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
@@ -325,7 +324,6 @@ func (i *importSuite) TestModelCreateRollbacksOnFailure(c *tc.C) {
 	i.modelDetailService.EXPECT().CreateImportingModelWithAgentVersionStream(
 		gomock.Any(), jujuversion.Current, agentbinary.AgentStreamReleased,
 	).Return(errors.New("boom"))
-	i.modelImportService.EXPECT().DeleteModel(gomock.Any(), modelUUID).Return(nil)
 
 	model := description.NewModel(description.ModelArgs{
 		Config: map[string]any{
@@ -402,7 +400,6 @@ func (i *importSuite) TestModelCreateRollbacksOnFailureIgnoreNotFoundModel(c *tc
 	i.modelDetailService.EXPECT().CreateImportingModelWithAgentVersionStream(
 		gomock.Any(), jujuversion.Current, agentbinary.AgentStreamReleased,
 	).Return(errors.New("boom"))
-	i.modelImportService.EXPECT().DeleteModel(gomock.Any(), modelUUID).Return(modelerrors.NotFound)
 
 	model := description.NewModel(description.ModelArgs{
 		Config: map[string]any{
@@ -478,7 +475,6 @@ func (i *importSuite) TestModelCreateRollbacksOnFailureIgnoreNotFoundReadOnlyMod
 	i.modelDetailService.EXPECT().CreateImportingModelWithAgentVersionStream(
 		gomock.Any(), jujuversion.Current, agentbinary.AgentStreamReleased,
 	).Return(errors.New("boom"))
-	i.modelImportService.EXPECT().DeleteModel(gomock.Any(), modelUUID).Return(nil)
 
 	model := description.NewModel(description.ModelArgs{
 		Config: map[string]any{

@@ -452,7 +452,7 @@ func (s *Suite) removalServiceGetter(context.Context, model.UUID) (migrationtarg
 	return s.removalService, nil
 }
 
-func (s *Suite) newAPI(versions facades.FacadeVersions, logDir string) (*migrationtarget.API, error) {
+func (s *Suite) newAPI(c *tc.C, versions facades.FacadeVersions, logDir string) (*migrationtarget.API, error) {
 	return migrationtarget.NewAPI(
 		&s.facadeContext,
 		s.authorizer,
@@ -467,22 +467,23 @@ func (s *Suite) newAPI(versions facades.FacadeVersions, logDir string) (*migrati
 		s.removalServiceGetter,
 		versions,
 		logDir,
+		loggertesting.WrapCheckLog(c),
 	)
 }
 
 func (s *Suite) mustNewAPI(c *tc.C, logDir string) *migrationtarget.API {
-	api, err := s.newAPI(facades.FacadeVersions{}, logDir)
+	api, err := s.newAPI(c, facades.FacadeVersions{}, logDir)
 	c.Assert(err, tc.ErrorIsNil)
 	return api
 }
 
-func (s *Suite) newAPIWithFacadeVersions(versions facades.FacadeVersions, logDir string) (*migrationtarget.API, error) {
-	api, err := s.newAPI(versions, logDir)
+func (s *Suite) newAPIWithFacadeVersions(c *tc.C, versions facades.FacadeVersions, logDir string) (*migrationtarget.API, error) {
+	api, err := s.newAPI(c, versions, logDir)
 	return api, err
 }
 
 func (s *Suite) mustNewAPIWithFacadeVersions(c *tc.C, versions facades.FacadeVersions) *migrationtarget.API {
-	api, err := s.newAPIWithFacadeVersions(versions, c.MkDir())
+	api, err := s.newAPIWithFacadeVersions(c, versions, c.MkDir())
 	c.Assert(err, tc.ErrorIsNil)
 	return api
 }
