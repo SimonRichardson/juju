@@ -1599,44 +1599,6 @@ func (c *MockModelDBStateEnsureMachineNotAliveCascadeCall) DoAndReturn(f func(co
 	return c
 }
 
-// EnsureModelDeadCascade mocks base method.
-func (m *MockModelDBState) EnsureModelDeadCascade(arg0 context.Context, arg1 string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnsureModelDeadCascade", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// EnsureModelDeadCascade indicates an expected call of EnsureModelDeadCascade.
-func (mr *MockModelDBStateMockRecorder) EnsureModelDeadCascade(arg0, arg1 any) *MockModelDBStateEnsureModelDeadCascadeCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureModelDeadCascade", reflect.TypeOf((*MockModelDBState)(nil).EnsureModelDeadCascade), arg0, arg1)
-	return &MockModelDBStateEnsureModelDeadCascadeCall{Call: call}
-}
-
-// MockModelDBStateEnsureModelDeadCascadeCall wrap *gomock.Call
-type MockModelDBStateEnsureModelDeadCascadeCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockModelDBStateEnsureModelDeadCascadeCall) Return(arg0 error) *MockModelDBStateEnsureModelDeadCascadeCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockModelDBStateEnsureModelDeadCascadeCall) Do(f func(context.Context, string) error) *MockModelDBStateEnsureModelDeadCascadeCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockModelDBStateEnsureModelDeadCascadeCall) DoAndReturn(f func(context.Context, string) error) *MockModelDBStateEnsureModelDeadCascadeCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // EnsureModelNotAlive mocks base method.
 func (m *MockModelDBState) EnsureModelNotAlive(arg0 context.Context, arg1 string, arg2 bool) error {
 	m.ctrl.T.Helper()
