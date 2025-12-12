@@ -341,13 +341,6 @@ func (s *stateSuite) createModel(c *tc.C, modelUUID coremodel.UUID, userUUID use
 	c.Assert(err, tc.ErrorIsNil)
 }
 
-func (s *stateSuite) createModelWithName(c *tc.C, name string, modelUUID coremodel.UUID, userUUID user.UUID) {
-	s.createModelWithoutActivation(c, name, modelUUID, userUUID)
-
-	err := s.modelState.Activate(c.Context(), modelUUID)
-	c.Assert(err, tc.ErrorIsNil)
-}
-
 func (s *stateSuite) createModelWithoutActivation(
 	c *tc.C, name string, modelUUID coremodel.UUID, creatorUUID user.UUID,
 ) {
@@ -369,15 +362,6 @@ func (s *stateSuite) createModelWithoutActivation(
 			SecretBackend: juju.BackendName,
 		},
 	)
-	c.Assert(err, tc.ErrorIsNil)
-}
-
-// insertCloud is a helper method to create new cloud's in the database during
-// testing.
-func (s *stateSuite) insertCloud(c *tc.C, cloud cloud.Cloud) {
-	cloudSt := dbcloud.NewState(s.TxnRunnerFactory())
-	cloudUUID := uuid.MustNewUUID()
-	err := cloudSt.CreateCloud(c.Context(), usertesting.GenNewName(c, "admin"), cloudUUID.String(), cloud)
 	c.Assert(err, tc.ErrorIsNil)
 }
 
