@@ -300,6 +300,90 @@ func (s *modelStateSuite) TestGetApplicationStatusNotSet(c *tc.C) {
 	})
 }
 
+func (s *modelStateSuite) TestSetOperatorStatus(c *tc.C) {
+	id, _ := s.createCAASApplication(c, "foo", life.Alive, s.workloadStatus(time.Now()))
+
+	now := time.Now().UTC()
+	expected := status.StatusInfo[status.WorkloadStatusType]{
+		Status:  status.WorkloadStatusActive,
+		Message: "message",
+		Data:    []byte("data"),
+		Since:   ptr(now),
+	}
+
+	err := s.state.SetOperatorStatus(c.Context(), id, expected)
+	c.Assert(err, tc.ErrorIsNil)
+
+	status := s.getOperatorStatus(c, id)
+	c.Check(status, tc.DeepEquals, expected)
+}
+
+func (s *modelStateSuite) TestSetOperatorStatusMultipleTimes(c *tc.C) {
+	id, _ := s.createCAASApplication(c, "foo", life.Alive, s.workloadStatus(time.Now()))
+
+	err := s.state.SetOperatorStatus(c.Context(), id, status.StatusInfo[status.WorkloadStatusType]{
+		Status:  status.WorkloadStatusBlocked,
+		Message: "blocked",
+		Since:   ptr(time.Now().UTC()),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	now := time.Now().UTC()
+	expected := status.StatusInfo[status.WorkloadStatusType]{
+		Status:  status.WorkloadStatusActive,
+		Message: "message",
+		Data:    []byte("data"),
+		Since:   ptr(now),
+	}
+
+	err = s.state.SetOperatorStatus(c.Context(), id, expected)
+	c.Assert(err, tc.ErrorIsNil)
+
+	status := s.getOperatorStatus(c, id)
+	c.Check(status, tc.DeepEquals, expected)
+}
+
+func (s *modelStateSuite) TestSetOperatorStatusWithNoData(c *tc.C) {
+	id, _ := s.createCAASApplication(c, "foo", life.Alive, s.workloadStatus(time.Now()))
+
+	now := time.Now().UTC()
+	expected := status.StatusInfo[status.WorkloadStatusType]{
+		Status:  status.WorkloadStatusActive,
+		Message: "message",
+		Since:   ptr(now),
+	}
+
+	err := s.state.SetOperatorStatus(c.Context(), id, expected)
+	c.Assert(err, tc.ErrorIsNil)
+
+	status := s.getOperatorStatus(c, id)
+	c.Check(status, tc.DeepEquals, expected)
+}
+
+func (s *modelStateSuite) TestSetOperatorStatusApplicationNotFound(c *tc.C) {
+	now := time.Now().UTC()
+	expected := status.StatusInfo[status.WorkloadStatusType]{
+		Status:  status.WorkloadStatusActive,
+		Message: "message",
+		Data:    []byte("data"),
+		Since:   ptr(now),
+	}
+
+	err := s.state.SetOperatorStatus(c.Context(), "foo", expected)
+	c.Assert(err, tc.ErrorIs, applicationerrors.ApplicationNotFound)
+}
+
+func (s *modelStateSuite) TestSetOperatorStatusInvalidStatus(c *tc.C) {
+	id, _ := s.createCAASApplication(c, "foo", life.Alive, s.workloadStatus(time.Now()))
+
+	expected := status.StatusInfo[status.WorkloadStatusType]{
+		Status: status.WorkloadStatusType(99),
+	}
+
+	err := s.state.SetOperatorStatus(c.Context(), id, expected)
+	c.Assert(err, tc.ErrorMatches, `unknown status.*`)
+}
+
 func (s *modelStateSuite) TestSetRelationStatus(c *tc.C) {
 	// Arrange: Create relation and statuses.
 	relationUUID := s.addRelationWithLifeAndID(c, corelife.Alive, 7)
@@ -2727,6 +2811,32 @@ func (s *modelStateSuite) assertUnitStatus(c *tc.C, statusType, unitUUID coreuni
 	c.Check(gotMessage, tc.Equals, message)
 	c.Check(gotSince, tc.DeepEquals, since)
 	c.Check(gotData, tc.DeepEquals, data)
+}
+
+func (s *modelStateSuite) getOperatorStatus(c *tc.C, appUUID coreapplication.UUID) status.StatusInfo[status.WorkloadStatusType] {
+	identID := applicationUUID{UUID: appUUID.String()}
+	query, err := sqlair.Prepare(`
+SELECT &statusInfo.*
+FROM operator_status
+WHERE application_uuid = $applicationUUID.uuid;
+`, identID, statusInfo{})
+	c.Assert(err, tc.ErrorIsNil)
+
+	var sts statusInfo
+	err = s.TxnRunner().Txn(c.Context(), func(ctx context.Context, tx *sqlair.TX) error {
+		return tx.Query(ctx, query, identID).Get(&sts)
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	statusType, err := status.DecodeWorkloadStatus(sts.StatusID)
+	c.Assert(err, tc.ErrorIsNil)
+
+	return status.StatusInfo[status.WorkloadStatusType]{
+		Status:  statusType,
+		Message: sts.Message,
+		Data:    sts.Data,
+		Since:   sts.UpdatedAt,
+	}
 }
 
 func assertStatusInfoEqual[T status.StatusID](c *tc.C, got, want status.StatusInfo[T]) {

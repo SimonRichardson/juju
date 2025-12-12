@@ -162,7 +162,7 @@ func (s *OpsSuite) TestUpdateState(c *tc.C) {
 			MachineAddress: network.NewMachineAddress("1.2.3.4"),
 			SpaceName:      "space-name",
 		}}).Return(nil),
-		statusService.EXPECT().SetApplicationStatus(gomock.Any(), "test", appStatus).Return(nil),
+		statusService.EXPECT().SetOperatorStatus(gomock.Any(), "test", appStatus).Return(nil),
 		applicationService.EXPECT().GetAllUnitCloudContainerIDsForApplication(gomock.Any(), appId).Return(cloudContainerIDs, nil),
 		app.EXPECT().Units().Return(units, nil),
 		applicationService.EXPECT().UpdateCAASUnit(gomock.Any(), unit.Name("test/0"), gomock.Any()).DoAndReturn(func(_ context.Context, _ unit.Name, args applicationservice.UpdateCAASUnitParams) error {
@@ -256,7 +256,7 @@ func (s *OpsSuite) TestRefreshApplicationStatus(c *tc.C) {
 	gomock.InOrder(
 		app.EXPECT().State().Return(appState, nil),
 		statusService.EXPECT().GetUnitAgentStatusesForApplication(gomock.Any(), appId).Return(units, nil),
-		statusService.EXPECT().SetApplicationStatus(gomock.Any(), "test", gomock.Any()).DoAndReturn(func(ctx context.Context, name string, si status.StatusInfo) error {
+		statusService.EXPECT().SetOperatorStatus(gomock.Any(), "test", gomock.Any()).DoAndReturn(func(ctx context.Context, name string, si status.StatusInfo) error {
 			mc := tc.NewMultiChecker()
 			mc.AddExpr("_.Since", tc.NotNil)
 			c.Check(si, mc, status.StatusInfo{

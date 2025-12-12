@@ -443,7 +443,7 @@ func updateState(
 			return nil, errors.Trace(err)
 		}
 		now := clk.Now()
-		err = statusService.SetApplicationStatus(ctx, appName, status.StatusInfo{
+		err = statusService.SetOperatorStatus(ctx, appName, status.StatusInfo{
 			Status:  svc.Status.Status,
 			Message: svc.Status.Message,
 			Data:    svc.Status.Data,
@@ -788,7 +788,7 @@ func setApplicationStatus(
 ) error {
 	logger.Tracef(ctx, "updating application %q status to %q, %q, %v", appName, s, reason, data)
 	now := clk.Now()
-	return statusService.SetApplicationStatus(ctx, appName, status.StatusInfo{
+	return statusService.SetOperatorStatus(ctx, appName, status.StatusInfo{
 		Status:  s,
 		Message: reason,
 		Data:    data,

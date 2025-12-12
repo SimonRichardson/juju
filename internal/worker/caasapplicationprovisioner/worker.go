@@ -50,22 +50,18 @@ type CAASProvisionerFacade interface {
 // ApplicationService is used to interact with the application service.
 type ApplicationService interface {
 	// GetApplicationTrustSetting returns the application trust setting.
-	// The following errors may be returned:
-	// - [applicationerrors.ApplicationNotFound] if the application doesn't exist
 	GetApplicationTrustSetting(ctx context.Context, appName string) (bool, error)
 
-	// WatchApplicationSettings watches for changes to the specified application's
-	// settings.
-	// This functions returns the following errors:
-	// - [applicationerrors.ApplicationNotFound] if the application doesn't exist
+	// WatchApplicationSettings watches for changes to the specified
+	// application's settings.
 	WatchApplicationSettings(ctx context.Context, name string) (watcher.NotifyWatcher, error)
 
-	// WatchApplicationUnitLife returns a watcher that observes changes to the life of any units if an application.
+	// WatchApplicationUnitLife returns a watcher that observes changes to the
+	// life of any units if an application.
 	WatchApplicationUnitLife(ctx context.Context, appName string) (watcher.StringsWatcher, error)
 
-	// WatchApplicationScale returns a watcher that observes changes to an application's scale.
-	// The following errors may be returned:
-	// - [applicationerrors.ApplicationNotFound] if the application doesn't exist
+	// WatchApplicationScale returns a watcher that observes changes to an
+	// application's scale.
 	WatchApplicationScale(ctx context.Context, appName string) (watcher.NotifyWatcher, error)
 
 	// GetApplicationScale returns the desired scale of an application,
@@ -73,13 +69,24 @@ type ApplicationService interface {
 	// - [applicationerrors.ApplicationNotFound] if the application doesn't exist
 	GetApplicationScale(ctx context.Context, appName string) (int, error)
 
+	// SetApplicationScalingState sets the scaling state for an application.
 	SetApplicationScalingState(ctx context.Context, name string, scaleTarget int, scaling bool) error
+
+	// GetApplicationScalingState returns the scaling state for an application.
 	GetApplicationScalingState(ctx context.Context, name string) (applicationservice.ScalingState, error)
+
+	// GetApplicationLife returns the life value for the given application UUID.
 	GetApplicationLife(ctx context.Context, id application.UUID) (life.Value, error)
+
+	// GetUnitLife returns the life value for the given unit name.
 	GetUnitLife(context.Context, unit.Name) (life.Value, error)
+
+	// GetAllUnitLifeForApplication returns a map of the unit names and their
+	// life values for the given application.
 	GetAllUnitLifeForApplication(context.Context, application.UUID) (map[unit.Name]life.Value, error)
 
-	// GetApplicationName returns the application name for the given application UUID.
+	// GetApplicationName returns the application name for the given application
+	// UUID.
 	GetApplicationName(ctx context.Context, id application.UUID) (string, error)
 
 	// WatchApplications returns a watcher that observes changes to applications.
@@ -119,29 +126,26 @@ type Runner interface {
 	worker.Worker
 }
 
+// StatusService is used to get and set application status.
 type StatusService interface {
 	// GetUnitAgentStatusesForApplication returns the agent statuses of all
-	// units in the specified application, indexed by unit name, returning an error
-	// satisfying [statuserrors.ApplicationNotFound] if the application doesn't
-	// exist.
+	// units in the specified application, indexed by unit name.
 	GetUnitAgentStatusesForApplication(ctx context.Context, appID application.UUID) (map[unit.Name]status.StatusInfo, error)
 
-	// SetApplicationStatus saves the given application status, overwriting any
-	// current status data. If returns an error satisfying
-	// [statuserrors.ApplicationNotFound] if the application doesn't exist.
-	SetApplicationStatus(ctx context.Context, name string, info status.StatusInfo) error
+	// SetOperatorStatus saves the given operator status, overwriting any
+	// current status data.
+	SetOperatorStatus(ctx context.Context, name string, info status.StatusInfo) error
 }
 
+// AgentPasswordService is used to set application agent passwords.
 type AgentPasswordService interface {
-	// SetApplicationPassword sets the password for the given application. If the
-	// app does not exist, an error satisfying [applicationerrors.ApplicationNotFound]
-	// is returned.
+	// SetApplicationPassword sets the password for the given application.
 	SetApplicationPassword(ctx context.Context, appID application.UUID, password string) error
 }
 
 type StorageProvisioningService interface {
-	// GetFilesystemTemplatesForApplication returns all the filesystem templates for
-	// a given application.
+	// GetFilesystemTemplatesForApplication returns all the filesystem templates
+	// for a given application.
 	GetFilesystemTemplatesForApplication(ctx context.Context, appID application.UUID) ([]storageprovisioning.FilesystemTemplate, error)
 	// GetStorageResourceTagsForApplication returns the storage resource tags for
 	// the given application. These tags are used when creating a resource in an
@@ -149,12 +153,18 @@ type StorageProvisioningService interface {
 	GetStorageResourceTagsForApplication(ctx context.Context, appID application.UUID) (map[string]string, error)
 }
 
+// ResourceOpenerGetter provides a way to get a resource opener for an
+// application.
 type ResourceOpenerGetter interface {
 	ResourceOpenerForApplication(ctx context.Context, appID application.UUID, appName string) (coreresource.Opener, error)
 }
 
+// ResourceOpenerGetterFunc is a function that gets a resource opener for an
+// application.
 type ResourceOpenerGetterFunc func(context.Context, application.UUID, string) (coreresource.Opener, error)
 
+// ResourceOpenerForApplication calls the function to get a resource opener
+// for an application.
 func (f ResourceOpenerGetterFunc) ResourceOpenerForApplication(ctx context.Context, appID application.UUID, appName string) (coreresource.Opener, error) {
 	return f(ctx, appID, appName)
 }

@@ -1719,6 +1719,44 @@ func (c *MockModelStateSetMachineStatusCall) DoAndReturn(f func(context.Context,
 	return c
 }
 
+// SetOperatorStatus mocks base method.
+func (m *MockModelState) SetOperatorStatus(ctx context.Context, applicationID application.UUID, status status.StatusInfo[status.WorkloadStatusType]) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetOperatorStatus", ctx, applicationID, status)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetOperatorStatus indicates an expected call of SetOperatorStatus.
+func (mr *MockModelStateMockRecorder) SetOperatorStatus(ctx, applicationID, status any) *MockModelStateSetOperatorStatusCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOperatorStatus", reflect.TypeOf((*MockModelState)(nil).SetOperatorStatus), ctx, applicationID, status)
+	return &MockModelStateSetOperatorStatusCall{Call: call}
+}
+
+// MockModelStateSetOperatorStatusCall wrap *gomock.Call
+type MockModelStateSetOperatorStatusCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockModelStateSetOperatorStatusCall) Return(arg0 error) *MockModelStateSetOperatorStatusCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockModelStateSetOperatorStatusCall) Do(f func(context.Context, application.UUID, status.StatusInfo[status.WorkloadStatusType]) error) *MockModelStateSetOperatorStatusCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockModelStateSetOperatorStatusCall) DoAndReturn(f func(context.Context, application.UUID, status.StatusInfo[status.WorkloadStatusType]) error) *MockModelStateSetOperatorStatusCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // SetRelationStatus mocks base method.
 func (m *MockModelState) SetRelationStatus(ctx context.Context, relationUUID relation.UUID, sts status.StatusInfo[status.RelationStatusType]) error {
 	m.ctrl.T.Helper()

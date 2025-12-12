@@ -200,6 +200,64 @@ func (s *serviceSuite) TestSetApplicationStatusInvalidStatus(c *tc.C) {
 	c.Assert(err, tc.ErrorMatches, `.*unknown workload status "allocating"`)
 }
 
+func (s *serviceSuite) TestSetOperatorStatus(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	now := time.Now()
+
+	applicationUUID := tc.Must(c, application.NewUUID)
+	s.modelState.EXPECT().GetApplicationUUIDByName(gomock.Any(), "gitlab").Return(applicationUUID, nil)
+	s.modelState.EXPECT().SetOperatorStatus(gomock.Any(), applicationUUID, status.StatusInfo[status.WorkloadStatusType]{
+		Status:  status.WorkloadStatusActive,
+		Message: "doink",
+		Data:    []byte(`{"foo":"bar"}`),
+		Since:   &now,
+	})
+
+	err := s.modelService.SetOperatorStatus(c.Context(), "gitlab", corestatus.StatusInfo{
+		Status:  corestatus.Active,
+		Message: "doink",
+		Data:    map[string]any{"foo": "bar"},
+		Since:   &now,
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	c.Check(s.statusHistory.records, tc.DeepEquals, []statusHistoryRecord{{
+		ns: statushistory.Namespace{Kind: corestatus.KindApplication, ID: "gitlab"},
+		s: corestatus.StatusInfo{
+			Status:  corestatus.Active,
+			Message: "doink",
+			Data:    map[string]any{"foo": "bar"},
+			Since:   &now,
+		},
+	}})
+}
+
+func (s *serviceSuite) TestSetOperatorStatusNotFound(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.modelState.EXPECT().GetApplicationUUIDByName(gomock.Any(), "gitlab").Return("", applicationerrors.ApplicationNotFound)
+
+	err := s.modelService.SetOperatorStatus(c.Context(), "gitlab", corestatus.StatusInfo{
+		Status: corestatus.Active,
+	})
+	c.Assert(err, tc.ErrorIs, applicationerrors.ApplicationNotFound)
+}
+
+func (s *serviceSuite) TestSetOperatorStatusInvalidStatus(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	err := s.modelService.SetOperatorStatus(c.Context(), "gitlab", corestatus.StatusInfo{
+		Status: corestatus.Status("invalid"),
+	})
+	c.Assert(err, tc.ErrorMatches, `.*unknown workload status "invalid"`)
+
+	err = s.modelService.SetOperatorStatus(c.Context(), "gitlab", corestatus.StatusInfo{
+		Status: corestatus.Allocating,
+	})
+	c.Assert(err, tc.ErrorMatches, `.*unknown workload status "allocating"`)
+}
+
 func (s *serviceSuite) TestGetApplicationDisplayStatusNotFound(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 

@@ -56,6 +56,14 @@ type ModelState interface {
 		status status.StatusInfo[status.WorkloadStatusType],
 	) error
 
+	// SetOperatorStatus sets the given operator status for a given application,
+	// overwriting any current status data.
+	SetOperatorStatus(
+		ctx context.Context,
+		applicationID coreapplication.UUID,
+		status status.StatusInfo[status.WorkloadStatusType],
+	) error
+
 	// SetRelationStatus sets the given relation status and checks that the
 	// transition to the new status from the current status is valid.
 	SetRelationStatus(
@@ -261,8 +269,8 @@ func (s *Service) GetAllRelationStatuses(ctx context.Context) (map[corerelation.
 	return result, nil
 }
 
-// SetApplicationStatus validates and sets the given application status, overwriting any
-// current status data. If returns an error satisfying
+// SetApplicationStatus validates and sets the given application status,
+// overwriting any current status data. If returns an error satisfying
 // [statuserrors.ApplicationNotFound] if the application doesn't exist.
 func (s *Service) SetApplicationStatus(
 	ctx context.Context,
@@ -284,6 +292,40 @@ func (s *Service) SetApplicationStatus(
 	}
 
 	if err := s.modelState.SetApplicationStatus(ctx, applicationID, encodedStatus); err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := s.statusHistory.RecordStatus(ctx, status.ApplicationNamespace.WithID(applicationName), statusInfo); err != nil {
+		s.logger.Warningf(ctx, "recording setting application status history: %v", err)
+	}
+
+	return nil
+}
+
+// SetOperatorStatus validates and sets the given operator status for a given
+// application, overwriting any current status data. If returns an error
+// satisfying [statuserrors.ApplicationNotFound] if the application doesn't
+// exist.
+func (s *Service) SetOperatorStatus(
+	ctx context.Context,
+	applicationName string,
+	statusInfo corestatus.StatusInfo,
+) error {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	// This will also verify that the status is valid.
+	encodedStatus, err := encodeWorkloadStatus(statusInfo)
+	if err != nil {
+		return errors.Errorf("encoding workload status: %w", err)
+	}
+
+	applicationID, err := s.modelState.GetApplicationUUIDByName(ctx, applicationName)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	if err := s.modelState.SetOperatorStatus(ctx, applicationID, encodedStatus); err != nil {
 		return errors.Capture(err)
 	}
 

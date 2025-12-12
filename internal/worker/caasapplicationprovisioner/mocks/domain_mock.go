@@ -772,40 +772,40 @@ func (c *MockStatusServiceGetUnitAgentStatusesForApplicationCall) DoAndReturn(f 
 	return c
 }
 
-// SetApplicationStatus mocks base method.
-func (m *MockStatusService) SetApplicationStatus(arg0 context.Context, arg1 string, arg2 status.StatusInfo) error {
+// SetOperatorStatus mocks base method.
+func (m *MockStatusService) SetOperatorStatus(arg0 context.Context, arg1 string, arg2 status.StatusInfo) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetApplicationStatus", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "SetOperatorStatus", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetApplicationStatus indicates an expected call of SetApplicationStatus.
-func (mr *MockStatusServiceMockRecorder) SetApplicationStatus(arg0, arg1, arg2 any) *MockStatusServiceSetApplicationStatusCall {
+// SetOperatorStatus indicates an expected call of SetOperatorStatus.
+func (mr *MockStatusServiceMockRecorder) SetOperatorStatus(arg0, arg1, arg2 any) *MockStatusServiceSetOperatorStatusCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetApplicationStatus", reflect.TypeOf((*MockStatusService)(nil).SetApplicationStatus), arg0, arg1, arg2)
-	return &MockStatusServiceSetApplicationStatusCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOperatorStatus", reflect.TypeOf((*MockStatusService)(nil).SetOperatorStatus), arg0, arg1, arg2)
+	return &MockStatusServiceSetOperatorStatusCall{Call: call}
 }
 
-// MockStatusServiceSetApplicationStatusCall wrap *gomock.Call
-type MockStatusServiceSetApplicationStatusCall struct {
+// MockStatusServiceSetOperatorStatusCall wrap *gomock.Call
+type MockStatusServiceSetOperatorStatusCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockStatusServiceSetApplicationStatusCall) Return(arg0 error) *MockStatusServiceSetApplicationStatusCall {
+func (c *MockStatusServiceSetOperatorStatusCall) Return(arg0 error) *MockStatusServiceSetOperatorStatusCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStatusServiceSetApplicationStatusCall) Do(f func(context.Context, string, status.StatusInfo) error) *MockStatusServiceSetApplicationStatusCall {
+func (c *MockStatusServiceSetOperatorStatusCall) Do(f func(context.Context, string, status.StatusInfo) error) *MockStatusServiceSetOperatorStatusCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStatusServiceSetApplicationStatusCall) DoAndReturn(f func(context.Context, string, status.StatusInfo) error) *MockStatusServiceSetApplicationStatusCall {
+func (c *MockStatusServiceSetOperatorStatusCall) DoAndReturn(f func(context.Context, string, status.StatusInfo) error) *MockStatusServiceSetOperatorStatusCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

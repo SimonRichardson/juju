@@ -333,6 +333,58 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 	return nil
 }
 
+// SetOperatorStatus saves the given operator status for a given application,
+// overwriting any current status data. If returns an error satisfying
+// [applicationerrors.ApplicationNotFound] if the application doesn't exist.
+func (st *ModelState) SetOperatorStatus(
+	ctx context.Context,
+	applicationID coreapplication.UUID,
+	sts status.StatusInfo[status.WorkloadStatusType],
+) error {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	statusID, err := status.EncodeWorkloadStatus(sts.Status)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	statusInfo := applicationStatusInfo{
+		ApplicationID: applicationID,
+		StatusID:      statusID,
+		Message:       sts.Message,
+		Data:          sts.Data,
+		UpdatedAt:     sts.Since,
+	}
+	stmt, err := st.Prepare(`
+INSERT INTO operator_status (*) VALUES ($applicationStatusInfo.*)
+ON CONFLICT(application_uuid) DO UPDATE SET
+    status_id = excluded.status_id,
+    message = excluded.message,
+    updated_at = excluded.updated_at,
+    data = excluded.data;
+`, statusInfo)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := tx.Query(ctx, stmt, statusInfo).Run(); internaldatabase.IsErrConstraintForeignKey(err) {
+			return errors.Errorf("setting status for operator application %q not found", applicationID).
+				Add(applicationerrors.ApplicationNotFound)
+		} else if err != nil {
+			return errors.Capture(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return errors.Errorf("updating operator application status for %q: %w", applicationID, err)
+	}
+	return nil
+}
+
 // GetRelationStatus gets the status of the given relation. It returns an error
 // satisfying [statuserrors.RelationNotFound] if the relation doesn't exist.
 func (st *ModelState) getRelationStatus(
