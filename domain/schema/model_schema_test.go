@@ -97,10 +97,11 @@ func (s *modelSchemaSuite) TestModelTables(c *tc.C) {
 		"application_setting",
 		"application_status",
 		"application_workload_version",
-		"k8s_service",
-		"workload_status_value",
-		"device_constraint",
 		"device_constraint_attribute",
+		"device_constraint",
+		"k8s_service",
+		"operator_status",
+		"workload_status_value",
 
 		// Annotations
 		"annotation_application",
