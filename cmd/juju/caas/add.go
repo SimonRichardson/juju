@@ -800,7 +800,7 @@ func (c *AddCAASCommand) validateCloudRegion(ctx *cmd.Context, cloudRegion strin
 	if err != nil {
 		return "", errors.Annotate(err, "listing cloud regions")
 	}
-	regionListMsg := ""
+	var regionListMsg strings.Builder
 	for _, details := range clouds {
 		// User may have specified cloud name or type so match on both.
 		if details.CloudType == cloudType {
@@ -824,11 +824,11 @@ func (c *AddCAASCommand) validateCloudRegion(ctx *cmd.Context, cloudRegion strin
 					logger.Debugf(context.TODO(), "cloud region %q is valid", cloudRegion)
 					return jujucloud.BuildHostCloudRegion(details.CloudType, region), nil
 				}
-				regionListMsg += fmt.Sprintf("\t%q\n", k)
+				regionListMsg.WriteString(fmt.Sprintf("\t%q\n", k))
 			}
 		}
 	}
-	ctx.Infof("Supported regions for cloud %q: \n%s", cloudType, regionListMsg)
+	ctx.Infof("Supported regions for cloud %q: \n%s", cloudType, regionListMsg.String())
 	return "", errors.NotValidf("cloud region %q", cloudRegion)
 }
 

@@ -112,11 +112,11 @@ func (s *argsSpec) check(c tc.LikeC, output string) {
 }
 
 func (s *argsSpec) expectedKnownHosts() string {
-	out := ""
+	var out strings.Builder
 	for _, id := range strings.Split(s.knownHosts, ",") {
-		out += fmt.Sprintf(".+ dsa-%s\n.+ rsa-%s\n", id, id)
+		out.WriteString(fmt.Sprintf(".+ dsa-%s\n.+ rsa-%s\n", id, id))
 	}
-	return out
+	return out.String()
 }
 
 type SSHMachineSuite struct {

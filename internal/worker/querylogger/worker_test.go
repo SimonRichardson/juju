@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	time "time"
 
@@ -94,12 +95,12 @@ dummy stack
 
 `[1:]
 
-	var expected string
+	var expected strings.Builder
 	for i := 0; i < 100; i++ {
-		expected += fmt.Sprintf(template, float64(i), i)
+		expected.WriteString(fmt.Sprintf(template, float64(i), i))
 	}
 
-	s.expectLogResult(c, dir, expected)
+	s.expectLogResult(c, dir, expected.String())
 
 	workertest.CleanKill(c, w)
 }
