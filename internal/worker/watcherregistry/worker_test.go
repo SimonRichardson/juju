@@ -128,11 +128,9 @@ func (s *registrySuite) TestConcurrency(c *tc.C) {
 
 	var wg sync.WaitGroup
 	start := func(f func()) {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			f()
-			wg.Done()
-		}()
+		})
 	}
 	_, err := reg.Register(c.Context(), workertest.NewErrorWorker(nil))
 	c.Assert(err, tc.ErrorIsNil)

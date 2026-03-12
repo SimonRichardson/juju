@@ -31,13 +31,11 @@ func benchmarkMux(b *testing.B, mux http.Handler) {
 	b.ResetTimer()
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for n := 0; n < b.N; n++ {
 				mux.ServeHTTP(nil, req)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
