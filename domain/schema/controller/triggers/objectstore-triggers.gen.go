@@ -31,8 +31,7 @@ AFTER UPDATE ON object_store_backend FOR EACH ROW
 WHEN 
 	NEW.uuid != OLD.uuid OR
 	NEW.life_id != OLD.life_id OR
-	NEW.type_id != OLD.type_id OR
-	NEW.updated_at != OLD.updated_at 
+	NEW.type_id != OLD.type_id 
 BEGIN
     INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
     VALUES (2, %[2]d, OLD.%[1]s, DATETIME('now', 'utc'));
