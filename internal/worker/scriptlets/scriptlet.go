@@ -6,11 +6,11 @@ package scriptlets
 import (
 	"context"
 
+	"github.com/canonical/starlark/starlark"
 	"github.com/juju/errors"
 	"github.com/juju/worker/v5/catacomb"
 
 	"github.com/juju/juju/core/logger"
-	"go.starlark.net/starlark"
 )
 
 // scriptletRunnerConfig holds the configuration for a single scriptlet
@@ -71,8 +71,7 @@ func (w *scriptletRunner) Wait() error {
 }
 
 func (w *scriptletRunner) loop() error {
-	ctx, cancel := w.scopedContext()
-	defer cancel()
+	ctx := w.catacomb.Context(context.Background())
 
 	w.cfg.Logger.Infof(ctx, "executing scriptlet %q", w.cfg.ID)
 
@@ -91,14 +90,5 @@ func (w *scriptletRunner) loop() error {
 
 	w.cfg.Logger.Debugf(ctx, "scriptlet %q completed with %d globals", w.cfg.ID, len(globals))
 
-	// Block until the worker is killed, keeping the child worker alive
-	// so the runner can track it.
-	select {
-	case <-w.catacomb.Dying():
-		return w.catacomb.ErrDying()
-	}
-}
-
-func (w *scriptletRunner) scopedContext() (context.Context, context.CancelFunc) {
-	return context.WithCancel(w.catacomb.Context(context.Background()))
+	return nil
 }
