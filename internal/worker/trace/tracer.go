@@ -223,7 +223,7 @@ func (s *managedSpan) Scope() coretrace.Scope {
 func (s *managedSpan) AddEvent(message string, attrs ...coretrace.Attribute) {
 	// According to the docs, events can only be recorded if the span
 	// is being recorded.
-	if s.span.IsRecording() {
+	if !s.span.IsRecording() {
 		return
 	}
 
@@ -288,7 +288,7 @@ func (s *limitedSpan) End(attrs ...coretrace.Attribute) {
 }
 
 func attributes(attrs []coretrace.Attribute) []attribute.KeyValue {
-	kv := make([]attribute.KeyValue, len(attrs))
+	kv := make([]attribute.KeyValue, 0, len(attrs))
 	for _, attr := range attrs {
 		kv = append(kv, attribute.String(attr.Key(), attr.Value()))
 	}

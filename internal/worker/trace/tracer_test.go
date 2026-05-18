@@ -90,7 +90,7 @@ func (s *tracerSuite) TestTracerAddEvent(c *tc.C) {
 
 	s.expectClient()
 
-	s.span.EXPECT().AddEvent(gomock.Any(), gomock.Any()).AnyTimes()
+	s.span.EXPECT().AddEvent(gomock.Any(), gomock.Any()).Times(2)
 
 	tracer := s.newTracer(c)
 	defer workertest.CleanKill(c, tracer)

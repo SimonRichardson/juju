@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/juju/juju/core/logger"
@@ -145,7 +145,7 @@ func NewClient(
 
 	serviceName := fmt.Sprintf("juju-%s", namespace.Kind)
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(sampleRatio)),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampleRatio))),
 		sdktrace.WithSpanProcessor(&tailSamplingProcessor{
 			bsp:       bsp,
 			logger:    logger,
@@ -180,12 +180,16 @@ func (s clientTracerShim) Start(ctx context.Context, spanName string, opts ...tr
 }
 
 func newResource(serviceName, serviceID string) *resource.Resource {
-	return resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceName(serviceName),
-		semconv.ServiceVersion(version.Current.String()),
-		semconv.ServiceInstanceID(serviceID),
+	r, _ := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion(version.Current.String()),
+			semconv.ServiceInstanceID(serviceID),
+		),
 	)
+	return r
 }
 
 type tailSamplingProcessor struct {
