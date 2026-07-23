@@ -34,6 +34,7 @@ import (
 const (
 	dqliteBootstrapBindIP = "127.0.0.1"
 	dqliteDataDir         = "dqlite"
+	dqliteApplicationsDir = "dqlite-applications"
 	dqlitePort            = 17666
 	dqliteClusterFileName = "cluster.yaml"
 )
@@ -45,6 +46,11 @@ type NodeManagerConfig struct {
 	// DataDir is the root data directory of the controller agent. Dqlite
 	// stores its data under <DataDir>/dqlite.
 	DataDir string
+
+	// DqliteApplicationID identifies a model Dqlite application. Zero is the
+	// catalog application. Non-zero applications use isolated data directories
+	// and increment the configured Dqlite port by this value.
+	DqliteApplicationID int
 
 	// DqlitePort is the TCP port Dqlite listens on. Zero means use the
 	// compiled-in default (17666).
@@ -85,7 +91,9 @@ type NodeManager struct {
 	logger              logger.Logger
 	slowQueryLogger     coredatabase.SlowQueryLogger
 
-	dataDir string
+	dataDir       string
+	applicationID int
+	address       string
 }
 
 // NewNodeManager returns a new NodeManager reference
@@ -105,11 +113,25 @@ func NewNodeManager(cfg NodeManagerConfig, isLoopbackPreferred bool, logger logg
 		isLoopbackPreferred: isLoopbackPreferred,
 		logger:              logger,
 		slowQueryLogger:     slowQueryLogger,
+		applicationID:       cfg.DqliteApplicationID,
 	}
 	if cfg.DqlitePort != 0 {
 		m.port = cfg.DqlitePort
 	}
+	m.port += cfg.DqliteApplicationID
 	return m
+}
+
+// ForDqliteApplication returns a node manager for the supplied model Dqlite
+// application. Application zero is the catalog application managed by this
+// node manager. Model applications use isolated data directories and ports.
+func (m *NodeManager) ForDqliteApplication(applicationID int) BootstrapNodeManager {
+	clone := *m
+	clone.applicationID = applicationID
+	clone.dataDir = ""
+	clone.port = m.port + applicationID
+	clone.logger = m.logger.Child(strconv.Itoa(applicationID))
+	return &clone
 }
 
 // IsLoopbackPreferred returns true if we should prefer to bind Dqlite
@@ -172,12 +194,69 @@ func (m *NodeManager) IsExistingNode() (bool, error) {
 func (m *NodeManager) EnsureDataDir() (string, error) {
 	if m.dataDir == "" {
 		dir := filepath.Join(m.cfg.DataDir, dqliteDataDir)
+		if m.applicationID > 0 {
+			dir = filepath.Join(
+				m.cfg.DataDir, dqliteApplicationsDir,
+				strconv.Itoa(m.applicationID),
+			)
+		}
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return "", errors.Annotatef(err, "creating directory for Dqlite data")
 		}
 		m.dataDir = dir
 	}
 	return m.dataDir, nil
+}
+
+// PrepareBootstrapNode writes a unique identity and initial node store for a
+// standalone Dqlite application. Go-dqlite otherwise assigns the same magic
+// bootstrap node ID to every independent application in the process. With
+// TLS enabled that ID is also used for the internal abstract Unix socket,
+// causing the second application to collide with the first.
+func (m *NodeManager) PrepareBootstrapNode(ctx context.Context) error {
+	if m.dataDir == "" {
+		return errors.New("Dqlite data directory has not been initialised")
+	}
+	if m.address == "" {
+		return errors.New("Dqlite bind address has not been configured")
+	}
+
+	infoPath := path.Join(m.dataDir, "info.yaml")
+	clusterPath := path.Join(m.dataDir, dqliteClusterFileName)
+	_, infoErr := os.Stat(infoPath)
+	_, clusterErr := os.Stat(clusterPath)
+	infoExists := infoErr == nil
+	clusterExists := clusterErr == nil
+	if infoExists && clusterExists {
+		return nil
+	}
+	if infoExists != clusterExists {
+		return errors.New("inconsistent info.yaml and cluster.yaml")
+	}
+	if infoErr != nil && !os.IsNotExist(infoErr) {
+		return errors.Annotate(infoErr, "checking Dqlite node information")
+	}
+	if clusterErr != nil && !os.IsNotExist(clusterErr) {
+		return errors.Annotate(clusterErr, "checking Dqlite cluster information")
+	}
+
+	node := dqlite.NodeInfo{
+		ID:      dqlite.GenerateID(m.address),
+		Address: m.address,
+	}
+	if err := m.SetNodeInfo(node); err != nil {
+		return errors.Trace(err)
+	}
+	store, err := m.nodeClusterStore()
+	if err != nil {
+		_ = os.Remove(infoPath)
+		return errors.Trace(err)
+	}
+	if err := store.Set(ctx, []dqlite.NodeInfo{{Address: m.address}}); err != nil {
+		_ = os.Remove(infoPath)
+		return errors.Annotate(err, "initialising Dqlite cluster node store")
+	}
+	return nil
 }
 
 // SetClusterToLocalNode reconfigures the Dqlite cluster so that it has the
@@ -323,7 +402,19 @@ func (m *NodeManager) WithLoopbackAddressOption() app.Option {
 func (m *NodeManager) WithAddressOption(ip string) app.Option {
 	// dqlite expects an ipv6 address to be in square brackets
 	// e.g. [::1]:1234 so we need to use net.JoinHostPort.
-	return app.WithAddress(net.JoinHostPort(ip, strconv.Itoa(m.port)))
+	m.address = net.JoinHostPort(addressHost(ip), strconv.Itoa(m.port))
+	return app.WithAddress(m.address)
+}
+
+// addressHost returns just the host part of an address. Controller cluster
+// configuration normally contains bare IP addresses, but older producers may
+// include the catalog Dqlite port. A model application must always replace
+// that port with its own application-specific port.
+func addressHost(address string) string {
+	if host, _, err := net.SplitHostPort(address); err == nil {
+		return host
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(address, "["), "]")
 }
 
 // WithTLSOption returns a Dqlite application Option for TLS encryption
@@ -390,7 +481,7 @@ func dqliteTLSConfig(
 // Dqlite as the member of a cluster with peers representing other controllers.
 func (m *NodeManager) WithClusterOption(addrs []string) app.Option {
 	peerAddrs := transform.Slice(addrs, func(addr string) string {
-		return net.JoinHostPort(addr, strconv.Itoa(m.port))
+		return net.JoinHostPort(addressHost(addr), strconv.Itoa(m.port))
 	})
 
 	m.logger.Debugf(context.TODO(), "determined Dqlite cluster members: %v", peerAddrs)

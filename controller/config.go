@@ -235,6 +235,16 @@ const (
 	// same database.
 	DqliteBusyTimeout = "dqlite-busy-timeout"
 
+	// ModelDqliteApplicationCount is the desired number of Dqlite
+	// applications used to host model databases. Application identifiers are
+	// allocated monotonically; reducing this value is not supported.
+	ModelDqliteApplicationCount = "model-dqlite-application-count"
+
+	// ModelDqliteApplicationCapacity is the maximum number of model databases
+	// assigned to one model Dqlite application. This value is fixed at
+	// bootstrap.
+	ModelDqliteApplicationCapacity = "model-dqlite-application-capacity"
+
 	// SystemSSHKeys returns the set of ssh keys that should be trusted by
 	// agents of this controller regardless of the model.
 	SystemSSHKeys = "system-ssh-keys"
@@ -389,6 +399,14 @@ const (
 	// others to finish writing on the same database.
 	DefaultDqliteBusyTimeout = 1 * time.Second
 
+	// DefaultModelDqliteApplicationCount is the number of model Dqlite
+	// applications preallocated when no bootstrap override is supplied.
+	DefaultModelDqliteApplicationCount = 20
+
+	// DefaultModelDqliteApplicationCapacity is the maximum number of model
+	// databases assigned to one model Dqlite application by default.
+	DefaultModelDqliteApplicationCapacity = 20
+
 	// DefaultAuditLogExcludeMethods is the default list of methods to
 	// exclude from the audit log.
 	// This special value means we exclude any methods in the set
@@ -464,6 +482,8 @@ var (
 		QueryTracingEnabled,
 		QueryTracingThreshold,
 		DqliteBusyTimeout,
+		ModelDqliteApplicationCount,
+		ModelDqliteApplicationCapacity,
 
 		SystemSSHKeys,
 		JujudControllerSnapSource,
@@ -516,6 +536,7 @@ var (
 		QueryTracingEnabled,
 		QueryTracingThreshold,
 		DqliteBusyTimeout,
+		ModelDqliteApplicationCount,
 
 		SSHMaxConcurrentConnections,
 	)
@@ -976,6 +997,18 @@ func (c Config) DqliteBusyTimeout() time.Duration {
 	return c.durationOrDefault(DqliteBusyTimeout, DefaultDqliteBusyTimeout)
 }
 
+// ModelDqliteApplications returns the desired number of Dqlite applications
+// used for model databases.
+func (c Config) ModelDqliteApplications() int {
+	return c.intOrDefault(ModelDqliteApplicationCount, DefaultModelDqliteApplicationCount)
+}
+
+// ModelDqliteApplicationCapacity returns the maximum number of model
+// databases assigned to one model Dqlite application.
+func (c Config) ModelDqliteApplicationCapacity() int {
+	return c.intOrDefault(ModelDqliteApplicationCapacity, DefaultModelDqliteApplicationCapacity)
+}
+
 func (c Config) SSHServerPort() int {
 	return c.intOrDefault(SSHServerPort, DefaultSSHServerPort)
 }
@@ -1212,6 +1245,13 @@ func Validate(c Config) error {
 		if v < 0 {
 			return errors.Errorf("%s value %q must be a positive duration", DqliteBusyTimeout, v)
 		}
+	}
+
+	if v, ok := c[ModelDqliteApplicationCount].(int); ok && v <= 0 {
+		return errors.NotValidf("non-positive integer for %s", ModelDqliteApplicationCount)
+	}
+	if v, ok := c[ModelDqliteApplicationCapacity].(int); ok && v <= 0 {
+		return errors.NotValidf("non-positive integer for %s", ModelDqliteApplicationCapacity)
 	}
 
 	if v, ok := c[JujudControllerSnapSource].(string); ok {

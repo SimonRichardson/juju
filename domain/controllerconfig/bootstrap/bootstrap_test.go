@@ -79,6 +79,35 @@ func (s *bootstrapSuite) TestInsertInitialControllerConfigAPIPort(c *tc.C) {
 	c.Check(apiPort, tc.Equals, "17070")
 }
 
+func (s *bootstrapSuite) TestInsertInitialModelDqliteApplications(c *tc.C) {
+	cfg := controller.Config{
+		controller.CACertKey:                      testing.CACert,
+		controller.ControllerUUIDKey:              testing.ControllerTag.Id(),
+		controller.ModelDqliteApplicationCount:    3,
+		controller.ModelDqliteApplicationCapacity: 7,
+	}
+	modelUUID := tc.Must(c, coremodel.NewUUID)
+	err := InsertInitialControllerConfig(cfg, modelUUID)(
+		c.Context(), s.TxnRunner(), s.NoopTxnRunner(),
+	)
+	c.Assert(err, tc.ErrorIsNil)
+
+	rows, err := s.DB().QueryContext(c.Context(), `
+SELECT id, capacity FROM dqlite_application ORDER BY id`)
+	c.Assert(err, tc.ErrorIsNil)
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id, capacity int
+		c.Assert(rows.Scan(&id, &capacity), tc.ErrorIsNil)
+		c.Check(capacity, tc.Equals, 7)
+		ids = append(ids, id)
+	}
+	c.Assert(rows.Err(), tc.ErrorIsNil)
+	c.Check(ids, tc.DeepEquals, []int{1, 2, 3})
+}
+
 func (s *bootstrapSuite) TestValidModelUUID(c *tc.C) {
 	cfg := controller.Config{controller.CACertKey: testing.CACert}
 	err := InsertInitialControllerConfig(cfg, coremodel.UUID("bad-uuid"))(c.Context(), s.TxnRunner(), s.NoopTxnRunner())

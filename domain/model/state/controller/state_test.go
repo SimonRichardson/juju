@@ -1113,6 +1113,76 @@ func (m *stateSuite) TestNamespaceForModel(c *tc.C) {
 	c.Check(namespace, tc.Equals, m.uuid.String())
 }
 
+func (m *stateSuite) TestModelDatabaseApplicationsAreLeastFilled(c *tc.C) {
+	_, err := m.DB().ExecContext(c.Context(), `
+UPDATE dqlite_application SET capacity = 3 WHERE id = 1;
+INSERT INTO dqlite_application (id, state, capacity)
+VALUES (2, 'ready', 3);`)
+	c.Assert(err, tc.ErrorIsNil)
+
+	m.createControllerModel(c, m.controllerModelUUID, m.userUUID)
+	model1 := tc.Must(c, coremodel.NewUUID)
+	model2 := tc.Must(c, coremodel.NewUUID)
+	m.createModelWithName(c, "model-1", model1, m.userUUID)
+	m.createModelWithName(c, "model-2", model2, m.userUUID)
+
+	applicationFor := func(modelUUID coremodel.UUID) int {
+		var applicationID int
+		err := m.DB().QueryRowContext(c.Context(), `
+SELECT application_id FROM model_namespace WHERE model_uuid = ?`, modelUUID.String()).Scan(&applicationID)
+		c.Assert(err, tc.ErrorIsNil)
+		return applicationID
+	}
+	c.Check(applicationFor(m.controllerModelUUID), tc.Equals, 1)
+	c.Check(applicationFor(model1), tc.Equals, 2)
+	c.Check(applicationFor(model2), tc.Equals, 1)
+}
+
+func (m *stateSuite) TestModelDatabaseApplicationCapacityIsHardLimit(c *tc.C) {
+	_, err := m.DB().ExecContext(c.Context(), `
+UPDATE dqlite_application SET capacity = 1 WHERE id = 1`)
+	c.Assert(err, tc.ErrorIsNil)
+	m.createControllerModel(c, m.controllerModelUUID, m.userUUID)
+
+	err = m.modelState.Create(
+		c.Context(), m.uuid, coremodel.IAAS,
+		m.modelCreationArgs("capacity-exhausted", m.userUUID),
+	)
+	c.Check(err, tc.ErrorIs, modelerrors.DqliteApplicationCapacityExhausted)
+}
+
+func (m *stateSuite) TestPendingDatabaseDeletionConsumesCapacity(c *tc.C) {
+	_, err := m.DB().ExecContext(c.Context(), `
+UPDATE dqlite_application SET capacity = 2 WHERE id = 1`)
+	c.Assert(err, tc.ErrorIsNil)
+	m.createControllerModel(c, m.controllerModelUUID, m.userUUID)
+	model1 := tc.Must(c, coremodel.NewUUID)
+	m.createModelWithName(c, "model-1", model1, m.userUUID)
+
+	_, err = m.DB().ExecContext(c.Context(), `
+INSERT INTO model_database_deletion (namespace, created_at, application_id)
+SELECT namespace, DATETIME('now', 'utc'), application_id
+FROM model_namespace WHERE model_uuid = ?;
+DELETE FROM model_namespace WHERE model_uuid = ?`, model1.String(), model1.String())
+	c.Assert(err, tc.ErrorIsNil)
+
+	model2 := tc.Must(c, coremodel.NewUUID)
+	err = m.modelState.Create(
+		c.Context(), model2, coremodel.IAAS,
+		m.modelCreationArgs("model-2", m.userUUID),
+	)
+	c.Check(err, tc.ErrorIs, modelerrors.DqliteApplicationCapacityExhausted)
+
+	_, err = m.DB().ExecContext(c.Context(), `
+DELETE FROM model_database_deletion WHERE namespace = ?`, model1.String())
+	c.Assert(err, tc.ErrorIsNil)
+	err = m.modelState.Create(
+		c.Context(), model2, coremodel.IAAS,
+		m.modelCreationArgs("model-2", m.userUUID),
+	)
+	c.Check(err, tc.ErrorIsNil)
+}
+
 // TestNamespaceForModelDeleted tests that after we have deleted a model we can
 // no longer get back the database namespace.
 func (m *stateSuite) TestNamespaceForModelDeleted(c *tc.C) {
@@ -2371,24 +2441,26 @@ func (m *stateSuite) createModelWithoutActivation(
 	c *tc.C, name string, modelUUID coremodel.UUID, creatorUUID user.UUID,
 ) {
 	err := m.modelState.Create(
-		c.Context(),
-		modelUUID,
-		coremodel.IAAS,
-		model.GlobalModelCreationArgs{
-			Cloud:       "my-cloud",
-			CloudRegion: "my-region",
-			Credential: corecredential.Key{
-				Cloud: "my-cloud",
-				Owner: usertesting.GenNewName(c, "test-user"),
-				Name:  "foobar",
-			},
-			Name:          name,
-			Qualifier:     "prod",
-			AdminUsers:    []user.UUID{creatorUUID},
-			SecretBackend: juju.BackendName,
-		},
+		c.Context(), modelUUID, coremodel.IAAS,
+		m.modelCreationArgs(name, creatorUUID),
 	)
 	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (m *stateSuite) modelCreationArgs(name string, creatorUUID user.UUID) model.GlobalModelCreationArgs {
+	return model.GlobalModelCreationArgs{
+		Cloud:       "my-cloud",
+		CloudRegion: "my-region",
+		Credential: corecredential.Key{
+			Cloud: "my-cloud",
+			Owner: m.userName,
+			Name:  "foobar",
+		},
+		Name:          name,
+		Qualifier:     "prod",
+		AdminUsers:    []user.UUID{creatorUUID},
+		SecretBackend: juju.BackendName,
+	}
 }
 
 // createSuperuser adds a new user with permissions on a model.

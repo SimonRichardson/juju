@@ -158,7 +158,9 @@ func (w *Worker) handleDeadModel(ctx context.Context, mUUID model.UUID) error {
 			return nil, errors.Errorf("getting removal service for model %s: %w", mUUID, err)
 		}
 
-		return newModelWorker(mUUID, removalService, w.dbDeleter), nil
+		return newModelWorker(
+			mUUID, removalService, w.controllerModelService, w.dbDeleter,
+		), nil
 	})
 	if err != nil && !errors.Is(err, jujuerrors.AlreadyExists) {
 		return errors.Errorf("starting worker for model %s: %w", mUUID, err)
@@ -187,13 +189,20 @@ type modelWorker struct {
 
 	modelUUID      model.UUID
 	removalService RemovalService
+	modelService   ControllerModelService
 	dbDeleter      coredatabase.DBDeleter
 }
 
-func newModelWorker(modelUUID model.UUID, removalService RemovalService, dbDeleter coredatabase.DBDeleter) *modelWorker {
+func newModelWorker(
+	modelUUID model.UUID,
+	removalService RemovalService,
+	modelService ControllerModelService,
+	dbDeleter coredatabase.DBDeleter,
+) *modelWorker {
 	w := &modelWorker{
 		modelUUID:      modelUUID,
 		removalService: removalService,
+		modelService:   modelService,
 		dbDeleter:      dbDeleter,
 	}
 
@@ -240,6 +249,10 @@ func (w *modelWorker) deleteModel(ctx context.Context) error {
 
 	if err := w.dbDeleter.DeleteDB(w.modelUUID.String()); err != nil && !errors.Is(err, jujuerrors.NotFound) {
 		return errors.Errorf("deleting database %s: %w", w.modelUUID, err)
+	}
+
+	if err := w.modelService.RemoveModelDatabaseDeletion(ctx, w.modelUUID.String()); err != nil {
+		return errors.Errorf("releasing database route %s: %w", w.modelUUID, err)
 	}
 
 	return nil

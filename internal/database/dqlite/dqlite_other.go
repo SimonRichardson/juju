@@ -5,6 +5,8 @@
 
 package dqlite
 
+import "hash/fnv"
+
 const (
 	// Enabled is false if dqlite is disabled.
 	Enabled = false
@@ -31,4 +33,11 @@ type NodeInfo struct {
 
 func ReconfigureMembership(string, []NodeInfo) error {
 	return nil
+}
+
+// GenerateID generates a stable stand-in node ID when Dqlite is disabled.
+func GenerateID(address string) uint64 {
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(address))
+	return hash.Sum64()
 }

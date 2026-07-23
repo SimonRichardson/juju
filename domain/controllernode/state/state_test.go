@@ -120,6 +120,28 @@ func (s *stateSuite) TestSelectDatabaseNamespace(c *tc.C) {
 	c.Check(namespace, tc.Equals, "")
 }
 
+func (s *stateSuite) TestSelectDatabaseApplicationForPendingDeletion(c *tc.C) {
+	_, err := s.DB().ExecContext(c.Context(), `
+INSERT INTO model_database_deletion (namespace, created_at, application_id)
+VALUES ('model-uuid', DATETIME('now', 'utc'), 1)`)
+	c.Assert(err, tc.ErrorIsNil)
+
+	applicationID, err := s.state.SelectDatabaseApplication(c.Context(), "model-uuid")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(applicationID, tc.Equals, 1)
+}
+
+func (s *stateSuite) TestGetReadyDqliteApplications(c *tc.C) {
+	_, err := s.DB().ExecContext(c.Context(), `
+INSERT INTO dqlite_application (id, state, capacity)
+VALUES (2, 'provisioning', 20), (3, 'ready', 20)`)
+	c.Assert(err, tc.ErrorIsNil)
+
+	applications, err := s.state.GetReadyDqliteApplications(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(applications, tc.DeepEquals, []int{1, 3})
+}
+
 func (s *stateSuite) TestSetRunningAgentBinaryVersionSuccess(c *tc.C) {
 	ver := coreagentbinary.Version{
 		Number: jujuversion.Current,

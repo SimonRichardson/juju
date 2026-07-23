@@ -234,6 +234,19 @@ WHERE grant_on = $entityUUID.uuid;
 		return errors.Capture(err)
 	}
 
+	stageDatabaseDeletionStmt, err := st.Prepare(`
+INSERT INTO model_database_deletion (namespace, created_at, application_id)
+SELECT mn.namespace, DATETIME('now', 'utc'), mn.application_id
+FROM model_namespace AS mn
+WHERE mn.model_uuid = $entityUUID.uuid
+ON CONFLICT (namespace) DO UPDATE SET
+    created_at = excluded.created_at,
+    application_id = excluded.application_id
+`, modelUUIDParam)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		mLife, err := st.getModelLife(ctx, tx, modelUUIDParam.UUID)
 		if err != nil {
@@ -248,6 +261,13 @@ WHERE grant_on = $entityUUID.uuid;
 		if mLife == life.Dying {
 			return errors.Errorf("waiting for model to be dead before deletion").
 				Add(removalerrors.RemovalJobIncomplete)
+		}
+
+		// Retain the immutable application assignment until the physical
+		// model database has been deleted. The staged route continues to count
+		// against application capacity.
+		if err := tx.Query(ctx, stageDatabaseDeletionStmt, modelUUIDParam).Run(); err != nil {
+			return errors.Errorf("staging model database deletion: %w", err)
 		}
 
 		// Delete the model's basic data in one shot.

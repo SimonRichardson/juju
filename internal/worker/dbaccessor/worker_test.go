@@ -61,6 +61,25 @@ func (s *workerSuite) TestFirstClosedMultipleChannelsNoLeak(c *tc.C) {
 	}
 }
 
+func (s *workerSuite) TestRebindNodeManagerAddressPreservesApplicationPort(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	server := dqlite.NodeInfo{
+		ID:      42,
+		Address: "127.0.0.1:17673",
+	}
+	rebound := server
+	rebound.Address = "10.6.6.6:17673"
+
+	s.nodeManager.EXPECT().ClusterServers(gomock.Any()).Return([]dqlite.NodeInfo{server}, nil)
+	s.nodeManager.EXPECT().SetClusterServers(gomock.Any(), []dqlite.NodeInfo{rebound}).Return(nil)
+	s.nodeManager.EXPECT().SetNodeInfo(rebound).Return(nil)
+
+	w := &dbWorker{cfg: WorkerConfig{Logger: s.logger}}
+	err := w.rebindNodeManagerAddress(c.Context(), s.nodeManager, "10.6.6.6:17666")
+	c.Assert(err, tc.ErrorIsNil)
+}
+
 func (s *workerSuite) TestKilledGetDBErrDying(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 

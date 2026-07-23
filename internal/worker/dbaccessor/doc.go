@@ -21,9 +21,13 @@
 // contents, which will be an indication to dbaccessor.dbWorker that the Dqlite
 // instance on this node must join the Dqlite cluster.
 //
-// Individual Dqlite databases
+// Dqlite applications and databases
 //
-// There is an individual database for the controller and one for each model.
+// The controller database is hosted by a dedicated catalog Dqlite application.
+// Model databases are distributed across a stable set of additional Dqlite
+// applications. There is still one database namespace per model. The catalog
+// stores the immutable namespace-to-application assignment, which dbWorker
+// caches after the first lookup.
 //
 //  ┌─────────────────┐
 //  │                 │
@@ -33,13 +37,12 @@
 //  │                 │
 //  └─────────────────┘
 //
-//  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-//  │              │ │              │ │              │
-//  │              │ │              │ │              │
-//  │  Model 1 DB  │ │  Model 2 DB  │ │  Model N DB  │
-//  │              │ │              │ │              │
-//  │              │ │              │ │              │
-//  └──────────────┘ └──────────────┘ └──────────────┘
+//  ┌───────────────────────┐ ┌───────────────────────┐
+//  │ Model Dqlite app 1    │ │ Model Dqlite app N    │
+//  │ ┌─────────┐ ┌───────┐ │ │ ┌─────────┐ ┌───────┐ │
+//  │ │Model DB │ │ ...   │ │ │ │Model DB │ │ ...   │ │
+//  │ └─────────┘ └───────┘ │ │ └─────────┘ └───────┘ │
+//  └───────────────────────┘ └───────────────────────┘
 //
 //
 // # dbaccessor.trackedDBWorker

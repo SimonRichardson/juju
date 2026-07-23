@@ -20,3 +20,14 @@ type StringSlice []string
 type controllerValues struct {
 	APIPort sql.Null[string] `db:"api_port"`
 }
+
+type dqliteApplication struct {
+	ID       int    `db:"id"`
+	State    string `db:"state"`
+	Capacity int    `db:"capacity"`
+}
+
+type dqliteApplicationConfig struct {
+	Count    int `db:"count"`
+	Capacity int `db:"capacity"`
+}

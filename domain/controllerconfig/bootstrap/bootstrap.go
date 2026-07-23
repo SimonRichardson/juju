@@ -72,6 +72,29 @@ func InsertInitialControllerConfig(cfg jujucontroller.Config, controllerModelUUI
 			return errors.Capture(err)
 		}
 
+		type dqliteApplication struct {
+			ID       int    `db:"id"`
+			State    string `db:"state"`
+			Capacity int    `db:"capacity"`
+		}
+		applications := make([]dqliteApplication, cfg.ModelDqliteApplications())
+		for i := range applications {
+			applications[i] = dqliteApplication{
+				ID:       i + 1,
+				State:    "ready",
+				Capacity: cfg.ModelDqliteApplicationCapacity(),
+			}
+		}
+		upsertApplicationStmt, err := sqlair.Prepare(`
+INSERT INTO dqlite_application (*) VALUES ($dqliteApplication.*)
+ON CONFLICT (id) DO UPDATE SET
+    state = excluded.state,
+    capacity = excluded.capacity
+`, dqliteApplication{})
+		if err != nil {
+			return errors.Capture(err)
+		}
+
 		updateKeyValues := make([]dbKeyValue, 0)
 		for k, v := range values {
 			if k == jujucontroller.ControllerUUIDKey {
@@ -94,6 +117,10 @@ func InsertInitialControllerConfig(cfg jujucontroller.Config, controllerModelUUI
 				if err := tx.Query(ctx, insertStmt, updateKeyValues).Run(); err != nil {
 					return errors.Capture(err)
 				}
+			}
+
+			if err := tx.Query(ctx, upsertApplicationStmt, applications).Run(); err != nil {
+				return errors.Errorf("initialising model Dqlite applications: %w", err)
 			}
 
 			return nil

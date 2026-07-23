@@ -152,6 +152,7 @@ func (s *AgentSuite) PrimeStateAgentVersion(c *tc.C, tag names.Tag, password str
 		c.Context(),
 		database.NewNodeManager(nodeManagerCfg, true, loggertesting.WrapCheckLog(c), coredatabase.NoopSlowQueryLogger{}),
 		tc.Must0(c, coremodel.NewUUID),
+		1,
 		loggertesting.WrapCheckLog(c),
 	)
 	c.Assert(err, tc.ErrorIsNil)

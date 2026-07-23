@@ -3,12 +3,17 @@
 CREATE TABLE model_namespace (
     namespace TEXT NOT NULL,
     model_uuid TEXT UNIQUE NOT NULL,
+    application_id INT NOT NULL,
     CONSTRAINT fk_model_uuid
     FOREIGN KEY (model_uuid)
-    REFERENCES model (uuid)
+    REFERENCES model (uuid),
+    CONSTRAINT fk_dqlite_application
+    FOREIGN KEY (application_id)
+    REFERENCES dqlite_application (id)
 );
 
 CREATE UNIQUE INDEX idx_namespace_model_uuid ON model_namespace (namespace, model_uuid);
+CREATE INDEX idx_model_namespace_application ON model_namespace (application_id);
 
 CREATE TABLE model_type (
     id INT PRIMARY KEY,

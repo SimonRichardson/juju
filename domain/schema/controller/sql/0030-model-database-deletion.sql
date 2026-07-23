@@ -11,5 +11,12 @@
 -- gone by the time a row exists here.
 CREATE TABLE model_database_deletion (
     namespace TEXT NOT NULL PRIMARY KEY,
-    created_at TIMESTAMP NOT NULL
+    created_at TIMESTAMP NOT NULL,
+    application_id INT NOT NULL,
+    CONSTRAINT fk_dqlite_application
+    FOREIGN KEY (application_id)
+    REFERENCES dqlite_application (id)
 );
+
+CREATE INDEX idx_model_database_deletion_application
+ON model_database_deletion (application_id);

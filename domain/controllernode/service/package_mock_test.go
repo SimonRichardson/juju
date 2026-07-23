@@ -35,8 +35,10 @@ type MockStateMockRecorder struct {
 	getAPIAddressesForClientsExpects               []*gomock.Call1_2[context.Context, map[string]controllernode.APIAddresses, error]
 	getAllCloudLocalAPIAddressesExpects            []*gomock.Call1_2[context.Context, []string, error]
 	getControllerIDsExpects                        []*gomock.Call1_2[context.Context, []string, error]
+	getReadyDqliteApplicationsExpects              []*gomock.Call1_2[context.Context, []int, error]
 	namespaceForWatchControllerAPIAddressesExpects []*gomock.Call0_1[string]
 	namespaceForWatchControllerNodesExpects        []*gomock.Call0_1[string]
+	selectDatabaseApplicationExpects               []*gomock.Call2_2[context.Context, string, int, error]
 	selectDatabaseNamespaceExpects                 []*gomock.Call2_2[context.Context, string, string, error]
 	setAPIAddressesExpects                         []*gomock.Call2_1[context.Context, map[string]controllernode.APIAddresses, error]
 	setRunningAgentBinaryVersionExpects            []*gomock.Call3_1[context.Context, string, agentbinary.Version, error]
@@ -162,6 +164,24 @@ func (mr *MockStateMockRecorder) GetControllerIDs(ctx any) *MockStateGetControll
 // MockStateGetControllerIDsCall is the typed call wrapper for GetControllerIDs.
 type MockStateGetControllerIDsCall = gomock.Call1_2[context.Context, []string, error]
 
+// GetReadyDqliteApplications mocks base method.
+func (m *MockState) GetReadyDqliteApplications(arg0 context.Context) ([]int, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch1_2(&m.recorder.getReadyDqliteApplicationsExpects, m.ctrl, m, "GetReadyDqliteApplications", arg0)
+}
+
+// GetReadyDqliteApplications indicates an expected call of GetReadyDqliteApplications.
+func (mr *MockStateMockRecorder) GetReadyDqliteApplications(arg0 any) *MockStateGetReadyDqliteApplicationsCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall1_2[context.Context, []int, error](mr.mock.ctrl.T, mr.mock, "GetReadyDqliteApplications", gomock.EnsureMatcher(arg0))
+	mr.getReadyDqliteApplicationsExpects = append(mr.getReadyDqliteApplicationsExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetReadyDqliteApplicationsCall is the typed call wrapper for GetReadyDqliteApplications.
+type MockStateGetReadyDqliteApplicationsCall = gomock.Call1_2[context.Context, []int, error]
+
 // NamespaceForWatchControllerAPIAddresses mocks base method.
 func (m *MockState) NamespaceForWatchControllerAPIAddresses() string {
 	m.ctrl.T.Helper()
@@ -215,6 +235,24 @@ func (mr *MockStateMockRecorder) SelectDatabaseNamespace(arg0, arg1 any) *MockSt
 
 // MockStateSelectDatabaseNamespaceCall is the typed call wrapper for SelectDatabaseNamespace.
 type MockStateSelectDatabaseNamespaceCall = gomock.Call2_2[context.Context, string, string, error]
+
+// SelectDatabaseApplication mocks base method.
+func (m *MockState) SelectDatabaseApplication(arg0 context.Context, arg1 string) (int, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.selectDatabaseApplicationExpects, m.ctrl, m, "SelectDatabaseApplication", arg0, arg1)
+}
+
+// SelectDatabaseApplication indicates an expected call of SelectDatabaseApplication.
+func (mr *MockStateMockRecorder) SelectDatabaseApplication(arg0, arg1 any) *MockStateSelectDatabaseApplicationCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, string, int, error](mr.mock.ctrl.T, mr.mock, "SelectDatabaseApplication", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1))
+	mr.selectDatabaseApplicationExpects = append(mr.selectDatabaseApplicationExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateSelectDatabaseApplicationCall is the typed call wrapper for SelectDatabaseApplication.
+type MockStateSelectDatabaseApplicationCall = gomock.Call2_2[context.Context, string, int, error]
 
 // SetAPIAddresses mocks base method.
 func (m *MockState) SetAPIAddresses(ctx context.Context, addresses map[string]controllernode.APIAddresses) error {

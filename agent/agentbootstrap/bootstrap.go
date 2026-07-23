@@ -53,6 +53,7 @@ type DqliteInitializerFunc func(
 	ctx context.Context,
 	mgr database.BootstrapNodeManager,
 	modelUUID coremodel.UUID,
+	modelApplicationCount int,
 	logger logger.Logger,
 	options ...database.BootstrapOpt,
 ) error
@@ -273,6 +274,7 @@ func (b *AgentBootstrap) Initialize(ctx context.Context) (resultErr error) {
 		ctx,
 		database.NewNodeManager(nodeManagerCfg, isLoopbackPreferred, b.logger, coredatabase.NoopSlowQueryLogger{}),
 		controllerModelUUID,
+		stateParams.ControllerConfig.ModelDqliteApplications(),
 		b.logger,
 		databaseBootstrapOptions...,
 	); err != nil {

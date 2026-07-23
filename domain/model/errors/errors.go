@@ -38,6 +38,11 @@ const (
 	// namespace for a model exists.
 	ModelNamespaceNotFound = errors.ConstError("model namespace not found")
 
+	// DqliteApplicationCapacityExhausted describes an error that occurs when
+	// all ready model Dqlite applications have reached their configured
+	// capacity.
+	DqliteApplicationCapacityExhausted = errors.ConstError("model dqlite application capacity exhausted")
+
 	// NotFound describes an error that occurs when the model being operated on
 	// does not exist.
 	NotFound = errors.ConstError("model not found")

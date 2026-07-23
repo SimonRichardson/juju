@@ -14,8 +14,8 @@ import (
 func (m *stateSuite) seedModelDatabaseDeletion(c *tc.C, namespace string) {
 	err := m.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `
-INSERT INTO model_database_deletion (namespace, created_at)
-VALUES (?, DATETIME('now', 'utc'))`, namespace)
+INSERT INTO model_database_deletion (namespace, created_at, application_id)
+VALUES (?, DATETIME('now', 'utc'), 1)`, namespace)
 		return err
 	})
 	c.Assert(err, tc.ErrorIsNil)

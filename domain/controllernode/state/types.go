@@ -24,6 +24,11 @@ type dbNamespace struct {
 	Namespace string `db:"namespace"`
 }
 
+type dbDatabaseRoute struct {
+	Namespace     string `db:"namespace"`
+	ApplicationID int    `db:"application_id"`
+}
+
 // architecture is the database representation of an architecture id-name pair.
 type architecture struct {
 	ID   int    `db:"id"`

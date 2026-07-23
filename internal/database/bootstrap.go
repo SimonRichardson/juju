@@ -8,23 +8,32 @@ import (
 	"database/sql"
 
 	"github.com/canonical/sqlair"
-	"github.com/juju/errors"
 
 	coredatabase "github.com/juju/juju/core/database"
+	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/logger"
 	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/domain/schema"
 	"github.com/juju/juju/internal/database/app"
 	"github.com/juju/juju/internal/database/pragma"
+	"github.com/juju/juju/internal/errors"
 )
 
 // BootstrapNodeManager is an interface for managing the bootstrap of a Dqlite
 // node.
 type BootstrapNodeManager interface {
+	// ForDqliteApplication returns an isolated node manager for a model
+	// Dqlite application.
+	ForDqliteApplication(int) BootstrapNodeManager
+
 	// EnsureDataDir ensures that a directory for Dqlite data exists at
 	// a path determined by the agent config, then returns that path.
 	EnsureDataDir() (string, error)
+
+	// PrepareBootstrapNode gives a new standalone application a unique node
+	// identity before it is started.
+	PrepareBootstrapNode(context.Context) error
 
 	// IsLoopbackPreferred returns true if the Dqlite application should
 	// be bound to the loopback address.
@@ -69,12 +78,13 @@ func BootstrapDqlite(
 	ctx context.Context,
 	mgr BootstrapNodeManager,
 	uuid model.UUID,
+	modelApplicationCount int,
 	logger logger.Logger,
 	opts ...BootstrapOpt,
 ) error {
 	dir, err := mgr.EnsureDataDir()
 	if err != nil {
-		return errors.Trace(err)
+		return errors.Capture(err)
 	}
 
 	options := []app.Option{mgr.WithLogFuncOption()}
@@ -83,12 +93,12 @@ func BootstrapDqlite(
 	} else {
 		addrOpt, err := mgr.WithPreferredCloudLocalAddressOption(network.DefaultConfigSource())
 		if err != nil {
-			return errors.Annotate(err, "generating bind address option")
+			return errors.Errorf("generating bind address option: %w", err)
 		}
 
 		tlsOpt, err := mgr.WithTLSOption()
 		if err != nil {
-			return errors.Annotate(err, "generating TLS option")
+			return errors.Errorf("generating TLS option: %w", err)
 		}
 
 		options = append(options, addrOpt, tlsOpt)
@@ -96,7 +106,7 @@ func BootstrapDqlite(
 
 	dqlite, err := app.New(dir, options...)
 	if err != nil {
-		return errors.Annotate(err, "creating Dqlite app")
+		return errors.Errorf("creating Dqlite app: %w", err)
 	}
 	defer func() {
 		if err := dqlite.Close(); err != nil {
@@ -105,22 +115,75 @@ func BootstrapDqlite(
 	}()
 
 	if err := dqlite.Ready(ctx); err != nil {
-		return errors.Annotatef(err, "waiting for Dqlite readiness")
+		return errors.Errorf("waiting for Dqlite readiness: %w", err)
 	}
 
 	controller, err := runMigration(ctx, dqlite, coredatabase.ControllerNS, schema.ControllerDDL(), controllerBootstrapInit, logger)
 	if err != nil {
-		return errors.Annotate(err, "running controller migration")
+		return errors.Errorf("running controller migration: %w", err)
 	}
 
-	model, err := runMigration(ctx, dqlite, uuid.String(), schema.ModelDDL(), emptyInit, logger)
+	if modelApplicationCount < 1 {
+		return errors.Errorf(
+			"model Dqlite application count %d: %w",
+			modelApplicationCount, coreerrors.NotValid,
+		)
+	}
+
+	modelApps := make([]*app.App, 0, modelApplicationCount)
+	defer func() {
+		for _, modelApp := range modelApps {
+			if err := modelApp.Close(); err != nil {
+				logger.Errorf(ctx, "closing model Dqlite application: %v", err)
+			}
+		}
+	}()
+	for applicationID := 1; applicationID <= modelApplicationCount; applicationID++ {
+		applicationManager := mgr.ForDqliteApplication(applicationID)
+		applicationDir, err := applicationManager.EnsureDataDir()
+		if err != nil {
+			return errors.Errorf("ensuring model Dqlite application %d data directory: %w", applicationID, err)
+		}
+
+		applicationOptions := []app.Option{applicationManager.WithLogFuncOption()}
+		if applicationManager.IsLoopbackPreferred() {
+			applicationOptions = append(applicationOptions, applicationManager.WithLoopbackAddressOption())
+		} else {
+			addrOpt, err := applicationManager.WithPreferredCloudLocalAddressOption(network.DefaultConfigSource())
+			if err != nil {
+				return errors.Errorf("generating model Dqlite application %d bind address: %w", applicationID, err)
+			}
+			tlsOpt, err := applicationManager.WithTLSOption()
+			if err != nil {
+				return errors.Errorf("generating model Dqlite application %d TLS option: %w", applicationID, err)
+			}
+			applicationOptions = append(applicationOptions, addrOpt, tlsOpt)
+		}
+		if err := applicationManager.PrepareBootstrapNode(ctx); err != nil {
+			return errors.Errorf("preparing model Dqlite application %d node: %w", applicationID, err)
+		}
+
+		modelApp, err := app.New(applicationDir, applicationOptions...)
+		if err != nil {
+			return errors.Errorf("creating model Dqlite application %d: %w", applicationID, err)
+		}
+		if err := modelApp.Ready(ctx); err != nil {
+			_ = modelApp.Close()
+			return errors.Errorf("waiting for model Dqlite application %d readiness: %w", applicationID, err)
+		}
+		modelApps = append(modelApps, modelApp)
+	}
+
+	// The controller model is allocated by the same least-filled policy as
+	// every later model, so on an empty controller it belongs to application 1.
+	model, err := runMigration(ctx, modelApps[0], uuid.String(), schema.ModelDDL(), emptyInit, logger)
 	if err != nil {
-		return errors.Annotate(err, "running model migration")
+		return errors.Errorf("running model migration: %w", err)
 	}
 
 	for i, op := range opts {
 		if err := op(ctx, controller, model); err != nil {
-			return errors.Annotatef(err, "running bootstrap operation at index %d", i)
+			return errors.Errorf("running bootstrap operation at index %d: %w", i, err)
 		}
 	}
 
@@ -130,22 +193,22 @@ func BootstrapDqlite(
 func runMigration(ctx context.Context, dqlite *app.App, namespace string, schema Schema, init bootstrapInit, logger logger.Logger) (coredatabase.TxnRunner, error) {
 	db, err := dqlite.Open(ctx, namespace)
 	if err != nil {
-		return nil, errors.Annotatef(err, "opening database for namespace %q", namespace)
+		return nil, errors.Errorf("opening database for namespace %q: %w", namespace, err)
 	}
 
 	if err := pragma.SetPragma(ctx, db, pragma.ForeignKeysPragma, true); err != nil {
-		return nil, errors.Annotatef(err, "setting foreign keys pragma for namespace %q", namespace)
+		return nil, errors.Errorf("setting foreign keys pragma for namespace %q: %w", namespace, err)
 	}
 
 	runner := &txnRunner{db: db}
 
 	migration := NewDBMigration(runner, logger, schema)
 	if err := migration.Apply(ctx); err != nil {
-		return nil, errors.Annotatef(err, "creating database with namespace %q schema", namespace)
+		return nil, errors.Errorf("creating database with namespace %q schema: %w", namespace, err)
 	}
 
 	if err := init(ctx, runner, dqlite); err != nil {
-		return nil, errors.Annotatef(err, "running init for database with namespace %q", namespace)
+		return nil, errors.Errorf("running init for database with namespace %q: %w", namespace, err)
 	}
 
 	return runner, nil
@@ -165,11 +228,11 @@ VALUES ('0', ?, '127.0.0.1');`
 	return runner.StdTxn(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		result, err := tx.ExecContext(ctx, q, nodeID)
 		if err != nil {
-			return errors.Trace(err)
+			return errors.Capture(err)
 		}
 		affected, err := result.RowsAffected()
 		if err != nil {
-			return errors.Trace(err)
+			return errors.Capture(err)
 		}
 		if affected != 1 {
 			return errors.Errorf("expected 1 row affected, got %d", affected)
@@ -187,11 +250,11 @@ type txnRunner struct {
 }
 
 func (r *txnRunner) Txn(ctx context.Context, f func(context.Context, *sqlair.TX) error) error {
-	return errors.Trace(Txn(ctx, sqlair.NewDB(r.db), f))
+	return errors.Capture(Txn(ctx, sqlair.NewDB(r.db), f))
 }
 
 func (r *txnRunner) StdTxn(ctx context.Context, f func(context.Context, *sql.Tx) error) error {
-	return errors.Trace(StdTxn(ctx, r.db, f))
+	return errors.Capture(StdTxn(ctx, r.db, f))
 }
 
 func (r *txnRunner) Dying() <-chan struct{} {
@@ -211,9 +274,9 @@ func controllerBootstrapInit(ctx context.Context, runner coredatabase.TxnRunner,
 		// the database has already been bootstrapped. Mask the unique
 		// constraint error with a more user-friendly error.
 		if IsErrConstraintUnique(err) {
-			return errors.AlreadyExistsf("controller node ID")
+			return errors.Errorf("controller node ID: %w", coreerrors.AlreadyExists)
 		}
-		return errors.Annotatef(err, "inserting controller node ID")
+		return errors.Errorf("inserting controller node ID: %w", err)
 	}
 	return nil
 }

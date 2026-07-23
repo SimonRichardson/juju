@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -72,6 +73,69 @@ func (s *nodeManagerSuite) TestEnsureDataDirSuccess(c *tc.C) {
 
 	_, err = os.Stat(expected)
 	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *nodeManagerSuite) TestDqliteApplicationsUseIsolatedDataDirsAndPorts(c *tc.C) {
+	rootDir := c.MkDir()
+	catalog := NewNodeManager(NodeManagerConfig{
+		DataDir:    rootDir,
+		DqlitePort: 19000,
+	}, true, loggertesting.WrapCheckLog(c), coredatabase.NoopSlowQueryLogger{})
+
+	appOne, ok := catalog.ForDqliteApplication(1).(*NodeManager)
+	c.Assert(ok, tc.IsTrue)
+	appTwo := NewNodeManager(NodeManagerConfig{
+		DataDir:             rootDir,
+		DqlitePort:          19000,
+		DqliteApplicationID: 2,
+	}, true, loggertesting.WrapCheckLog(c), coredatabase.NoopSlowQueryLogger{})
+
+	dirOne, err := appOne.EnsureDataDir()
+	c.Assert(err, tc.ErrorIsNil)
+	dirTwo, err := appTwo.EnsureDataDir()
+	c.Assert(err, tc.ErrorIsNil)
+
+	c.Check(dirOne, tc.Equals, filepath.Join(rootDir, dqliteApplicationsDir, "1"))
+	c.Check(dirTwo, tc.Equals, filepath.Join(rootDir, dqliteApplicationsDir, "2"))
+	c.Check(dirOne == dirTwo, tc.IsFalse)
+	c.Check(appOne.port, tc.Equals, 19001)
+	c.Check(appTwo.port, tc.Equals, 19002)
+}
+
+func (s *nodeManagerSuite) TestApplicationAddressReplacesCatalogPort(c *tc.C) {
+	c.Check(addressHost("10.6.6.6:17666"), tc.Equals, "10.6.6.6")
+	c.Check(addressHost("[2001:db8::1]:17666"), tc.Equals, "2001:db8::1")
+	c.Check(addressHost("2001:db8::1"), tc.Equals, "2001:db8::1")
+}
+
+func (s *nodeManagerSuite) TestStandaloneTLSApplicationsUseUniqueNodeIDs(c *tc.C) {
+	rootDir := c.MkDir()
+	newApplication := func(applicationID, port int) *app.App {
+		cfg := tlsNodeManagerConfig()
+		cfg.DataDir = rootDir
+		cfg.DqliteApplicationID = applicationID
+		cfg.DqlitePort = port - applicationID
+		mgr := NewNodeManager(cfg, false, loggertesting.WrapCheckLog(c), coredatabase.NoopSlowQueryLogger{})
+
+		dataDir, err := mgr.EnsureDataDir()
+		c.Assert(err, tc.ErrorIsNil)
+		addressOption := mgr.WithAddressOption("127.0.0.1")
+		tlsOption, err := mgr.WithTLSOption()
+		c.Assert(err, tc.ErrorIsNil)
+		err = mgr.PrepareBootstrapNode(c.Context())
+		c.Assert(err, tc.ErrorIsNil)
+
+		dqliteApp, err := app.New(dataDir, addressOption, tlsOption)
+		c.Assert(err, tc.ErrorIsNil)
+		return dqliteApp
+	}
+
+	appOne := newApplication(1, dqlitetesting.FindTCPPort(c))
+	defer func() { c.Check(appOne.Close(), tc.ErrorIsNil) }()
+	appTwo := newApplication(2, dqlitetesting.FindTCPPort(c))
+	defer func() { c.Check(appTwo.Close(), tc.ErrorIsNil) }()
+
+	c.Check(appOne.ID() == appTwo.ID(), tc.IsFalse)
 }
 
 func (s *nodeManagerSuite) TestIsLoopbackPreferred(c *tc.C) {
