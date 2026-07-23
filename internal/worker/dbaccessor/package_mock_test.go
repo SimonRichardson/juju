@@ -191,6 +191,7 @@ type MockNodeManagerMockRecorder struct {
 	isExistingNodeExpects        []*gomock.Call0_2[bool, error]
 	isLoopbackBoundExpects       []*gomock.Call1_2[context.Context, bool, error]
 	isLoopbackPreferredExpects   []*gomock.Call0_1[bool]
+	prepareBootstrapNodeExpects  []*gomock.Call1_1[context.Context, error]
 	setClusterServersExpects     []*gomock.Call2_1[context.Context, []dqlite.NodeInfo, error]
 	setClusterToLocalNodeExpects []*gomock.Call1_1[context.Context, error]
 	setNodeInfoExpects           []*gomock.Call1_1[dqlite.NodeInfo, error]
@@ -303,6 +304,24 @@ func (mr *MockNodeManagerMockRecorder) IsLoopbackPreferred() *MockNodeManagerIsL
 
 // MockNodeManagerIsLoopbackPreferredCall is the typed call wrapper for IsLoopbackPreferred.
 type MockNodeManagerIsLoopbackPreferredCall = gomock.Call0_1[bool]
+
+// PrepareBootstrapNode mocks base method.
+func (m *MockNodeManager) PrepareBootstrapNode(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch1_1(&m.recorder.prepareBootstrapNodeExpects, m.ctrl, m, "PrepareBootstrapNode", arg0)
+}
+
+// PrepareBootstrapNode indicates an expected call of PrepareBootstrapNode.
+func (mr *MockNodeManagerMockRecorder) PrepareBootstrapNode(arg0 any) *MockNodeManagerPrepareBootstrapNodeCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall1_1[context.Context, error](mr.mock.ctrl.T, mr.mock, "PrepareBootstrapNode", gomock.EnsureMatcher(arg0))
+	mr.prepareBootstrapNodeExpects = append(mr.prepareBootstrapNodeExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockNodeManagerPrepareBootstrapNodeCall is the typed call wrapper for PrepareBootstrapNode.
+type MockNodeManagerPrepareBootstrapNodeCall = gomock.Call1_1[context.Context, error]
 
 // SetClusterServers mocks base method.
 func (m *MockNodeManager) SetClusterServers(arg0 context.Context, arg1 []dqlite.NodeInfo) error {

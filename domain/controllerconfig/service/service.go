@@ -171,6 +171,9 @@ func validateConfig(updateAttrs map[string]string, removeAttrs []string) error {
 		}
 	}
 	for _, r := range removeAttrs {
+		if r == controller.ModelDqliteApplicationCount {
+			return errors.Errorf("controller config key %q cannot be removed", r)
+		}
 		if err := validateConfigField(r); err != nil {
 			return errors.Capture(err)
 		}

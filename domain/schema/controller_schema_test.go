@@ -85,6 +85,7 @@ func (s *controllerSchemaSuite) TestControllerTables(c *tc.C) {
 	expected := set.NewStrings(
 		// Namespaces for DQlite
 		"namespace_list",
+		"dqlite_application",
 
 		// Autocert cache
 		"autocert_cache",

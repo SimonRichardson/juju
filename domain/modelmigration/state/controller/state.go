@@ -2090,6 +2090,16 @@ AND   phase_type_id != (
 	}
 
 	// Delete model_namespace.
+	selectDatabaseRouteStmt, err := s.Prepare(`
+SELECT mn.namespace AS &modelDatabaseDeletion.namespace,
+       mn.application_id AS &modelDatabaseDeletion.application_id
+FROM model_namespace AS mn
+WHERE mn.model_uuid = $modelUUIDArg.model_uuid
+`, modelDatabaseDeletion{}, modelUUIDArg{})
+	if err != nil {
+		return errors.Capture(err)
+	}
+
 	deleteModelNamespaceStmt, err := s.Prepare(`
 DELETE FROM model_namespace
 WHERE model_uuid = $modelUUIDArg.model_uuid
@@ -2120,9 +2130,14 @@ WHERE uuid = $modelUUIDArg.model_uuid
 	// upsert re-arms a row left inert by a model that migrated back and away
 	// again before the worker processed it.
 	stageDBDeletionStmt, err := s.Prepare(`
-INSERT INTO model_database_deletion (*)
-VALUES ($modelDatabaseDeletion.*)
-ON CONFLICT (namespace) DO UPDATE SET created_at = excluded.created_at
+INSERT INTO model_database_deletion
+    (namespace, created_at, application_id)
+VALUES
+    ($modelDatabaseDeletion.namespace, $modelDatabaseDeletion.created_at,
+     $modelDatabaseDeletion.application_id)
+ON CONFLICT (namespace) DO UPDATE SET
+    created_at = excluded.created_at,
+    application_id = excluded.application_id
 `, modelDatabaseDeletion{})
 	if err != nil {
 		return errors.Capture(err)
@@ -2203,6 +2218,14 @@ WHERE  migration_uuid = $migrationUUIDArg.migration_uuid
 			return errors.Errorf("reading export migration %q: %w", migrationUUID, err)
 		}
 
+		databaseDeletion := modelDatabaseDeletion{
+			Namespace: modelUUID,
+			CreatedAt: completedAt,
+		}
+		if err := tx.Query(ctx, selectDatabaseRouteStmt, modArg).Get(&databaseDeletion); err != nil {
+			return errors.Errorf("reading database route for model %q: %w", modelUUID, err)
+		}
+
 		// 1. Delete offer permission rows.
 		if err := tx.Query(ctx, deleteOfferPermsStmt, migArg).Run(); err != nil {
 			return errors.Errorf("deleting offer permissions for migration %q: %w", migrationUUID, err)
@@ -2254,10 +2277,7 @@ WHERE  migration_uuid = $migrationUUIDArg.migration_uuid
 		//     removed from namespace_list, so the dqlite database now outlives
 		//     the model and is deleted asynchronously by the model DB deleter
 		//     worker.
-		if err := tx.Query(ctx, stageDBDeletionStmt, modelDatabaseDeletion{
-			Namespace: modelUUID,
-			CreatedAt: completedAt,
-		}).Run(); err != nil {
+		if err := tx.Query(ctx, stageDBDeletionStmt, databaseDeletion).Run(); err != nil {
 			return errors.Errorf("staging database deletion for model %q: %w", modelUUID, err)
 		}
 

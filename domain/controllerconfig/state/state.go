@@ -6,6 +6,7 @@ package state
 import (
 	"context"
 	"database/sql"
+	"strconv"
 
 	"github.com/canonical/sqlair"
 
@@ -130,6 +131,28 @@ VALUES ($KeyValue.*)
 	if err != nil {
 		return errors.Capture(err)
 	}
+
+	desiredApplicationCount := 0
+	if value, ok := updateAttrs[controller.ModelDqliteApplicationCount]; ok {
+		desiredApplicationCount, err = strconv.Atoi(value)
+		if err != nil {
+			return errors.Errorf("parsing model Dqlite application count %q: %w", value, err)
+		}
+	}
+	applicationConfigStmt, err := st.Prepare(`
+SELECT COUNT(*) AS &dqliteApplicationConfig.count,
+       COALESCE(MAX(da.capacity), 0) AS &dqliteApplicationConfig.capacity
+FROM dqlite_application AS da
+`, dqliteApplicationConfig{})
+	if err != nil {
+		return errors.Capture(err)
+	}
+	insertApplicationStmt, err := st.Prepare(`
+INSERT INTO dqlite_application (*) VALUES ($dqliteApplication.*)
+`, dqliteApplication{})
+	if err != nil {
+		return errors.Capture(err)
+	}
 	var (
 		updateKeyValues  []KeyValue
 		controllerValues controllerValues
@@ -173,6 +196,32 @@ SET api_port = $controllerValues.api_port
 	}
 
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if desiredApplicationCount > 0 {
+			var current dqliteApplicationConfig
+			if err := tx.Query(ctx, applicationConfigStmt).Get(&current); err != nil {
+				return errors.Errorf("reading model Dqlite application configuration: %w", err)
+			}
+			if desiredApplicationCount < current.Count {
+				return errors.Errorf(
+					"cannot reduce model Dqlite application count from %d to %d",
+					current.Count, desiredApplicationCount,
+				)
+			}
+			applications := make([]dqliteApplication, 0, desiredApplicationCount-current.Count)
+			for id := current.Count + 1; id <= desiredApplicationCount; id++ {
+				applications = append(applications, dqliteApplication{
+					ID:       id,
+					State:    "ready",
+					Capacity: current.Capacity,
+				})
+			}
+			if len(applications) > 0 {
+				if err := tx.Query(ctx, insertApplicationStmt, applications).Run(); err != nil {
+					return errors.Errorf("adding model Dqlite applications: %w", err)
+				}
+			}
+		}
+
 		// Update the attributes.
 		if len(updateKeyValues) > 0 {
 			if err := tx.Query(ctx, updateStmt, updateKeyValues).Run(); err != nil {

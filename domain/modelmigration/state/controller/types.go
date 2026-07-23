@@ -446,6 +446,7 @@ type redirectCompletion struct {
 // modelDatabaseDeletion maps a model_database_deletion row staging the deletion
 // of the purged model's dqlite database for the model DB deleter worker.
 type modelDatabaseDeletion struct {
-	Namespace string    `db:"namespace"`
-	CreatedAt time.Time `db:"created_at"`
+	Namespace     string    `db:"namespace"`
+	CreatedAt     time.Time `db:"created_at"`
+	ApplicationID int       `db:"application_id"`
 }

@@ -36,3 +36,8 @@ const (
 func ReconfigureMembership(dir string, cluster []NodeInfo) error {
 	return dqlite.ReconfigureMembership(dir, cluster)
 }
+
+// GenerateID generates a Dqlite node ID for the supplied address.
+func GenerateID(address string) uint64 {
+	return dqlite.GenerateID(address)
+}

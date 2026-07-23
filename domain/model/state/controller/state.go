@@ -1673,8 +1673,44 @@ func registerModelNamespace(
 	tx *sqlair.TX,
 	uuid coremodel.UUID,
 ) (string, error) {
+	applicationStmt, err := preparer.Prepare(`
+WITH occupied (application_id, model_count) AS (
+    SELECT routes.application_id AS application_id,
+           COUNT(*) AS model_count
+    FROM (
+        SELECT mn.application_id AS application_id
+        FROM model_namespace AS mn
+        UNION ALL
+        SELECT mdd.application_id AS application_id
+        FROM model_database_deletion AS mdd
+    ) AS routes
+    GROUP BY routes.application_id
+)
+SELECT da.id AS &dbDqliteApplication.id
+FROM dqlite_application AS da
+LEFT JOIN occupied AS o ON o.application_id = da.id
+WHERE da.state = 'ready'
+  AND COALESCE(o.model_count, 0) < da.capacity
+ORDER BY COALESCE(o.model_count, 0), da.id
+LIMIT 1
+`, dbDqliteApplication{})
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+
+	var application dbDqliteApplication
+	if err := tx.Query(ctx, applicationStmt).Get(&application); errors.Is(err, sqlair.ErrNoRows) {
+		return "", errors.Errorf(
+			"allocating database application for model %q: %w",
+			uuid, modelerrors.DqliteApplicationCapacityExhausted,
+		)
+	} else if err != nil {
+		return "", errors.Errorf("allocating database application for model %q: %w", uuid, err)
+	}
+
 	modelNamespace := dbModelNamespace{
-		UUID: uuid.String(),
+		UUID:          uuid.String(),
+		ApplicationID: application.ID,
 		Namespace: sql.NullString{
 			String: uuid.String(),
 			Valid:  true,
@@ -1695,7 +1731,9 @@ INSERT INTO namespace_list (namespace) VALUES ($dbModelNamespace.namespace)
 	}
 
 	insertModelNamespaceStmt, err := preparer.Prepare(`
-INSERT INTO model_namespace (*) VALUES ($dbModelNamespace.*)
+INSERT INTO model_namespace (namespace, model_uuid, application_id)
+VALUES ($dbModelNamespace.namespace, $dbModelNamespace.model_uuid,
+        $dbModelNamespace.application_id)
 	`, modelNamespace)
 	if err != nil {
 		return "", errors.Capture(err)

@@ -80,7 +80,7 @@ func (s *bootstrapSuite) TestBootstrapSuccess(c *tc.C) {
 		})
 	}
 
-	err := BootstrapDqlite(c.Context(), mgr, tc.Must0(c, coremodel.NewUUID), loggertesting.WrapCheckLog(c), check)
+	err := BootstrapDqlite(c.Context(), mgr, tc.Must0(c, coremodel.NewUUID), 1, loggertesting.WrapCheckLog(c), check)
 	c.Assert(err, tc.ErrorIsNil)
 
 }
@@ -91,11 +91,19 @@ type testNodeManager struct {
 	port    int
 }
 
+func (f *testNodeManager) ForDqliteApplication(int) BootstrapNodeManager {
+	return &testNodeManager{c: f.c}
+}
+
 func (f *testNodeManager) EnsureDataDir() (string, error) {
 	if f.dataDir == "" {
 		f.dataDir = f.c.MkDir()
 	}
 	return f.dataDir, nil
+}
+
+func (f *testNodeManager) PrepareBootstrapNode(context.Context) error {
+	return nil
 }
 
 func (f *testNodeManager) IsLoopbackPreferred() bool {

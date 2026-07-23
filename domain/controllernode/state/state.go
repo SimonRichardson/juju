@@ -138,6 +138,88 @@ WHERE  namespace = $dbNamespace.namespace`, dbNamespace)
 	return namespace, nil
 }
 
+// SelectDatabaseApplication returns the immutable Dqlite application
+// assignment for a model database namespace. Active and deletion-staged
+// namespaces are both routable so physical cleanup can finish after the model
+// row has gone.
+func (st *State) SelectDatabaseApplication(ctx context.Context, namespace string) (int, error) {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return 0, errors.Capture(err)
+	}
+
+	route := dbDatabaseRoute{Namespace: namespace}
+	stmt, err := st.Prepare(`
+SELECT routes.namespace AS &dbDatabaseRoute.namespace,
+       routes.application_id AS &dbDatabaseRoute.application_id
+FROM (
+    SELECT mn.namespace AS namespace, mn.application_id AS application_id
+    FROM model_namespace AS mn
+    UNION ALL
+    SELECT mdd.namespace AS namespace, mdd.application_id AS application_id
+    FROM model_database_deletion AS mdd
+) AS routes
+WHERE routes.namespace = $dbDatabaseRoute.namespace
+LIMIT 1
+`, route)
+	if err != nil {
+		return 0, errors.Errorf("preparing select database route statement: %w", err)
+	}
+
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := tx.Query(ctx, stmt, route).Get(&route); errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Errorf("namespace %q %w", namespace, controllernodeerrors.NotFound)
+		} else if err != nil {
+			return errors.Errorf("selecting database route for namespace %q: %w", namespace, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, errors.Capture(err)
+	}
+
+	return route.ApplicationID, nil
+}
+
+// GetReadyDqliteApplications returns the stable identifiers of all model
+// Dqlite applications that are ready to receive database traffic.
+func (st *State) GetReadyDqliteApplications(ctx context.Context) ([]int, error) {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return nil, errors.Capture(err)
+	}
+
+	stmt, err := st.Prepare(`
+SELECT da.id AS &dbDatabaseRoute.application_id
+FROM dqlite_application AS da
+WHERE da.state = 'ready'
+ORDER BY da.id
+`, dbDatabaseRoute{})
+	if err != nil {
+		return nil, errors.Errorf("preparing select Dqlite applications statement: %w", err)
+	}
+
+	var rows []dbDatabaseRoute
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		rows = nil
+		if err := tx.Query(ctx, stmt).GetAll(&rows); errors.Is(err, sqlair.ErrNoRows) {
+			return nil
+		} else if err != nil {
+			return errors.Capture(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Errorf("selecting ready Dqlite applications: %w", err)
+	}
+
+	result := make([]int, len(rows))
+	for i, row := range rows {
+		result[i] = row.ApplicationID
+	}
+	return result, nil
+}
+
 // SetRunningAgentBinaryVersion sets the running agent binary version for the
 // provided controllerID. Any previously set values for this controllerID will
 // be overwritten by this call.

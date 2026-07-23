@@ -54,6 +54,8 @@ var configChecker = schema.FieldMap(schema.Fields{
 	QueryTracingEnabled:              schema.Bool(),
 	QueryTracingThreshold:            schema.TimeDurationString(),
 	DqliteBusyTimeout:                schema.TimeDurationString(),
+	ModelDqliteApplicationCount:      schema.ForceInt(),
+	ModelDqliteApplicationCapacity:   schema.ForceInt(),
 	SystemSSHKeys:                    schema.String(),
 	JujudControllerSnapSource:        schema.String(),
 	SSHServerPort:                    schema.ForceInt(),
@@ -101,6 +103,8 @@ var configChecker = schema.FieldMap(schema.Fields{
 	QueryTracingEnabled:              DefaultQueryTracingEnabled,
 	QueryTracingThreshold:            DefaultQueryTracingThreshold,
 	DqliteBusyTimeout:                DefaultDqliteBusyTimeout,
+	ModelDqliteApplicationCount:      DefaultModelDqliteApplicationCount,
+	ModelDqliteApplicationCapacity:   DefaultModelDqliteApplicationCapacity,
 	SystemSSHKeys:                    schema.Omit,
 	JujudControllerSnapSource:        DefaultJujudControllerSnapSource,
 	SSHServerPort:                    DefaultSSHServerPort,
@@ -294,6 +298,14 @@ The timeout for how long a database operation will wait for a lock
 to be released before returning an error, that is the amount of
 time a writer will wait for others to finish writing on the
 same database.`[1:],
+	},
+	ModelDqliteApplicationCount: {
+		Type:        configschema.Tint,
+		Description: `The number of Dqlite applications preallocated to host model databases. This value can only increase.`,
+	},
+	ModelDqliteApplicationCapacity: {
+		Type:        configschema.Tint,
+		Description: `The bootstrap-only maximum number of model databases assigned to one model Dqlite application.`,
 	},
 
 	SystemSSHKeys: {

@@ -710,6 +710,8 @@ func (s *ConfigSuite) TestDefaults(c *tc.C) {
 	c.Assert(cfg.ControllerResourceDownloadLimit(), tc.Equals, controller.DefaultControllerResourceDownloadLimit)
 	c.Assert(cfg.QueryTracingEnabled(), tc.Equals, controller.DefaultQueryTracingEnabled)
 	c.Assert(cfg.QueryTracingThreshold(), tc.Equals, controller.DefaultQueryTracingThreshold)
+	c.Check(cfg.ModelDqliteApplications(), tc.Equals, 20)
+	c.Check(cfg.ModelDqliteApplicationCapacity(), tc.Equals, 20)
 	c.Assert(cfg.SSHServerPort(), tc.Equals, controller.DefaultSSHServerPort)
 	c.Assert(cfg.SSHMaxConcurrentConnections(), tc.Equals, controller.DefaultSSHMaxConcurrentConnections)
 }

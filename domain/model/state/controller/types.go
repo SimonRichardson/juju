@@ -254,8 +254,13 @@ type dbModelActivated struct {
 }
 
 type dbModelNamespace struct {
-	UUID      string         `db:"model_uuid"`
-	Namespace sql.NullString `db:"namespace"`
+	UUID          string         `db:"model_uuid"`
+	Namespace     sql.NullString `db:"namespace"`
+	ApplicationID int            `db:"application_id"`
+}
+
+type dbDqliteApplication struct {
+	ID int `db:"id"`
 }
 
 type dbCloudCredential struct {

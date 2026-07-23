@@ -6,6 +6,7 @@ package dbaccessor
 import (
 	"context"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -63,6 +64,10 @@ type NodeManager interface {
 	// EnsureDataDir ensures that a directory for Dqlite data exists at
 	// a path determined by the agent config, then returns that path.
 	EnsureDataDir() (string, error)
+
+	// PrepareBootstrapNode gives a new standalone application a unique node
+	// identity before it is started.
+	PrepareBootstrapNode(context.Context) error
 
 	// ClusterServers returns the node information for
 	// Dqlite nodes configured to be in the cluster.
@@ -157,6 +162,11 @@ type WorkerConfig struct {
 	NewApp      func(string, ...app.Option) (DBApp, error)
 	NewDBWorker NewDBWorkerFunc
 
+	// NewApplicationNodeManager returns an isolated node manager for a model
+	// Dqlite application. If nil, model namespaces use the catalog application;
+	// this compatibility mode is intended only for tests and legacy callers.
+	NewApplicationNodeManager func(int) NodeManager
+
 	// ControllerID uniquely identifies the controller that this
 	// worker is running on. It is equivalent to the machine ID.
 	ControllerID string
@@ -206,9 +216,11 @@ type dbWorker struct {
 	cfg      WorkerConfig
 	catacomb catacomb.Catacomb
 
-	mu       sync.RWMutex
-	dbApp    DBApp
-	dbRunner *worker.Runner
+	mu        sync.RWMutex
+	dbApp     DBApp
+	modelApps map[int]DBApp
+	routes    map[string]int
+	dbRunner  *worker.Runner
 
 	// dbReady is used to signal that we can
 	// begin processing GetDB requests.
@@ -260,6 +272,8 @@ func NewWorker(cfg WorkerConfig) (*dbWorker, error) {
 		dbRunner:   runner,
 		dbReady:    make(chan struct{}),
 		dbRequests: make(chan dbRequest),
+		modelApps:  make(map[int]DBApp),
+		routes:     make(map[string]int),
 	}
 
 	if err = catacomb.Invoke(catacomb.Plan{
@@ -365,6 +379,9 @@ func (w *dbWorker) loop() (err error) {
 			w.cfg.Logger.Infof(ctx, "controller configuration changed on disk")
 			if err := w.handleClusterConfigChange(ctx, true); err != nil {
 				return errors.Trace(err)
+			}
+			if err := w.startModelApplications(ctx); err != nil {
+				return errors.Annotate(err, "reconciling model Dqlite applications")
 			}
 
 		case <-w.catacomb.Dying():
@@ -622,6 +639,10 @@ func (w *dbWorker) initialiseDqlite(ctx context.Context, options ...app.Option) 
 		return errors.Annotate(err, "opening controller database")
 	}
 
+	if err := w.startModelApplications(ctx); err != nil {
+		return errors.Annotate(err, "starting model Dqlite applications")
+	}
+
 	// Once initialised, set the details for the node.
 	// This is a no-op if the details are unchanged.
 	// We do this before serving any other requests.
@@ -707,13 +728,22 @@ func (w *dbWorker) startDqliteNode(ctx context.Context, options ...app.Option) e
 // database or ErrTryAgain to force the runner to retry starting the worker
 // again.
 func (w *dbWorker) openDatabase(ctx context.Context, namespace string) error {
+	applicationID, err := w.applicationForNamespace(ctx, namespace)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	// Note: Do not be tempted to create the worker outside of the StartWorker
 	// function. This will create potential data race if openDatabase is called
 	// multiple times for the same namespace.
-	err := w.dbRunner.StartWorker(ctx, namespace, func(ctx context.Context) (worker.Worker, error) {
+	err = w.dbRunner.StartWorker(ctx, namespace, func(ctx context.Context) (worker.Worker, error) {
 		w.mu.RLock()
 		defer w.mu.RUnlock()
-		if w.dbApp == nil {
+		dbApp := w.dbApp
+		if applicationID != 0 && w.cfg.NewApplicationNodeManager != nil {
+			dbApp = w.modelApps[applicationID]
+		}
+		if dbApp == nil {
 			// If the dbApp is nil, then we're either shutting down or
 			// rebinding the address. In either case, we don't want to
 			// start a new worker. We'll return ErrTryAgain to indicate
@@ -728,7 +758,7 @@ func (w *dbWorker) openDatabase(ctx context.Context, namespace string) error {
 		}
 
 		return w.cfg.NewDBWorker(ctx,
-			w.dbApp, namespace,
+			dbApp, namespace,
 			WithClock(w.cfg.Clock),
 			WithLogger(w.cfg.Logger.Child(database.ShortNamespace(namespace))),
 			WithMetricsCollector(w.cfg.MetricsCollector),
@@ -777,7 +807,20 @@ func (w *dbWorker) deleteDatabase(ctx context.Context, namespace string) error {
 	defer cancel()
 
 	// Open the database directly as we can't use the worker to do it for us.
-	db, err := w.dbApp.Open(openCtx, namespace)
+	applicationID, err := w.applicationForNamespace(ctx, namespace)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	w.mu.RLock()
+	dbApp := w.dbApp
+	if applicationID != 0 && w.cfg.NewApplicationNodeManager != nil {
+		dbApp = w.modelApps[applicationID]
+	}
+	w.mu.RUnlock()
+	if dbApp == nil {
+		return errors.Errorf("Dqlite application %d is not ready", applicationID)
+	}
+	db, err := dbApp.Open(openCtx, namespace)
 	if err != nil {
 		return errors.Annotatef(err, "opening database for deletion")
 	}
@@ -917,12 +960,36 @@ func (w *dbWorker) handleClusterConfigChange(ctx context.Context, noConfigIsFata
 // It should be called only for a cluster constituted by a single node
 // bound to the loopback IP address.
 func (w *dbWorker) rebindAddress(ctx context.Context, addr string) error {
+	var applicationIDs []int
+	if w.cfg.NewApplicationNodeManager != nil {
+		var err error
+		applicationIDs, err = w.nodeService().GetReadyDqliteApplications(ctx)
+		if err != nil {
+			return errors.Annotate(err, "getting model Dqlite applications for address rebind")
+		}
+	}
+
 	// We only rebind the address when going into HA from a single node.
 	// Therefore, we do not have to worry about handing over responsibilities.
 	// Passing false ensures we come back up in the shortest time possible.
 	w.shutdownDqlite(ctx, false)
 
-	mgr := w.cfg.NodeManager
+	if err := w.rebindNodeManagerAddress(ctx, w.cfg.NodeManager, addr); err != nil {
+		return errors.Trace(err)
+	}
+	for _, applicationID := range applicationIDs {
+		mgr := w.cfg.NewApplicationNodeManager(applicationID)
+		if _, err := mgr.EnsureDataDir(); err != nil {
+			return errors.Annotatef(err, "ensuring application %d data directory for address rebind", applicationID)
+		}
+		if err := w.rebindNodeManagerAddress(ctx, mgr, addr); err != nil {
+			return errors.Annotatef(err, "rebinding model Dqlite application %d", applicationID)
+		}
+	}
+	return nil
+}
+
+func (w *dbWorker) rebindNodeManagerAddress(ctx context.Context, mgr NodeManager, addr string) error {
 	servers, err := mgr.ClusterServers(ctx)
 	if err != nil {
 		return errors.Trace(err)
@@ -940,6 +1007,9 @@ func (w *dbWorker) rebindAddress(ctx context.Context, addr string) error {
 	_, port, err := net.SplitHostPort(servers[0].Address)
 	if err != nil {
 		return errors.Trace(err)
+	}
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
 	}
 	servers[0].Address = net.JoinHostPort(addr, port)
 
@@ -1018,8 +1088,169 @@ func (w *dbWorker) shutdownDqlite(ctx context.Context, handover bool) {
 	if err := w.dbApp.Close(); err != nil {
 		w.cfg.Logger.Errorf(ctx, "closing Dqlite application: %v", err)
 	}
+	for applicationID, modelApp := range w.modelApps {
+		if handover {
+			if err := modelApp.Handover(ctx); err != nil {
+				w.cfg.Logger.Errorf(ctx, "handing off model Dqlite application %d: %v", applicationID, err)
+			}
+		}
+		if err := modelApp.Close(); err != nil {
+			w.cfg.Logger.Errorf(ctx, "closing model Dqlite application %d: %v", applicationID, err)
+		}
+		delete(w.modelApps, applicationID)
+	}
 
 	w.dbApp = nil
+}
+
+// applicationForNamespace resolves a database namespace to its immutable
+// Dqlite application assignment. Routes are cached because assignments never
+// change during a model's lifetime. A miss falls back to the catalog database.
+func (w *dbWorker) applicationForNamespace(ctx context.Context, namespace string) (int, error) {
+	if namespace == database.ControllerNS || w.cfg.NewApplicationNodeManager == nil {
+		return 0, nil
+	}
+
+	w.mu.RLock()
+	applicationID, ok := w.routes[namespace]
+	w.mu.RUnlock()
+	if ok {
+		if err := w.ensureModelApplicationRunning(ctx, applicationID); err != nil {
+			return 0, errors.Trace(err)
+		}
+		return applicationID, nil
+	}
+
+	applicationID, err := w.nodeService().DatabaseApplicationForNamespace(ctx, namespace)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	w.mu.Lock()
+	w.routes[namespace] = applicationID
+	w.mu.Unlock()
+	if err := w.ensureModelApplicationRunning(ctx, applicationID); err != nil {
+		return 0, errors.Trace(err)
+	}
+	return applicationID, nil
+}
+
+func (w *dbWorker) ensureModelApplicationRunning(ctx context.Context, applicationID int) error {
+	if applicationID == 0 || w.cfg.NewApplicationNodeManager == nil {
+		return nil
+	}
+	w.mu.RLock()
+	_, ok := w.modelApps[applicationID]
+	w.mu.RUnlock()
+	if ok {
+		return nil
+	}
+	return errors.Trace(w.startModelApplications(ctx))
+}
+
+// startModelApplications starts all ready model Dqlite applications. Existing
+// nodes recover membership from their application-specific data directories;
+// a newly added HA controller joins using the controller bind-address map.
+func (w *dbWorker) startModelApplications(ctx context.Context) error {
+	if w.cfg.NewApplicationNodeManager == nil {
+		return nil
+	}
+
+	applicationIDs, err := w.nodeService().GetReadyDqliteApplications(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	clusterConf, err := w.cfg.ClusterConfig.DBBindAddresses()
+	if err != nil {
+		clusterConf = nil
+	}
+
+	for _, applicationID := range applicationIDs {
+		w.mu.RLock()
+		_, running := w.modelApps[applicationID]
+		w.mu.RUnlock()
+		if running {
+			continue
+		}
+		mgr := w.cfg.NewApplicationNodeManager(applicationID)
+		dataDir, err := mgr.EnsureDataDir()
+		if err != nil {
+			return errors.Annotatef(err, "ensuring application %d data directory", applicationID)
+		}
+		existing, err := mgr.IsExistingNode()
+		if err != nil {
+			return errors.Annotatef(err, "checking application %d node", applicationID)
+		}
+
+		options := []app.Option{
+			mgr.WithLogFuncOption(),
+			mgr.WithTracingOption(),
+			mgr.WithBusyTimeoutOption(),
+		}
+		if existing {
+			if !mgr.IsLoopbackPreferred() {
+				withTLS, err := mgr.WithTLSOption()
+				if err != nil {
+					return errors.Annotatef(err, "configuring application %d TLS", applicationID)
+				}
+				options = append(options, withTLS)
+			}
+		} else {
+			localAddr, ok := clusterConf[w.cfg.ControllerID]
+			if !ok && mgr.IsLoopbackPreferred() {
+				localAddr = "127.0.0.1"
+				ok = true
+			}
+			if !ok {
+				return errors.Errorf("no bind address for application %d on controller %q", applicationID, w.cfg.ControllerID)
+			}
+
+			controllerIDs := make([]string, 0, len(clusterConf))
+			var peers []string
+			for controllerID, addr := range clusterConf {
+				controllerIDs = append(controllerIDs, controllerID)
+				if controllerID != w.cfg.ControllerID && addr != "" {
+					peers = append(peers, addr)
+				}
+			}
+			sort.Strings(controllerIDs)
+			isGenesis := len(controllerIDs) == 0 || controllerIDs[0] == w.cfg.ControllerID
+			if mgr.IsLoopbackPreferred() {
+				options = append(options, mgr.WithAddressOption(localAddr))
+			} else {
+				withTLS, err := mgr.WithTLSOption()
+				if err != nil {
+					return errors.Annotatef(err, "configuring application %d TLS", applicationID)
+				}
+				options = append(options, mgr.WithAddressOption(localAddr), withTLS)
+			}
+			if !isGenesis {
+				if len(peers) == 0 {
+					return errors.Errorf("no cluster peers for new application %d node", applicationID)
+				}
+				options = append(options, mgr.WithClusterOption(peers))
+			} else if err := mgr.PrepareBootstrapNode(ctx); err != nil {
+				return errors.Annotatef(err, "preparing model Dqlite application %d node", applicationID)
+			}
+		}
+
+		modelApp, err := w.cfg.NewApp(dataDir, options...)
+		if err != nil {
+			return errors.Annotatef(err, "creating model Dqlite application %d", applicationID)
+		}
+		readyCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		err = modelApp.Ready(readyCtx)
+		cancel()
+		if err != nil {
+			_ = modelApp.Close()
+			return errors.Annotatef(err, "waiting for model Dqlite application %d", applicationID)
+		}
+
+		w.mu.Lock()
+		w.modelApps[applicationID] = modelApp
+		w.mu.Unlock()
+		w.cfg.Logger.Infof(ctx, "serving model Dqlite application %d (ID: %v)", applicationID, modelApp.ID())
+	}
+	return nil
 }
 
 // scopedContext returns a context that is in the scope of the worker lifetime.

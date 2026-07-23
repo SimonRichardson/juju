@@ -38,6 +38,14 @@ type State interface {
 	// namespace.
 	SelectDatabaseNamespace(context.Context, string) (string, error)
 
+	// SelectDatabaseApplication returns the Dqlite application assignment for
+	// the supplied model database namespace.
+	SelectDatabaseApplication(context.Context, string) (int, error)
+
+	// GetReadyDqliteApplications returns all ready model Dqlite application
+	// identifiers.
+	GetReadyDqliteApplications(context.Context) ([]int, error)
+
 	// SetRunningAgentBinaryVersion sets the agent version for the supplied
 	// controllerID. Version represents the version of the controller node's
 	// agent binary.
@@ -136,6 +144,36 @@ func (s *Service) IsKnownDatabaseNamespace(ctx context.Context, namespace string
 	}
 
 	return ns == namespace, nil
+}
+
+// DatabaseApplicationForNamespace returns the immutable Dqlite application
+// assignment for a model database namespace.
+func (s *Service) DatabaseApplicationForNamespace(ctx context.Context, namespace string) (int, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	if namespace == "" {
+		return 0, errors.Errorf("namespace %q is %w, cannot be empty", namespace, coreerrors.NotValid)
+	}
+
+	applicationID, err := s.st.SelectDatabaseApplication(ctx, namespace)
+	if err != nil {
+		return 0, errors.Errorf("determining database application: %w", err)
+	}
+	return applicationID, nil
+}
+
+// GetReadyDqliteApplications returns all model Dqlite applications that are
+// ready to serve databases.
+func (s *Service) GetReadyDqliteApplications(ctx context.Context) ([]int, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	applications, err := s.st.GetReadyDqliteApplications(ctx)
+	if err != nil {
+		return nil, errors.Errorf("getting ready Dqlite applications: %w", err)
+	}
+	return applications, nil
 }
 
 // SetControllerNodeReportedAgentVersion sets the agent version for the supplied

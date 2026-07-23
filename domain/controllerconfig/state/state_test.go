@@ -356,3 +356,44 @@ func (s *stateSuite) TestControllerConfigRemoveWithAdditionalValues(c *tc.C) {
 		controller.PublicDNSAddress:   "controller.test.com:1234",
 	})
 }
+
+func (s *stateSuite) TestIncreaseModelDqliteApplicationCount(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory())
+	err := st.UpdateControllerConfig(c.Context(), map[string]string{
+		controller.ModelDqliteApplicationCount: "22",
+	}, nil)
+	c.Assert(err, tc.ErrorIsNil)
+
+	rows, err := s.DB().QueryContext(c.Context(), `
+SELECT id, state, capacity FROM dqlite_application ORDER BY id`)
+	c.Assert(err, tc.ErrorIsNil)
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id, capacity int
+		var state string
+		err := rows.Scan(&id, &state, &capacity)
+		c.Assert(err, tc.ErrorIsNil)
+		c.Check(state, tc.Equals, "ready")
+		c.Check(capacity, tc.Equals, 20)
+		ids = append(ids, id)
+	}
+	c.Assert(rows.Err(), tc.ErrorIsNil)
+	c.Check(ids, tc.HasLen, 22)
+	c.Check(ids[0], tc.Equals, 1)
+	c.Check(ids[21], tc.Equals, 22)
+}
+
+func (s *stateSuite) TestCannotDecreaseModelDqliteApplicationCount(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory())
+	err := st.UpdateControllerConfig(c.Context(), map[string]string{
+		controller.ModelDqliteApplicationCount: "22",
+	}, nil)
+	c.Assert(err, tc.ErrorIsNil)
+
+	err = st.UpdateControllerConfig(c.Context(), map[string]string{
+		controller.ModelDqliteApplicationCount: "21",
+	}, nil)
+	c.Check(err, tc.ErrorMatches, "cannot reduce model Dqlite application count from 22 to 21")
+}

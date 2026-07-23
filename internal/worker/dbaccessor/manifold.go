@@ -148,13 +148,18 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			}
 
 			cfg := WorkerConfig{
-				NodeManager:             config.NewNodeManager(nodeManagerCfg, config.Logger, slowQueryLogger),
-				Clock:                   clock.WallClock,
-				ControllerID:            controllerID,
-				MetricsCollector:        metricsCollector,
-				Logger:                  config.Logger,
-				NewApp:                  config.NewApp,
-				NewDBWorker:             config.NewDBWorker,
+				NodeManager:      config.NewNodeManager(nodeManagerCfg, config.Logger, slowQueryLogger),
+				Clock:            clock.WallClock,
+				ControllerID:     controllerID,
+				MetricsCollector: metricsCollector,
+				Logger:           config.Logger,
+				NewApp:           config.NewApp,
+				NewDBWorker:      config.NewDBWorker,
+				NewApplicationNodeManager: func(applicationID int) NodeManager {
+					applicationCfg := nodeManagerCfg
+					applicationCfg.DqliteApplicationID = applicationID
+					return config.NewNodeManager(applicationCfg, config.Logger, slowQueryLogger)
+				},
 				ControllerConfigWatcher: controllerConfigWatcher,
 				ClusterConfig:           controllerConf,
 			}
