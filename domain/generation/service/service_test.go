@@ -367,10 +367,11 @@ func (s *serviceSuite) TestAbortBranchStateError(c *tc.C) {
 
 	branch := s.generation(c)
 	s.state.EXPECT().GetBranchByName(gomock.Any(), "test").Return(branch, nil)
-	s.state.EXPECT().Abort(gomock.Any(), branch.UUID, "aborter").Return(generationerrors.BranchInProgress)
+	wantErr := errors.New("boom")
+	s.state.EXPECT().Abort(gomock.Any(), branch.UUID, "aborter").Return(wantErr)
 
 	err := s.service.AbortBranch(c.Context(), "test", "aborter")
-	c.Check(err, tc.ErrorIs, generationerrors.BranchInProgress)
+	c.Check(err, tc.ErrorIs, wantErr)
 }
 
 func (s *serviceSuite) TestListCommits(c *tc.C) {
