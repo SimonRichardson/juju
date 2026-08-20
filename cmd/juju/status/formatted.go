@@ -233,6 +233,8 @@ type unitStatus struct {
 
 	Leader        bool                  `json:"leader,omitempty" yaml:"leader,omitempty"`
 	Charm         string                `json:"upgrading-from,omitempty" yaml:"upgrading-from,omitempty"`
+	CharmURL      string                `json:"charm-url,omitempty" yaml:"charm-url,omitempty"`
+	CharmRev      *int                  `json:"charm-rev,omitempty" yaml:"charm-rev,omitempty"`
 	Machine       string                `json:"machine,omitempty" yaml:"machine,omitempty"`
 	OpenedPorts   []string              `json:"open-ports,omitempty" yaml:"open-ports,omitempty"`
 	PublicAddress string                `json:"public-address,omitempty" yaml:"public-address,omitempty"`
