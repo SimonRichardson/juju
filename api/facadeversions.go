@@ -77,6 +77,7 @@ var facadeVersions = facades.FacadeVersions{
 	// to negotiate the new model migration path against those targets.
 	"MigrationTarget":              {4, 5, 6, 7, 8},
 	"ModelConfig":                  {3, 4},
+	"ModelGeneration":              {4},
 	"ModelManager":                 {9, 10, 11},
 	"ModelSummaryWatcher":          {1},
 	"ModelUpgrader":                {1, 2},
