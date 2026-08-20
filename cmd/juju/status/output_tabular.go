@@ -87,6 +87,9 @@ func FormatTabular(writer io.Writer, forceColor bool, value any) error {
 	}
 
 	w.Println(values[versionPos:]...)
+	if len(fs.Branches) > 0 {
+		printBranches(tw, fs.Branches)
+	}
 
 	if len(fs.RemoteApplications) > 0 {
 		printRemoteApplications(tw, fs.RemoteApplications)
@@ -244,6 +247,9 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 		if u.Leader {
 			name += "*"
 		}
+		if u.Branch != "" {
+			name += " " + u.Branch
+		}
 		w.Print(indent("", level*2, name))
 		w.PrintStatus(u.WorkloadStatusInfo.Current)
 		w.PrintStatus(u.JujuStatusInfo.Current)
@@ -277,6 +283,18 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 		endSection(tw)
 	}
 
+	endSection(tw)
+}
+
+func printBranches(tw *ansiterm.TabWriter, branches map[string]branchStatus) {
+	w := startSection(tw, false, "Branch", "Ref", "Created", "Created By")
+	for _, branchName := range naturalsort.Sort(stringKeysFromMap(branches)) {
+		branch := branches[branchName]
+		if branch.Active {
+			branchName += "*"
+		}
+		w.Println(branchName, branch.Ref, branch.Created, branch.CreatedBy)
+	}
 	endSection(tw)
 }
 

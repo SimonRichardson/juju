@@ -19,6 +19,7 @@ import (
 	"github.com/juju/juju/domain/application/charm"
 	"github.com/juju/juju/domain/crossmodelrelation"
 	crossmodelrelationservice "github.com/juju/juju/domain/crossmodelrelation/service"
+	"github.com/juju/juju/domain/generation"
 	domainnetwork "github.com/juju/juju/domain/network"
 	"github.com/juju/juju/domain/port"
 	domainrelation "github.com/juju/juju/domain/relation"
@@ -57,6 +58,12 @@ type ApplicationService interface {
 
 	// GetUnitsK8sPodInfo returns information about the k8s pods for all alive units.
 	GetUnitsK8sPodInfo(ctx context.Context) (map[unit.Name]application.K8sPodInfo, error)
+}
+
+// GenerationService defines the generation operations used by status.
+type GenerationService interface {
+	ListBranches(context.Context) ([]generation.Generation, error)
+	GetTrackedUnits(context.Context, string) ([]unit.Name, error)
 }
 
 // StatusService defines the methods that the facade assumes from the Status

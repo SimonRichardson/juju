@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/juju/names/v6"
 
@@ -26,6 +27,7 @@ type statusFormatter struct {
 	relations              map[int]params.RelationStatus
 	storage                *storage.CombinedStorage
 	isoTime, showRelations bool
+	branchRefs             map[string]string
 }
 
 // NewStatusFormatterParams contains the parameters required
@@ -50,6 +52,7 @@ func NewStatusFormatter(p NewStatusFormatterParams) *statusFormatter {
 		isoTime:        p.ISOTime,
 		showRelations:  p.ShowRelations,
 		outputName:     p.OutputName,
+		branchRefs:     make(map[string]string),
 	}
 	if p.ShowRelations {
 		for _, relation := range p.Status.Relations {
@@ -88,6 +91,14 @@ func (sf *statusFormatter) Format() (formattedStatus, error) {
 	if sf.status.ControllerTimestamp != nil {
 		out.Controller = &controllerStatus{
 			Timestamp: common.FormatTimeAsTimestamp(sf.status.ControllerTimestamp, sf.isoTime),
+		}
+	}
+	if len(sf.status.Branches) > 0 {
+		out.Branches = make(map[string]branchStatus, len(sf.status.Branches))
+		for i, name := range sortedBranchNames(sf.status.Branches) {
+			branch := sf.formatBranch(i+1, sf.status.Branches[name])
+			out.Branches[name] = branch
+			sf.branchRefs[name] = branch.Ref
 		}
 	}
 	for k, m := range sf.status.Machines {
@@ -446,6 +457,7 @@ func (sf *statusFormatter) formatUnit(info unitFormatInfo) unitStatus {
 		Charm:              info.unit.Charm,
 		Subordinates:       make(map[string]unitStatus),
 		Leader:             info.unit.Leader,
+		Branch:             sf.branchForUnit(info.unitName),
 	}
 
 	for k, m := range info.unit.Subordinates {
@@ -456,6 +468,43 @@ func (sf *statusFormatter) formatUnit(info unitFormatInfo) unitStatus {
 		})
 	}
 	return out
+}
+
+func sortedBranchNames(branches map[string]params.BranchStatus) []string {
+	names := make([]string, 0, len(branches))
+	for name := range branches {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func (sf *statusFormatter) formatBranch(ref int, branch params.BranchStatus) branchStatus {
+	created := time.Unix(branch.Created, 0)
+	result := branchStatus{
+		Created:   common.FormatTimeAsTimestamp(&created, sf.isoTime),
+		CreatedBy: branch.CreatedBy,
+		Active:    true,
+	}
+	if sf.outputName == "tabular" {
+		result.Ref = fmt.Sprintf("#%d", ref)
+		result.Created = common.UserFriendlyDuration(created, time.Now())
+	}
+	return result
+}
+
+func (sf *statusFormatter) branchForUnit(unitName string) string {
+	for branchName, branch := range sf.status.Branches {
+		for _, units := range branch.AssignedUnits {
+			if slices.Contains(units, unitName) {
+				if sf.outputName == "tabular" {
+					return sf.branchRefs[branchName]
+				}
+				return branchName
+			}
+		}
+	}
+	return ""
 }
 
 func (sf *statusFormatter) getStatusInfoContents(inst params.DetailedStatus) statusInfoContents {

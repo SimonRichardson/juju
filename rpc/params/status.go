@@ -42,7 +42,8 @@ func (fs *FullStatus) IsEmpty() bool {
 		len(fs.Machines) == 0 &&
 		len(fs.Offers) == 0 &&
 		len(fs.RemoteApplicationOfferers) == 0 &&
-		len(fs.Relations) == 0
+		len(fs.Relations) == 0 &&
+		len(fs.Branches) == 0
 }
 
 // ModelStatusInfo holds status information about the model itself.

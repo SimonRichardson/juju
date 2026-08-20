@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/juju/juju/domain/application/charm"
 	"github.com/juju/juju/domain/crossmodelrelation"
 	"github.com/juju/juju/domain/deployment"
+	"github.com/juju/juju/domain/generation"
 	domainnetwork "github.com/juju/juju/domain/network"
 	service "github.com/juju/juju/domain/status/service"
 	domainstorage "github.com/juju/juju/domain/storage"
@@ -62,12 +64,55 @@ type stubLeadershipReader struct {
 	err     error
 }
 
+type stubGenerationService struct {
+	branches []generation.Generation
+	tracked  map[string][]coreunit.Name
+	err      error
+}
+
+func (s stubGenerationService) ListBranches(context.Context) ([]generation.Generation, error) {
+	return s.branches, s.err
+}
+
+func (s stubGenerationService) GetTrackedUnits(
+	_ context.Context, branchName string,
+) ([]coreunit.Name, error) {
+	return s.tracked[branchName], s.err
+}
+
 func (s stubLeadershipReader) Leaders() (map[string]string, error) {
 	return s.leaders, s.err
 }
 
 func TestFullStatusSuite(t *testing.T) {
 	tc.Run(t, &fullStatusSuite{})
+}
+
+func (s *fullStatusSuite) TestFetchBranchStatuses(c *tc.C) {
+	createdAt := time.Unix(42, 0)
+	service := stubGenerationService{
+		branches: []generation.Generation{{
+			Name:      "test",
+			CreatedAt: createdAt,
+			CreatedBy: "admin",
+		}},
+		tracked: map[string][]coreunit.Name{
+			"test": {"mediawiki/0", "mediawiki/1", "mysql/0"},
+		},
+	}
+
+	branches, err := fetchBranchStatuses(c.Context(), service)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(branches, tc.DeepEquals, map[string]params.BranchStatus{
+		"test": {
+			AssignedUnits: map[string][]string{
+				"mediawiki": {"mediawiki/0", "mediawiki/1"},
+				"mysql":     {"mysql/0"},
+			},
+			Created:   42,
+			CreatedBy: "admin",
+		},
+	})
 }
 
 func (s *fullStatusSuite) SetUpTest(c *tc.C) {
@@ -808,6 +853,7 @@ func (s *fullStatusSuite) client(isControllerModel bool) *Client {
 		applicationService:        s.applicationService,
 		blockDeviceService:        s.blockDeviceService,
 		crossModelRelationService: s.crossModelRelationService,
+		generationService:         stubGenerationService{},
 		machineService:            s.machineService,
 		modelInfoService:          s.modelInfoService,
 		networkService:            s.networkService,

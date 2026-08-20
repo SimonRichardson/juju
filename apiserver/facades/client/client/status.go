@@ -164,6 +164,10 @@ func (c *Client) FullStatus(ctx context.Context, args params.StatusParams) (para
 		fetchAllApplicationsAndUnits(ctx, c.statusService, c.applicationService); err != nil {
 		return noStatus, internalerrors.Errorf("could not fetch applications and units: %w", err)
 	}
+	branches, err := fetchBranchStatuses(ctx, c.generationService)
+	if err != nil {
+		return noStatus, internalerrors.Errorf("could not fetch branches: %w", err)
+	}
 	if hasExposedApplications(context.allAppsUnitsCharmBindings.applications) {
 		context.exposedEndpoints, context.exposedEndpointsErr = c.applicationService.GetAllExposedEndpoints(ctx)
 	}
@@ -261,11 +265,47 @@ func (c *Client) FullStatus(ctx context.Context, args params.StatusParams) (para
 		Offers:                    context.processOffers(),
 		Relations:                 context.processRelations(),
 		RemoteApplicationOfferers: context.processRemoteApplicationOfferers(ctx),
+		Branches:                  branches,
 		Storage:                   allStorage,
 		Filesystems:               filesystems,
 		Volumes:                   volumes,
 		ControllerTimestamp:       &now,
 	}, nil
+}
+
+func fetchBranchStatuses(
+	ctx context.Context, service GenerationService,
+) (map[string]params.BranchStatus, error) {
+	branches, err := service.ListBranches(ctx)
+	if err != nil {
+		return nil, internalerrors.Capture(err)
+	}
+	if len(branches) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]params.BranchStatus, len(branches))
+	for _, branch := range branches {
+		trackedUnits, err := service.GetTrackedUnits(ctx, branch.Name)
+		if err != nil {
+			return nil, internalerrors.Errorf(
+				"getting tracked units for branch %q: %w", branch.Name, err,
+			)
+		}
+		assignedUnits := make(map[string][]string)
+		for _, unitName := range trackedUnits {
+			applicationName := unitName.Application()
+			assignedUnits[applicationName] = append(
+				assignedUnits[applicationName], unitName.String(),
+			)
+		}
+		result[branch.Name] = params.BranchStatus{
+			AssignedUnits: assignedUnits,
+			Created:       branch.CreatedAt.Unix(),
+			CreatedBy:     branch.CreatedBy,
+		}
+	}
+	return result, nil
 }
 
 type applicationStatusInfo struct {
