@@ -28,6 +28,7 @@ import (
 //go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/crossmodelrelation-triggers.gen.go -package=triggers -tables=application_remote_offerer,application_remote_consumer,relation_network_ingress,relation_network_egress
 //go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/offer-triggers.gen.go -package=triggers -tables=offer
 //go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/status-triggers.gen.go -package=triggers -tables=application_status
+//go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/generation-triggers.gen.go -package=triggers -tables=generation,generation_application_charm,generation_application_config,generation_application_resource,generation_unit
 
 //go:embed model/sql/*.sql
 var modelSchemaDir embed.FS
@@ -110,6 +111,11 @@ const (
 	tableRelationNetworkEgress
 	tableModelMigrating
 	tableMachineReprovision
+	tableGeneration
+	tableGenerationApplicationCharm
+	tableGenerationApplicationConfig
+	tableGenerationApplicationResource
+	tableGenerationUnit
 )
 
 // modelPostPatchFilesByVersion is used to categorise the post patch files
@@ -196,6 +202,11 @@ func ModelDDLForVersion(version semversion.Number) *schema.Schema {
 		triggers.ChangeLogTriggersForRelationNetworkIngress("relation_uuid", tableRelationNetworkIngress),
 		triggers.ChangeLogTriggersForRelationNetworkEgress("relation_uuid", tableRelationNetworkEgress),
 		triggers.ChangeLogTriggersForModelMigrating("model_uuid", tableModelMigrating),
+		triggers.ChangeLogTriggersForGeneration("uuid", tableGeneration),
+		triggers.ChangeLogTriggersForGenerationApplicationCharm("application_uuid", tableGenerationApplicationCharm),
+		triggers.ChangeLogTriggersForGenerationApplicationConfig("application_uuid", tableGenerationApplicationConfig),
+		triggers.ChangeLogTriggersForGenerationApplicationResource("application_uuid", tableGenerationApplicationResource),
+		triggers.ChangeLogTriggersForGenerationUnit("unit_uuid", tableGenerationUnit),
 	)
 
 	// Generic triggers.
