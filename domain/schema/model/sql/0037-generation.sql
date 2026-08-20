@@ -54,7 +54,7 @@ CREATE TABLE generation_unit (
     PRIMARY KEY (generation_uuid, unit_uuid)
 );
 
-CREATE INDEX idx_generation_unit_unit
+CREATE UNIQUE INDEX idx_generation_unit_unit
 ON generation_unit (unit_uuid);
 
 -- generation_application_charm overrides the charm a tracking unit runs for an

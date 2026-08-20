@@ -41,6 +41,7 @@ import (
 	"github.com/juju/juju/domain/application/service/storage"
 	"github.com/juju/juju/domain/deployment"
 	internalcharm "github.com/juju/juju/domain/deployment/charm"
+	generationerrors "github.com/juju/juju/domain/generation/errors"
 	"github.com/juju/juju/domain/life"
 	domainstorage "github.com/juju/juju/domain/storage"
 	domaintesting "github.com/juju/juju/domain/testing"
@@ -195,6 +196,41 @@ func (s *applicationServiceSuite) TestGetCharmLocatorByApplicationName(c *tc.C) 
 	locator, err := s.service.GetCharmLocatorByApplicationName(c.Context(), "foo")
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(locator, tc.DeepEquals, expectedLocator)
+}
+
+func (s *applicationServiceSuite) TestGetCharmLocatorByUnitName(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("foo/0")
+	unitUUID := tc.Must(c, coreunit.NewUUID)
+	charmID := charmtesting.GenCharmID(c)
+	want := applicationcharm.CharmLocator{
+		Name:     "foo",
+		Revision: 42,
+		Source:   applicationcharm.CharmHubSource,
+	}
+	s.state.EXPECT().GetUnitUUIDByName(gomock.Any(), unitName).Return(unitUUID, nil)
+	s.state.EXPECT().GetResolvedUnitCharm(gomock.Any(), unitUUID).Return(charmID, nil)
+	s.state.EXPECT().GetCharmLocatorByCharmID(gomock.Any(), charmID).Return(want, nil)
+
+	got, err := s.service.GetCharmLocatorByUnitName(c.Context(), unitName)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(got, tc.DeepEquals, want)
+}
+
+func (s *applicationServiceSuite) TestGetCharmLocatorByUnitNameErrors(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	_, err := s.service.GetCharmLocatorByUnitName(c.Context(), coreunit.Name("!!!"))
+	c.Check(err, tc.ErrorIs, coreunit.InvalidUnitName)
+
+	unitName := coreunit.Name("foo/0")
+	unitUUID := tc.Must(c, coreunit.NewUUID)
+	s.state.EXPECT().GetUnitUUIDByName(gomock.Any(), unitName).Return(unitUUID, nil)
+	s.state.EXPECT().GetResolvedUnitCharm(gomock.Any(), unitUUID).Return("", applicationerrors.UnitNotFound)
+
+	_, err = s.service.GetCharmLocatorByUnitName(c.Context(), unitName)
+	c.Check(err, tc.ErrorIs, applicationerrors.UnitNotFound)
 }
 
 func (s *applicationServiceSuite) TestGetApplicationUUIDByUnitName(c *tc.C) {
@@ -1570,6 +1606,59 @@ func (s *applicationServiceSuite) TestSetApplicationCharmWithChannel(c *tc.C) {
 
 	err = s.service.SetApplicationCharm(c.Context(), appName, applicationcharm.CharmLocator{}, params)
 	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *applicationServiceSuite) TestSetApplicationCharmForGeneration(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	appName := "foo"
+	appUUID := tc.Must(c, coreapplication.NewUUID)
+	charmID := charmtesting.GenCharmID(c)
+	params := application.SetCharmParams{
+		BranchName: "test",
+		ForceBase:  true,
+	}
+	s.state.EXPECT().GetApplicationUUIDByName(gomock.Any(), appName).Return(appUUID, nil)
+	s.state.EXPECT().GetCharmID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(charmID, nil)
+	s.state.EXPECT().GetCharmMetadataStorage(gomock.Any(), charmID).Return(map[string]applicationcharm.Storage{}, nil)
+	s.state.EXPECT().GetCharmByApplicationUUID(gomock.Any(), appUUID).Return(makeCharmWithStorage(nil), nil)
+	s.state.EXPECT().GetModelType(gomock.Any()).Return(model.IAAS, nil)
+	s.storageService.EXPECT().GetApplicationStorageDirectives(gomock.Any(), appUUID).Return(nil, nil)
+	s.storageService.EXPECT().ReconcileStorageDirectivesAgainstCharmStorage(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil, nil)
+	s.storageService.EXPECT().ValidateApplicationStorageDirectiveOverrides(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.state.EXPECT().SetGenerationCharm(gomock.Any(), "test", appUUID, charmID).Return(nil)
+
+	err := s.service.SetApplicationCharm(
+		c.Context(), appName, applicationcharm.CharmLocator{}, params,
+	)
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *applicationServiceSuite) TestSetApplicationCharmForGenerationError(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	appName := "foo"
+	appUUID := tc.Must(c, coreapplication.NewUUID)
+	charmID := charmtesting.GenCharmID(c)
+	params := application.SetCharmParams{
+		BranchName: "missing",
+		ForceBase:  true,
+	}
+	s.state.EXPECT().GetApplicationUUIDByName(gomock.Any(), appName).Return(appUUID, nil)
+	s.state.EXPECT().GetCharmID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(charmID, nil)
+	s.state.EXPECT().GetCharmMetadataStorage(gomock.Any(), charmID).Return(map[string]applicationcharm.Storage{}, nil)
+	s.state.EXPECT().GetCharmByApplicationUUID(gomock.Any(), appUUID).Return(makeCharmWithStorage(nil), nil)
+	s.state.EXPECT().GetModelType(gomock.Any()).Return(model.IAAS, nil)
+	s.storageService.EXPECT().GetApplicationStorageDirectives(gomock.Any(), appUUID).Return(nil, nil)
+	s.storageService.EXPECT().ReconcileStorageDirectivesAgainstCharmStorage(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil, nil)
+	s.storageService.EXPECT().ValidateApplicationStorageDirectiveOverrides(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.state.EXPECT().SetGenerationCharm(gomock.Any(), "missing", appUUID, charmID).Return(generationerrors.BranchNotFound)
+
+	err := s.service.SetApplicationCharm(
+		c.Context(), appName, applicationcharm.CharmLocator{}, params,
+	)
+	c.Check(err, tc.ErrorIs, generationerrors.BranchNotFound)
+	c.Check(err, tc.ErrorMatches, `setting application "foo" charm in branch "missing": branch not found`)
 }
 
 func (s *applicationServiceSuite) TestSetApplicationCharmEmptyChannel(c *tc.C) {

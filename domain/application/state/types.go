@@ -62,6 +62,17 @@ type applicationAndCharmUUID struct {
 	CharmUUID       string `db:"charm_uuid"`
 }
 
+// generationApplicationCharm is the branch charm override for an application.
+type generationApplicationCharm struct {
+	ApplicationUUID string `db:"application_uuid"`
+	CharmUUID       string `db:"charm_uuid"`
+}
+
+// generationName identifies a generation by its branch name.
+type generationName struct {
+	Name string `db:"name"`
+}
+
 type applicationChannel struct {
 	ApplicationID string `db:"application_uuid"`
 	Track         string `db:"track"`

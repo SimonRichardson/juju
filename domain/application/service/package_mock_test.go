@@ -436,6 +436,7 @@ type MockStateMockRecorder struct {
 	getModelStoragePoolsExpects                               []*gomock.Call1_2[context.Context, internal.ModelStoragePools, error]
 	getModelTypeExpects                                       []*gomock.Call1_2[context.Context, model.ModelType, error]
 	getNetNodeUUIDByUnitNameExpects                           []*gomock.Call2_2[context.Context, unit.Name, string, error]
+	getResolvedUnitCharmExpects                               []*gomock.Call2_2[context.Context, unit.UUID, charm.ID, error]
 	getSpaceUUIDByNameExpects                                 []*gomock.Call2_2[context.Context, string, network.SpaceUUID, error]
 	getStorageAddInfoByUnitUUIDExpects                        []*gomock.Call3_2[context.Context, unit.UUID, storage.Name, internal.StorageInfoForAdd, error]
 	getStorageAttachInfoByUnitUUIDAndStorageUUIDExpects       []*gomock.Call3_2[context.Context, unit.UUID, storage0.StorageInstanceUUID, storage0.StorageInstanceInfoForUnitAttach, error]
@@ -496,6 +497,7 @@ type MockStateMockRecorder struct {
 	setApplicationScalingStateExpects                         []*gomock.Call4_1[context.Context, string, int, bool, error]
 	setCharmAvailableExpects                                  []*gomock.Call2_1[context.Context, charm.ID, error]
 	setDesiredApplicationScaleExpects                         []*gomock.Call3_1[context.Context, application.UUID, int, error]
+	setGenerationCharmExpects                                 []*gomock.Call4_1[context.Context, string, application.UUID, charm.ID, error]
 	setUnitWorkloadVersionExpects                             []*gomock.Call3_1[context.Context, unit.Name, string, error]
 	shouldAllowCharmUpgradeOnErrorExpects                     []*gomock.Call2_2[context.Context, string, bool, error]
 	spacesExistExpects                                        []*gomock.Call2_1[context.Context, set.Strings, error]
@@ -1802,6 +1804,24 @@ func (mr *MockStateMockRecorder) GetNetNodeUUIDByUnitName(ctx, name any) *MockSt
 // MockStateGetNetNodeUUIDByUnitNameCall is the typed call wrapper for GetNetNodeUUIDByUnitName.
 type MockStateGetNetNodeUUIDByUnitNameCall = gomock.Call2_2[context.Context, unit.Name, string, error]
 
+// GetResolvedUnitCharm mocks base method.
+func (m *MockState) GetResolvedUnitCharm(ctx context.Context, unitUUID unit.UUID) (charm.ID, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getResolvedUnitCharmExpects, m.ctrl, m, "GetResolvedUnitCharm", ctx, unitUUID)
+}
+
+// GetResolvedUnitCharm indicates an expected call of GetResolvedUnitCharm.
+func (mr *MockStateMockRecorder) GetResolvedUnitCharm(ctx, unitUUID any) *MockStateGetResolvedUnitCharmCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.UUID, charm.ID, error](mr.mock.ctrl.T, mr.mock, "GetResolvedUnitCharm", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitUUID))
+	mr.getResolvedUnitCharmExpects = append(mr.getResolvedUnitCharmExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetResolvedUnitCharmCall is the typed call wrapper for GetResolvedUnitCharm.
+type MockStateGetResolvedUnitCharmCall = gomock.Call2_2[context.Context, unit.UUID, charm.ID, error]
+
 // GetSpaceUUIDByName mocks base method.
 func (m *MockState) GetSpaceUUIDByName(ctx context.Context, name string) (network.SpaceUUID, error) {
 	m.ctrl.T.Helper()
@@ -2883,6 +2903,24 @@ func (mr *MockStateMockRecorder) SetDesiredApplicationScale(arg0, arg1, arg2 any
 
 // MockStateSetDesiredApplicationScaleCall is the typed call wrapper for SetDesiredApplicationScale.
 type MockStateSetDesiredApplicationScaleCall = gomock.Call3_1[context.Context, application.UUID, int, error]
+
+// SetGenerationCharm mocks base method.
+func (m *MockState) SetGenerationCharm(ctx context.Context, branchName string, appUUID application.UUID, charmID charm.ID) error {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch4_1(&m.recorder.setGenerationCharmExpects, m.ctrl, m, "SetGenerationCharm", ctx, branchName, appUUID, charmID)
+}
+
+// SetGenerationCharm indicates an expected call of SetGenerationCharm.
+func (mr *MockStateMockRecorder) SetGenerationCharm(ctx, branchName, appUUID, charmID any) *MockStateSetGenerationCharmCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall4_1[context.Context, string, application.UUID, charm.ID, error](mr.mock.ctrl.T, mr.mock, "SetGenerationCharm", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(branchName), gomock.EnsureMatcher(appUUID), gomock.EnsureMatcher(charmID))
+	mr.setGenerationCharmExpects = append(mr.setGenerationCharmExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateSetGenerationCharmCall is the typed call wrapper for SetGenerationCharm.
+type MockStateSetGenerationCharmCall = gomock.Call4_1[context.Context, string, application.UUID, charm.ID, error]
 
 // SetUnitWorkloadVersion mocks base method.
 func (m *MockState) SetUnitWorkloadVersion(ctx context.Context, unitName unit.Name, version string) error {
