@@ -141,6 +141,7 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 	truncatedWidth := maxVersionWidth - len(ellipsis)
 
 	units := make(map[string]unitStatus)
+	showUnitCharm := len(fs.Branches) > 0
 	var w *output.Wrapper
 	if fs.Model.Type == caasModelType {
 		w = startSection(tw, false, "App", "Version", "Status", "Scale", "Charm", "Channel", "Rev", "Address", "Exposed", "Message")
@@ -251,6 +252,9 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 			name += " " + u.Branch
 		}
 		w.Print(indent("", level*2, name))
+		if showUnitCharm {
+			w.Print(unitCharmRevision(u))
+		}
 		w.PrintStatus(u.WorkloadStatusInfo.Current)
 		w.PrintStatus(u.JujuStatusInfo.Current)
 
@@ -269,11 +273,16 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 	}
 
 	if len(units) > 0 {
-		if fs.Model.Type == caasModelType {
-			startSection(tw, false, "Unit", "Workload", "Agent", "Address", "Ports", "Message")
-		} else {
-			startSection(tw, false, "Unit", "Workload", "Agent", "Machine", "Public address", "Ports", "Message")
+		headers := []any{"Unit"}
+		if showUnitCharm {
+			headers = append(headers, "Charm")
 		}
+		if fs.Model.Type == caasModelType {
+			headers = append(headers, "Workload", "Agent", "Address", "Ports", "Message")
+		} else {
+			headers = append(headers, "Workload", "Agent", "Machine", "Public address", "Ports", "Message")
+		}
+		startSection(tw, false, headers...)
 		for _, name := range naturalsort.Sort(stringKeysFromMap(units)) {
 			u := units[name]
 			pUnit(name, u, 0)
@@ -296,6 +305,16 @@ func printBranches(tw *ansiterm.TabWriter, branches map[string]branchStatus) {
 		w.Println(branchName, branch.Ref, branch.Created, branch.CreatedBy)
 	}
 	endSection(tw)
+}
+
+func unitCharmRevision(unit unitStatus) string {
+	if unit.CharmRev != nil {
+		return strconv.Itoa(*unit.CharmRev)
+	}
+	if unit.Charm == "" {
+		return "-"
+	}
+	return "unknown"
 }
 
 type protocol struct {

@@ -459,6 +459,12 @@ func (sf *statusFormatter) formatUnit(info unitFormatInfo) unitStatus {
 		Leader:             info.unit.Leader,
 		Branch:             sf.branchForUnit(info.unitName),
 	}
+	if info.unit.Charm != "" && len(sf.status.Branches) > 0 {
+		out.CharmURL = info.unit.Charm
+		if curl, err := charm.ParseURL(info.unit.Charm); err == nil {
+			out.CharmRev = &curl.Revision
+		}
+	}
 
 	for k, m := range info.unit.Subordinates {
 		out.Subordinates[k] = sf.formatUnit(unitFormatInfo{

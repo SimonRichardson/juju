@@ -1842,7 +1842,7 @@ SELECT
 FROM unit AS u
 JOIN application AS a ON a.uuid = u.application_uuid
 JOIN net_node AS n ON n.uuid = u.net_node_uuid
-JOIN charm AS c ON c.uuid = a.charm_uuid
+JOIN charm AS c ON c.uuid = u.charm_uuid
 JOIN charm_source AS cs ON cs.id = c.source_id
 JOIN charm_metadata AS cm ON cm.charm_uuid = c.uuid
 LEFT JOIN machine AS m ON m.net_node_uuid = u.net_node_uuid
