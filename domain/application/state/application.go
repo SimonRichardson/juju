@@ -1354,10 +1354,25 @@ VALUES ($ipAddress.*);
 func (st *State) InitialWatchStatementApplicationsWithPendingCharms() (string, eventsource.NamespaceQuery) {
 	queryFunc := func(ctx context.Context, runner database.TxnRunner) ([]string, error) {
 		stmt, err := st.Prepare(`
-SELECT a.uuid AS &entityUUID.uuid
-FROM   application a
-JOIN   charm c ON a.charm_uuid = c.uuid
-WHERE  c.available = FALSE AND c.source_id < 2;
+WITH active_generation AS (
+    SELECT g.uuid AS generation_uuid
+    FROM generation AS g
+    WHERE g.state_id = 0
+),
+resolved_application_charm AS (
+    SELECT a.uuid AS application_uuid,
+           COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
+    FROM application AS a
+    LEFT JOIN active_generation AS ag ON TRUE
+    LEFT JOIN generation_application_charm AS gac
+           ON gac.generation_uuid = ag.generation_uuid
+           AND gac.application_uuid = a.uuid
+)
+SELECT rac.application_uuid AS &entityUUID.uuid
+FROM resolved_application_charm AS rac
+JOIN charm AS c ON c.uuid = rac.charm_uuid
+WHERE c.available = FALSE
+AND c.source_id < 2;
 `, entityUUID{})
 		if err != nil {
 			return nil, errors.Capture(err)
@@ -1647,11 +1662,25 @@ func (st *State) GetApplicationsWithPendingCharmsFromUUIDs(ctx context.Context, 
 	type applicationIDs []coreapplication.UUID
 
 	stmt, err := st.Prepare(`
-SELECT a.uuid AS &entityUUID.uuid
-FROM   application AS a
-JOIN   charm AS c ON a.charm_uuid = c.uuid
-WHERE  a.uuid IN ($applicationIDs[:])
-AND c.available = FALSE
+WITH active_generation AS (
+    SELECT g.uuid AS generation_uuid
+    FROM generation AS g
+    WHERE g.state_id = 0
+),
+resolved_application_charm AS (
+    SELECT a.uuid AS application_uuid,
+           COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
+    FROM application AS a
+    LEFT JOIN active_generation AS ag ON TRUE
+    LEFT JOIN generation_application_charm AS gac
+           ON gac.generation_uuid = ag.generation_uuid
+           AND gac.application_uuid = a.uuid
+    WHERE a.uuid IN ($applicationIDs[:])
+)
+SELECT rac.application_uuid AS &entityUUID.uuid
+FROM resolved_application_charm AS rac
+JOIN charm AS c ON c.uuid = rac.charm_uuid
+WHERE c.available = FALSE
 AND c.source_id < 2
 `, entityUUID{}, applicationIDs{})
 	if err != nil {
@@ -2132,19 +2161,37 @@ func (st *State) GetAsyncCharmDownloadInfo(ctx context.Context, appID coreapplic
 	appIdent := entityUUID{UUID: appID.String()}
 
 	query, err := st.Prepare(`
+WITH active_generation AS (
+    SELECT g.uuid AS generation_uuid
+    FROM generation AS g
+    WHERE g.state_id = 0
+),
+resolved_application_charm AS (
+    SELECT a.uuid AS application_uuid,
+           COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
+    FROM application AS a
+    LEFT JOIN active_generation AS ag ON TRUE
+    LEFT JOIN generation_application_charm AS gac
+           ON gac.generation_uuid = ag.generation_uuid
+           AND gac.application_uuid = a.uuid
+    WHERE a.uuid = $entityUUID.uuid
+)
 SELECT
-    v.charm_uuid AS &applicationCharmDownloadInfo.charm_uuid,
-    v.name AS &applicationCharmDownloadInfo.name,
-    v.available AS &applicationCharmDownloadInfo.available,
-    v.hash AS &applicationCharmDownloadInfo.hash,
-    v.provenance AS &applicationCharmDownloadInfo.provenance,
-    v.charmhub_identifier AS &applicationCharmDownloadInfo.charmhub_identifier,
-    v.download_url AS &applicationCharmDownloadInfo.download_url,
-    v.download_size AS &applicationCharmDownloadInfo.download_size,
-    cs.name AS &applicationCharmDownloadInfo.source
-FROM v_application_charm_download_info AS v
-JOIN charm_source AS cs ON v.source_id = cs.id
-WHERE v.application_uuid = $entityUUID.uuid
+	    c.uuid AS &applicationCharmDownloadInfo.charm_uuid,
+	    c.reference_name AS &applicationCharmDownloadInfo.name,
+	    c.available AS &applicationCharmDownloadInfo.available,
+	    ch.hash AS &applicationCharmDownloadInfo.hash,
+	    cp.name AS &applicationCharmDownloadInfo.provenance,
+	    cdi.charmhub_identifier AS &applicationCharmDownloadInfo.charmhub_identifier,
+	    cdi.download_url AS &applicationCharmDownloadInfo.download_url,
+	    cdi.download_size AS &applicationCharmDownloadInfo.download_size,
+	    cs.name AS &applicationCharmDownloadInfo.source
+FROM resolved_application_charm AS rac
+JOIN charm AS c ON c.uuid = rac.charm_uuid
+JOIN charm_source AS cs ON cs.id = c.source_id
+LEFT JOIN charm_download_info AS cdi ON cdi.charm_uuid = c.uuid
+LEFT JOIN charm_provenance AS cp ON cp.id = cdi.provenance_id
+LEFT JOIN charm_hash AS ch ON ch.charm_uuid = c.uuid
 `, applicationCharmDownloadInfo{}, appIdent)
 	if err != nil {
 		return application.CharmDownloadInfo{}, errors.Errorf("preparing query for application %q: %w", appID, err)
@@ -2910,7 +2957,7 @@ ORDER BY gac."key"
 			continue
 		}
 		_, _ = h.Write([]byte{1})
-		_, _ = h.Write([]byte(fmt.Sprint(config.Value)))
+		_, _ = h.Write(fmt.Append(nil, config.Value))
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }

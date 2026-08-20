@@ -805,6 +805,8 @@ func (s *modelSchemaSuite) TestModelTriggers(c *tc.C) {
 		"trg_log_generation_unit_delete",
 		"trg_log_generation_unit_insert",
 		"trg_log_generation_unit_update",
+		"trg_log_generation_unit_application_delete",
+		"trg_log_generation_unit_application_insert",
 	)
 
 	// These are additional triggers that are not change log triggers, but

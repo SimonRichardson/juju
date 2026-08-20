@@ -371,6 +371,9 @@ func (s *WatchableService) WatchApplicationsWithPendingCharms(ctx context.Contex
 			return s.watchApplicationsWithPendingCharmsMapper(ctx, changes)
 		},
 		eventsource.NamespaceFilter(table, changestream.Changed),
+		eventsource.NamespaceFilter(
+			s.st.NamespaceForWatchGenerationApplicationCharm(), changestream.Changed,
+		),
 	)
 }
 
