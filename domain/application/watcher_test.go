@@ -609,6 +609,11 @@ INSERT INTO generation (uuid, generation_id, name, state_id, created_by, created
 VALUES (?, 42, 'test', 0, 'admin', DATETIME('now', 'utc'))`, generationUUID); err != nil {
 				return err
 			}
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+VALUES (?, ?)`, generationUUID, appUUID); err != nil {
+				return err
+			}
 			_, err := tx.ExecContext(ctx, `
 INSERT INTO generation_application_charm (generation_uuid, application_uuid, charm_uuid)
 VALUES (?, ?, ?)`, generationUUID, appUUID, branchCharmUUID)
@@ -696,6 +701,11 @@ VALUES (?, 0, 'test', 0, 'admin', DATETIME('now', 'utc'))
 `, generationUUID); err != nil {
 				return err
 			}
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+VALUES (?, ?)`, generationUUID, appUUID.String()); err != nil {
+				return err
+			}
 			_, err := tx.ExecContext(ctx, `
 INSERT INTO generation_application_charm (
     generation_uuid, application_uuid, charm_uuid
@@ -712,6 +722,11 @@ VALUES (?, ?, ?)
 	// A branch charm change for another application is not relevant.
 	harness.AddTest(c, func(c *tc.C) {
 		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+VALUES (?, ?)`, generationUUID, otherAppUUID.String()); err != nil {
+				return err
+			}
 			_, err := tx.ExecContext(ctx, `
 INSERT INTO generation_application_charm (
     generation_uuid, application_uuid, charm_uuid

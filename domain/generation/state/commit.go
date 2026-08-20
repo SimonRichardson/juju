@@ -102,7 +102,8 @@ WHERE gar.generation_uuid = $commitArg.generation_uuid
 
 	insertCommitStmt, err := st.Prepare(`
 INSERT INTO generation_commit (uuid, generation_uuid, generation_id, name, created_by, committed_by, committed_at)
-SELECT $commitArg.uuid, g.uuid, g.generation_id, g.name, g.created_by, $commitArg.committed_by, DATETIME('now', 'utc')
+SELECT $commitArg.uuid, g.uuid, g.generation_id, g.name, g.created_by,
+       $commitArg.committed_by, STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW', 'utc')
 FROM generation AS g
 WHERE g.uuid = $commitArg.generation_uuid
 `, commitArg{})
@@ -126,6 +127,13 @@ WHERE generation_uuid = $commitArg.generation_uuid
 `, commitArg{})
 	if err != nil {
 		return 0, errors.Errorf("preparing tracking clear: %w", err)
+	}
+	clearOwnershipStmt, err := st.Prepare(`
+DELETE FROM generation_application
+WHERE generation_uuid = $commitArg.generation_uuid
+`, commitArg{})
+	if err != nil {
+		return 0, errors.Errorf("preparing application ownership clear: %w", err)
 	}
 
 	markCommittedStmt, err := st.Prepare(`
@@ -177,6 +185,9 @@ AND state_id = 0
 		}
 		if err := tx.Query(ctx, clearTrackingStmt, args).Run(); err != nil {
 			return errors.Errorf("clearing tracked units: %w", err)
+		}
+		if err := tx.Query(ctx, clearOwnershipStmt, args).Run(); err != nil {
+			return errors.Errorf("clearing application ownership: %w", err)
 		}
 
 		row := generationRow{

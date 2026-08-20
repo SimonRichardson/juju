@@ -15,10 +15,9 @@ INSERT INTO generation_state VALUES
 (1, 'committed'),
 (2, 'aborted');
 
--- generation is a branch. generation_id is a monotonic, human-facing sequence
--- number allocated from the sequence table (namespace: generation).
--- Only one branch may be in flight at a time. Committed and aborted branches
--- free the active slot and their name for reuse.
+-- generation is a branch. generation_id is a human-facing identifier allocated
+-- from the sequence table (namespace: generation). It identifies a branch but
+-- does not define creation or commit ordering.
 CREATE TABLE generation (
     uuid TEXT NOT NULL PRIMARY KEY,
     generation_id INT NOT NULL,
@@ -39,8 +38,23 @@ ON generation (generation_id);
 CREATE UNIQUE INDEX idx_generation_name
 ON generation (name) WHERE state_id = 0;
 
-CREATE UNIQUE INDEX idx_generation_active
-ON generation (state_id) WHERE state_id = 0;
+-- generation_application records exclusive ownership of an application by an
+-- in-flight branch. Ownership is retained until commit or abort, even when no
+-- units currently track the branch.
+CREATE TABLE generation_application (
+    generation_uuid TEXT NOT NULL,
+    application_uuid TEXT NOT NULL UNIQUE,
+    CONSTRAINT fk_generation_application_generation
+    FOREIGN KEY (generation_uuid)
+    REFERENCES generation (uuid),
+    CONSTRAINT fk_generation_application_application
+    FOREIGN KEY (application_uuid)
+    REFERENCES application (uuid),
+    PRIMARY KEY (generation_uuid, application_uuid)
+);
+
+CREATE INDEX idx_generation_application_generation
+ON generation_application (generation_uuid);
 
 -- generation_unit records which units track a branch. A unit tracks at most
 -- one branch at a time; the unit_uuid index supports resolving the branch a

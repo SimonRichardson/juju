@@ -24,7 +24,7 @@ func TestCommitsCommandSuite(t *testing.T) {
 
 func (s *commitsCommandSuite) TestCommitsYAML(c *tc.C) {
 	api := &fakeGenerationAPI{commits: []params.Generation{
-		{GenerationId: 0, BranchName: "first", Completed: 42, CompletedBy: "alice"},
+		{GenerationId: 99, BranchName: "first", Completed: 42, CompletedBy: "alice"},
 		{GenerationId: 1, BranchName: "second", Completed: 84, CompletedBy: "bob"},
 	}}
 	command := &commitsCommand{
@@ -38,7 +38,7 @@ func (s *commitsCommandSuite) TestCommitsYAML(c *tc.C) {
   branch-name: second
   committed-at: 1970-01-01 00:01:24Z
   committed-by: bob
-- id: 0
+- id: 99
   branch-name: first
   committed-at: 1970-01-01 00:00:42Z
   committed-by: alice

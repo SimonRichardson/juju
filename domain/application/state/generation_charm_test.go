@@ -45,10 +45,29 @@ func (s *applicationRefreshSuite) trackUnit(
 	c *tc.C, generationUUID string, unitUUID coreunit.UUID,
 ) {
 	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+SELECT ?, application_uuid FROM unit WHERE uuid = ?
+ON CONFLICT (application_uuid) DO NOTHING
+`, generationUUID, unitUUID.String()); err != nil {
+			return err
+		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO generation_unit (generation_uuid, unit_uuid)
 VALUES (?, ?)
 `, generationUUID, unitUUID.String())
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *applicationRefreshSuite) claimApplication(
+	c *tc.C, generationUUID string, applicationUUID coreapplication.UUID,
+) {
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+VALUES (?, ?)`, generationUUID, applicationUUID.String())
 		return err
 	})
 	c.Assert(err, tc.ErrorIsNil)
@@ -70,11 +89,12 @@ WHERE uuid = ?
 	return corecharm.ID(charmUUID), modifiedVersion
 }
 
-func (s *applicationRefreshSuite) TestSetApplicationCharmUsesActiveGeneration(c *tc.C) {
+func (s *applicationRefreshSuite) TestSetApplicationCharmUsesOwningGeneration(c *tc.C) {
 	appUUID := s.createApplication(c, createApplicationArgs{appName: "mediawiki"})
 	mainCharm, mainVersion := s.applicationCharm(c, appUUID)
 	branchCharm := s.createCharm(c, createCharmArgs{name: "mediawiki"})
-	s.createGeneration(c, "test", 0)
+	generationUUID := s.createGeneration(c, "test", 0)
+	s.claimApplication(c, generationUUID, appUUID)
 
 	err := s.state.SetApplicationCharm(
 		c.Context(), appUUID, branchCharm, application.SetCharmStateParams{},
@@ -97,6 +117,55 @@ WHERE g.name = 'test'
 	gotMainCharm, gotMainVersion := s.applicationCharm(c, appUUID)
 	c.Check(gotMainCharm, tc.Equals, mainCharm)
 	c.Check(gotMainVersion, tc.Equals, mainVersion)
+}
+
+func (s *applicationRefreshSuite) TestSetApplicationCharmRoutesByApplicationOwner(c *tc.C) {
+	firstApp := s.createApplication(c, createApplicationArgs{appName: "mediawiki"})
+	secondApp := s.createApplication(c, createApplicationArgs{appName: "wordpress"})
+	unownedApp := s.createApplication(c, createApplicationArgs{appName: "mysql"})
+	firstBranchCharm := s.createCharm(c, createCharmArgs{name: "mediawiki"})
+	secondBranchCharm := s.createCharm(c, createCharmArgs{name: "wordpress"})
+	newMainCharm := s.createCharm(c, createCharmArgs{name: "mysql"})
+	firstGeneration := s.createGeneration(c, "first", 0)
+	secondGeneration := s.createGeneration(c, "second", 0)
+	s.claimApplication(c, firstGeneration, firstApp)
+	s.claimApplication(c, secondGeneration, secondApp)
+
+	c.Assert(s.state.SetApplicationCharm(
+		c.Context(), firstApp, firstBranchCharm, application.SetCharmStateParams{},
+	), tc.ErrorIsNil)
+	c.Assert(s.state.SetApplicationCharm(
+		c.Context(), secondApp, secondBranchCharm, application.SetCharmStateParams{},
+	), tc.ErrorIsNil)
+	c.Assert(s.state.SetApplicationCharm(
+		c.Context(), unownedApp, newMainCharm, application.SetCharmStateParams{},
+	), tc.ErrorIsNil)
+
+	overrides := make(map[string]string)
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+SELECT application_uuid, generation_uuid
+FROM generation_application_charm`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var applicationUUID, generationUUID string
+			if err := rows.Scan(&applicationUUID, &generationUUID); err != nil {
+				return err
+			}
+			overrides[applicationUUID] = generationUUID
+		}
+		return rows.Err()
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(overrides, tc.DeepEquals, map[string]string{
+		firstApp.String():  firstGeneration,
+		secondApp.String(): secondGeneration,
+	})
+	gotMainCharm, _ := s.applicationCharm(c, unownedApp)
+	c.Check(gotMainCharm, tc.Equals, newMainCharm)
 }
 
 func (s *applicationRefreshSuite) TestSetGenerationCharmUpdatesOverride(c *tc.C) {
@@ -193,16 +262,20 @@ func (s *applicationRefreshSuite) TestCreateApplicationDoesNotJoinGeneration(c *
 	appUUID := s.createApplication(c, createApplicationArgs{appName: "mediawiki"})
 	s.addUnit(c, coreunit.Name("mediawiki/0"), appUUID)
 
-	var charmOverrides, trackedUnits int
+	var charmOverrides, trackedUnits, ownershipRows int
 	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM generation_application_charm`).Scan(&charmOverrides); err != nil {
 			return err
 		}
-		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM generation_unit`).Scan(&trackedUnits)
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM generation_unit`).Scan(&trackedUnits); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM generation_application`).Scan(&ownershipRows)
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(charmOverrides, tc.Equals, 0)
 	c.Check(trackedUnits, tc.Equals, 0)
+	c.Check(ownershipRows, tc.Equals, 0)
 }
 
 func (s *applicationRefreshSuite) TestGetResolvedUnitCharmSelectiveTracking(c *tc.C) {

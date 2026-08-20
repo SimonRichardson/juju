@@ -146,7 +146,8 @@ func (s *applicationRefreshSuite) TestGenerationResourcesRollbackInvalidSelectio
 	appUUID := s.createApplication(c, createApplicationArgs{appName: "mediawiki"})
 	_, branchWebsite := s.createResourcePair(c, appUUID.String(), "website")
 	branchCharm := s.createCharm(c, createCharmArgs{name: "mediawiki-branch"})
-	s.createGeneration(c, "test", 0)
+	generationUUID := s.createGeneration(c, "test", 0)
+	s.claimApplication(c, generationUUID, appUUID)
 
 	err := s.state.SetApplicationCharm(c.Context(), appUUID, branchCharm, application.SetCharmStateParams{
 		Resources: []application.ResourceSelection{

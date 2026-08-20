@@ -28,7 +28,7 @@ import (
 //go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/crossmodelrelation-triggers.gen.go -package=triggers -tables=application_remote_offerer,application_remote_consumer,relation_network_ingress,relation_network_egress
 //go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/offer-triggers.gen.go -package=triggers -tables=offer
 //go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/status-triggers.gen.go -package=triggers -tables=application_status
-//go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/generation-triggers.gen.go -package=triggers -tables=generation,generation_application_charm,generation_application_config,generation_application_resource,generation_unit
+//go:generate go run ./../../generate/triggergen -db=model -destination=./model/triggers/generation-triggers.gen.go -package=triggers -tables=generation,generation_application,generation_application_charm,generation_application_config,generation_application_resource,generation_unit
 
 //go:embed model/sql/*.sql
 var modelSchemaDir embed.FS
@@ -112,6 +112,7 @@ const (
 	tableModelMigrating
 	tableMachineReprovision
 	tableGeneration
+	tableGenerationApplication
 	tableGenerationApplicationCharm
 	tableGenerationApplicationConfig
 	tableGenerationApplicationResource
@@ -203,6 +204,7 @@ func ModelDDLForVersion(version semversion.Number) *schema.Schema {
 		triggers.ChangeLogTriggersForRelationNetworkEgress("relation_uuid", tableRelationNetworkEgress),
 		triggers.ChangeLogTriggersForModelMigrating("model_uuid", tableModelMigrating),
 		triggers.ChangeLogTriggersForGeneration("uuid", tableGeneration),
+		triggers.ChangeLogTriggersForGenerationApplication("application_uuid", tableGenerationApplication),
 		triggers.ChangeLogTriggersForGenerationApplicationCharm("application_uuid", tableGenerationApplicationCharm),
 		triggers.ChangeLogTriggersForGenerationApplicationConfig("application_uuid", tableGenerationApplicationConfig),
 		triggers.ChangeLogTriggersForGenerationApplicationResource("application_uuid", tableGenerationApplicationResource),

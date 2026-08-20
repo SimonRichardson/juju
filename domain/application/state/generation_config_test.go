@@ -101,9 +101,10 @@ func (s *applicationRefreshSuite) TestGenerationConfigApplicationsAreIsolated(c 
 	})
 	firstUnit := s.addUnit(c, coreunit.Name("mediawiki/0"), firstApp)
 	secondUnit := s.addUnit(c, coreunit.Name("wordpress/0"), secondApp)
-	generationUUID := s.createGeneration(c, "test", 0)
-	s.trackUnit(c, generationUUID, firstUnit)
-	s.trackUnit(c, generationUUID, secondUnit)
+	firstGenerationUUID := s.createGeneration(c, "first", 0)
+	secondGenerationUUID := s.createGeneration(c, "second", 0)
+	s.trackUnit(c, firstGenerationUUID, firstUnit)
+	s.trackUnit(c, secondGenerationUUID, secondUnit)
 	c.Assert(s.state.UpdateApplicationConfigAndSettings(c.Context(), firstApp, map[string]application.AddApplicationConfig{
 		"title": {Type: charm.OptionString, Value: "one"},
 	}, application.UpdateApplicationSettingsArg{}), tc.ErrorIsNil)
@@ -117,6 +118,74 @@ func (s *applicationRefreshSuite) TestGenerationConfigApplicationsAreIsolated(c 
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(*first["title"].Value, tc.Equals, "one")
 	c.Check(*second["title"].Value, tc.Equals, "two")
+
+	owners := make(map[string]string)
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+SELECT application_uuid, generation_uuid
+FROM generation_application_config
+WHERE "key" = 'title'`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var applicationUUID, generationUUID string
+			if err := rows.Scan(&applicationUUID, &generationUUID); err != nil {
+				return err
+			}
+			owners[applicationUUID] = generationUUID
+		}
+		return rows.Err()
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(owners, tc.DeepEquals, map[string]string{
+		firstApp.String():  firstGenerationUUID,
+		secondApp.String(): secondGenerationUUID,
+	})
+}
+
+func (s *applicationRefreshSuite) TestUnownedApplicationWritesMainWithOtherActiveBranch(c *tc.C) {
+	ownedApp := s.createApplication(c, createApplicationArgs{
+		appName: "mediawiki",
+		charmConfig: charm.Config{Options: map[string]charm.Option{
+			"title": {Type: charm.OptionString, Default: "main"},
+		}},
+	})
+	unownedApp := s.createApplication(c, createApplicationArgs{
+		appName: "wordpress",
+		charmConfig: charm.Config{Options: map[string]charm.Option{
+			"title": {Type: charm.OptionString, Default: "main"},
+		}},
+	})
+	ownedUnit := s.addUnit(c, coreunit.Name("mediawiki/0"), ownedApp)
+	generationUUID := s.createGeneration(c, "test", 0)
+	s.trackUnit(c, generationUUID, ownedUnit)
+
+	err := s.state.UpdateApplicationConfigAndSettings(
+		c.Context(), unownedApp,
+		map[string]application.AddApplicationConfig{
+			"title": {Type: charm.OptionString, Value: "canonical"},
+		},
+		application.UpdateApplicationSettingsArg{},
+	)
+	c.Assert(err, tc.ErrorIsNil)
+
+	var canonicalRows, branchRows int
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM application_config
+WHERE application_uuid = ? AND "key" = 'title' AND value = 'canonical'
+`, unownedApp).Scan(&canonicalRows); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM generation_application_config
+WHERE application_uuid = ?`, unownedApp).Scan(&branchRows)
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(canonicalRows, tc.Equals, 1)
+	c.Check(branchRows, tc.Equals, 0)
 }
 
 func (s *applicationRefreshSuite) TestGenerationConfigBranchAndUnitErrors(c *tc.C) {
@@ -151,7 +220,8 @@ func (s *applicationRefreshSuite) TestApplicationConfigHashIncludesActiveBranch(
 
 	mainHash, err := s.state.GetApplicationConfigHash(c.Context(), appUUID)
 	c.Assert(err, tc.ErrorIsNil)
-	s.createGeneration(c, "test", 0)
+	generationUUID := s.createGeneration(c, "test", 0)
+	s.claimApplication(c, generationUUID, appUUID)
 	c.Assert(s.state.UpdateApplicationConfigAndSettings(
 		c.Context(), appUUID,
 		map[string]application.AddApplicationConfig{

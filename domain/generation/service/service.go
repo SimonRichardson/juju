@@ -14,7 +14,7 @@ import (
 // and the internal DTOs.
 type State interface {
 	// AddBranch creates a new in-flight branch with the given name and returns
-	// its monotonic generation id.
+	// its generation identifier.
 	AddBranch(ctx context.Context, genUUID, name, createdBy string) (uint64, error)
 
 	// GetBranchByName returns the in-flight branch with the given name.
@@ -50,7 +50,8 @@ type State interface {
 	// Abort marks the branch aborted and discards its changes.
 	Abort(ctx context.Context, generationUUID, abortedBy string) error
 
-	// ListCommits returns the committed generation history, oldest first.
+	// ListCommits returns the committed generation history by commit time,
+	// oldest first.
 	ListCommits(ctx context.Context) ([]internal.Commit, error)
 
 	// GetCommit returns the commit identified by generation id.

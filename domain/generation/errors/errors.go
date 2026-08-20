@@ -27,4 +27,8 @@ const (
 
 	// UnitNotFound is returned when a unit cannot be found.
 	UnitNotFound = errors.ConstError("unit not found")
+
+	// ApplicationAlreadyOwned is returned when an application is already
+	// exclusively owned by another in-flight branch.
+	ApplicationAlreadyOwned = errors.ConstError("application is already owned by another branch")
 )

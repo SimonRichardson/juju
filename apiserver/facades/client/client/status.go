@@ -303,6 +303,7 @@ func fetchBranchStatuses(
 			AssignedUnits: assignedUnits,
 			Created:       branch.CreatedAt.Unix(),
 			CreatedBy:     branch.CreatedBy,
+			GenerationId:  branch.GenerationID,
 		}
 	}
 	return result, nil

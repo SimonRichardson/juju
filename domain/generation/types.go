@@ -31,8 +31,8 @@ type Generation struct {
 	// UUID is the unique identifier of the branch.
 	UUID internaluuid.UUID
 
-	// GenerationID is the monotonic, human-facing sequence number of the
-	// branch. It is shared with the commit history.
+	// GenerationID is the human-facing identifier of the branch. It does not
+	// define creation or commit ordering.
 	GenerationID uint64
 
 	// Name is the branch name, unique amongst in-flight branches.
@@ -86,7 +86,8 @@ type Commit struct {
 	// UUID is the unique identifier of the commit.
 	UUID internaluuid.UUID
 
-	// GenerationID is the monotonic sequence number of the commit.
+	// GenerationID identifies the branch that was committed. It does not define
+	// commit ordering.
 	GenerationID uint64
 
 	// Name is the branch name that was committed.

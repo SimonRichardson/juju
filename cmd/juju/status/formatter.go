@@ -95,8 +95,8 @@ func (sf *statusFormatter) Format() (formattedStatus, error) {
 	}
 	if len(sf.status.Branches) > 0 {
 		out.Branches = make(map[string]branchStatus, len(sf.status.Branches))
-		for i, name := range sortedBranchNames(sf.status.Branches) {
-			branch := sf.formatBranch(i+1, sf.status.Branches[name])
+		for _, name := range sortedBranchNames(sf.status.Branches) {
+			branch := sf.formatBranch(sf.status.Branches[name])
 			out.Branches[name] = branch
 			sf.branchRefs[name] = branch.Ref
 		}
@@ -485,7 +485,7 @@ func sortedBranchNames(branches map[string]params.BranchStatus) []string {
 	return names
 }
 
-func (sf *statusFormatter) formatBranch(ref int, branch params.BranchStatus) branchStatus {
+func (sf *statusFormatter) formatBranch(branch params.BranchStatus) branchStatus {
 	created := time.Unix(branch.Created, 0)
 	result := branchStatus{
 		Created:   common.FormatTimeAsTimestamp(&created, sf.isoTime),
@@ -493,7 +493,7 @@ func (sf *statusFormatter) formatBranch(ref int, branch params.BranchStatus) bra
 		Active:    true,
 	}
 	if sf.outputName == "tabular" {
-		result.Ref = fmt.Sprintf("#%d", ref)
+		result.Ref = fmt.Sprintf("#%d", branch.GenerationId)
 		result.Created = common.UserFriendlyDuration(created, time.Now())
 	}
 	return result

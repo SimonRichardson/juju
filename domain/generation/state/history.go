@@ -16,7 +16,8 @@ import (
 	"github.com/juju/juju/internal/errors"
 )
 
-// ListCommits returns the committed generation history, oldest first.
+// ListCommits returns the committed generation history by commit time, oldest
+// first. Generation IDs identify branches and do not define ordering.
 func (st *State) ListCommits(ctx context.Context) ([]internal.Commit, error) {
 	db, err := st.DB(ctx)
 	if err != nil {
@@ -26,7 +27,7 @@ func (st *State) ListCommits(ctx context.Context) ([]internal.Commit, error) {
 	stmt, err := st.Prepare(`
 SELECT &commitRow.*
 FROM   generation_commit
-ORDER BY generation_id
+ORDER BY committed_at, generation_id
 `, commitRow{})
 	if err != nil {
 		return nil, errors.Errorf("preparing query: %w", err)

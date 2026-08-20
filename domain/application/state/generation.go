@@ -12,45 +12,33 @@ import (
 	"github.com/juju/juju/internal/errors"
 )
 
-func (st *State) getActiveGeneration(
-	ctx context.Context, tx *sqlair.TX,
-) (activeGeneration, bool, error) {
+func (st *State) getGenerationForApplication(
+	ctx context.Context, tx *sqlair.TX, applicationUUID string,
+) (applicationGeneration, bool, error) {
+	ident := generationApplicationIdent{ApplicationUUID: applicationUUID}
 	stmt, err := st.Prepare(`
-SELECT &activeGeneration.*
-FROM   generation
-WHERE  state_id = 0
-`, activeGeneration{})
+SELECT g.uuid AS &applicationGeneration.uuid,
+       g.name AS &applicationGeneration.name
+FROM generation_application AS ga
+JOIN generation AS g ON g.uuid = ga.generation_uuid
+WHERE ga.application_uuid = $generationApplicationIdent.application_uuid
+AND g.state_id = 0
+`, applicationGeneration{}, ident)
 	if err != nil {
-		return activeGeneration{}, false, errors.Errorf(
-			"preparing active generation query: %w", err,
+		return applicationGeneration{}, false, errors.Errorf(
+			"preparing application generation query: %w", err,
 		)
 	}
 
-	var result activeGeneration
-	if err := tx.Query(ctx, stmt).Get(&result); errors.Is(err, sqlair.ErrNoRows) {
-		return activeGeneration{}, false, nil
+	var result applicationGeneration
+	if err := tx.Query(ctx, stmt, ident).Get(&result); errors.Is(err, sqlair.ErrNoRows) {
+		return applicationGeneration{}, false, nil
 	} else if err != nil {
-		return activeGeneration{}, false, errors.Errorf(
-			"querying active generation: %w", err,
+		return applicationGeneration{}, false, errors.Errorf(
+			"querying application generation: %w", err,
 		)
 	}
 	return result, true, nil
-}
-
-func (st *State) activeGeneration(ctx context.Context) (activeGeneration, bool, error) {
-	db, err := st.DB(ctx)
-	if err != nil {
-		return activeGeneration{}, false, errors.Capture(err)
-	}
-
-	var result activeGeneration
-	var ok bool
-	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		var err error
-		result, ok, err = st.getActiveGeneration(ctx, tx)
-		return errors.Capture(err)
-	})
-	return result, ok, errors.Capture(err)
 }
 
 // getInFlightGenerationUUID resolves an in-flight branch name to its UUID.

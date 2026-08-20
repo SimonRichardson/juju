@@ -1354,18 +1354,15 @@ VALUES ($ipAddress.*);
 func (st *State) InitialWatchStatementApplicationsWithPendingCharms() (string, eventsource.NamespaceQuery) {
 	queryFunc := func(ctx context.Context, runner database.TxnRunner) ([]string, error) {
 		stmt, err := st.Prepare(`
-WITH active_generation AS (
-    SELECT g.uuid AS generation_uuid
-    FROM generation AS g
-    WHERE g.state_id = 0
-),
-resolved_application_charm AS (
+WITH resolved_application_charm AS (
     SELECT a.uuid AS application_uuid,
            COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
     FROM application AS a
-    LEFT JOIN active_generation AS ag ON TRUE
+    LEFT JOIN generation_application AS ga ON ga.application_uuid = a.uuid
+    LEFT JOIN generation AS g ON g.uuid = ga.generation_uuid
+                              AND g.state_id = 0
     LEFT JOIN generation_application_charm AS gac
-           ON gac.generation_uuid = ag.generation_uuid
+           ON gac.generation_uuid = g.uuid
            AND gac.application_uuid = a.uuid
 )
 SELECT rac.application_uuid AS &entityUUID.uuid
@@ -1662,18 +1659,15 @@ func (st *State) GetApplicationsWithPendingCharmsFromUUIDs(ctx context.Context, 
 	type applicationIDs []coreapplication.UUID
 
 	stmt, err := st.Prepare(`
-WITH active_generation AS (
-    SELECT g.uuid AS generation_uuid
-    FROM generation AS g
-    WHERE g.state_id = 0
-),
-resolved_application_charm AS (
+WITH resolved_application_charm AS (
     SELECT a.uuid AS application_uuid,
            COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
     FROM application AS a
-    LEFT JOIN active_generation AS ag ON TRUE
+    LEFT JOIN generation_application AS ga ON ga.application_uuid = a.uuid
+    LEFT JOIN generation AS g ON g.uuid = ga.generation_uuid
+                              AND g.state_id = 0
     LEFT JOIN generation_application_charm AS gac
-           ON gac.generation_uuid = ag.generation_uuid
+           ON gac.generation_uuid = g.uuid
            AND gac.application_uuid = a.uuid
     WHERE a.uuid IN ($applicationIDs[:])
 )
@@ -1807,15 +1801,15 @@ INSERT INTO generation_application_charm (
     charm_uuid
 )
 VALUES (
-    $activeGeneration.uuid,
+    $applicationGeneration.uuid,
     $generationApplicationCharm.application_uuid,
     $generationApplicationCharm.charm_uuid
 )
 ON CONFLICT (generation_uuid, application_uuid) DO UPDATE SET
     charm_uuid = excluded.charm_uuid
-`, activeGeneration{}, generationApplicationCharm{})
+`, applicationGeneration{}, generationApplicationCharm{})
 	if err != nil {
-		return errors.Errorf("preparing active generation charm upsert: %w", err)
+		return errors.Errorf("preparing owned generation charm upsert: %w", err)
 	}
 
 	updateCharmModifiedVersionStmt, err := st.Prepare(`
@@ -1839,7 +1833,7 @@ WHERE  uuid = $entityUUID.uuid
 			return errors.Capture(err)
 		}
 
-		active, ok, err := st.getActiveGeneration(ctx, tx)
+		active, ok, err := st.getGenerationForApplication(ctx, tx, appID.String())
 		if err != nil {
 			return errors.Capture(err)
 		}
@@ -1851,7 +1845,7 @@ WHERE  uuid = $entityUUID.uuid
 			if err := tx.Query(
 				ctx, setGenerationCharmStmt, active, generationCharm,
 			).Run(); err != nil {
-				return errors.Errorf("setting active generation charm: %w", err)
+				return errors.Errorf("setting owned generation charm: %w", err)
 			}
 			if err := st.upsertGenerationApplicationResources(
 				ctx, tx, active.UUID, appID, params.Resources,
@@ -2161,18 +2155,15 @@ func (st *State) GetAsyncCharmDownloadInfo(ctx context.Context, appID coreapplic
 	appIdent := entityUUID{UUID: appID.String()}
 
 	query, err := st.Prepare(`
-WITH active_generation AS (
-    SELECT g.uuid AS generation_uuid
-    FROM generation AS g
-    WHERE g.state_id = 0
-),
-resolved_application_charm AS (
+WITH resolved_application_charm AS (
     SELECT a.uuid AS application_uuid,
            COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
     FROM application AS a
-    LEFT JOIN active_generation AS ag ON TRUE
+    LEFT JOIN generation_application AS ga ON ga.application_uuid = a.uuid
+    LEFT JOIN generation AS g ON g.uuid = ga.generation_uuid
+                              AND g.state_id = 0
     LEFT JOIN generation_application_charm AS gac
-           ON gac.generation_uuid = ag.generation_uuid
+           ON gac.generation_uuid = g.uuid
            AND gac.application_uuid = a.uuid
     WHERE a.uuid = $entityUUID.uuid
 )
@@ -2575,17 +2566,6 @@ func (st *State) UpdateApplicationConfigAndSettings(
 	config map[string]application.AddApplicationConfig,
 	settings application.UpdateApplicationSettingsArg,
 ) error {
-	active, ok, err := st.activeGeneration(ctx)
-	if err != nil {
-		return errors.Capture(err)
-	}
-	if ok {
-		if settings.Trust != nil {
-			return errors.Errorf("application trust cannot be changed while a branch is active")
-		}
-		return st.setGenerationApplicationConfig(ctx, active.Name, appID, config)
-	}
-
 	db, err := st.DB(ctx)
 	if err != nil {
 		return errors.Capture(err)
@@ -2633,6 +2613,18 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 		if err := st.checkApplicationNotDead(ctx, tx, appID); err != nil {
 			return errors.Capture(err)
 		}
+		generation, owned, err := st.getGenerationForApplication(ctx, tx, appID.String())
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if owned {
+			if settings.Trust != nil {
+				return errors.Errorf("application trust cannot be changed while the application is owned by a branch")
+			}
+			return st.setGenerationApplicationConfigTx(
+				ctx, tx, generation.UUID, appID, config,
+			)
+		}
 
 		if len(upserts) > 0 {
 			if err := tx.Query(ctx, upsertStmt, upserts).Run(); err != nil {
@@ -2665,17 +2657,6 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 // If no application is found, an error satisfying
 // [applicationerrors.ApplicationNotFound] is returned.
 func (st *State) UnsetApplicationConfigKeys(ctx context.Context, appID coreapplication.UUID, keys []string) error {
-	active, ok, err := st.activeGeneration(ctx)
-	if err != nil {
-		return errors.Capture(err)
-	}
-	if ok {
-		if slices.Contains(keys, "trust") {
-			return errors.Errorf("application trust cannot be changed while a branch is active")
-		}
-		return st.unsetGenerationApplicationConfigKeys(ctx, active.Name, appID, keys)
-	}
-
 	db, err := st.DB(ctx)
 	if err != nil {
 		return errors.Capture(err)
@@ -2728,6 +2709,18 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 			return applicationerrors.ApplicationNotFound
 		} else if err != nil {
 			return errors.Errorf("querying application: %w", err)
+		}
+		generation, owned, err := st.getGenerationForApplication(ctx, tx, appID.String())
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if owned {
+			if slices.Contains(keys, "trust") {
+				return errors.Errorf("application trust cannot be changed while the application is owned by a branch")
+			}
+			return st.unsetGenerationApplicationConfigKeysTx(
+				ctx, tx, generation.UUID, appID, keys,
+			)
 		}
 
 		if err := tx.Query(ctx, deleteStmt, removals, ident).Run(); internaldatabase.IsErrConstraintForeignKey(err) {

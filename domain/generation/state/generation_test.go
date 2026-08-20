@@ -62,6 +62,29 @@ func (s *stateSuite) TestGenerationUnitTableErrors(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 }
 
+func (s *stateSuite) TestGenerationApplicationTableErrors(c *tc.C) {
+	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	generationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), generationUUID, "test", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+ALTER TABLE generation_application RENAME TO generation_application_unavailable`)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	c.Check(s.state.TrackUnits(c.Context(), generationUUID, []string{unitUUID}), tc.NotNil)
+	c.Check(s.state.Abort(c.Context(), generationUUID, "admin"), tc.NotNil)
+
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+ALTER TABLE generation_application_unavailable RENAME TO generation_application`)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+}
+
 func (s *stateSuite) TestAddBranch(c *tc.C) {
 	id, err := s.state.AddBranch(c.Context(), s.newUUID(c), "test", "admin")
 	c.Assert(err, tc.ErrorIsNil)
@@ -96,13 +119,15 @@ func (s *stateSuite) TestListBranches(c *tc.C) {
 	_, err = s.state.AddBranch(c.Context(), s.newUUID(c), "one", "admin")
 	c.Assert(err, tc.ErrorIsNil)
 	_, err = s.state.AddBranch(c.Context(), s.newUUID(c), "two", "admin")
-	c.Assert(err, tc.ErrorIs, generationerrors.BranchAlreadyExists)
+	c.Assert(err, tc.ErrorIsNil)
 
 	got, err = s.state.ListBranches(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
-	c.Check(got, tc.HasLen, 1)
+	c.Check(got, tc.HasLen, 2)
 	c.Check(got[0].Name, tc.Equals, "one")
 	c.Check(got[0].GenerationID, tc.Equals, uint64(0))
+	c.Check(got[1].Name, tc.Equals, "two")
+	c.Check(got[1].GenerationID, tc.Equals, uint64(1))
 }
 
 func (s *stateSuite) TestBranchNameCanBeReusedAfterAbort(c *tc.C) {
@@ -162,11 +187,72 @@ func (s *stateSuite) TestTrackUnitsIsAtomic(c *tc.C) {
 	c.Check(names, tc.HasLen, 0)
 }
 
-func (s *stateSuite) TestOnlyOneBranchCanBeActive(c *tc.C) {
+func (s *stateSuite) TestMultipleBranchesCanBeActive(c *tc.C) {
 	_, err := s.state.AddBranch(c.Context(), s.newUUID(c), "first", "admin")
 	c.Assert(err, tc.ErrorIsNil)
 	_, err = s.state.AddBranch(c.Context(), s.newUUID(c), "second", "admin")
-	c.Check(err, tc.ErrorIs, generationerrors.BranchAlreadyExists)
+	c.Check(err, tc.ErrorIsNil)
+}
+
+func (s *stateSuite) TestBranchesCanOwnDifferentApplications(c *tc.C) {
+	_, firstUnitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	_, secondUnitUUID := s.createUnit(c, "wordpress", "wordpress/0")
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+
+	c.Check(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{firstUnitUUID}), tc.ErrorIsNil)
+	c.Check(s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{secondUnitUUID}), tc.ErrorIsNil)
+}
+
+func (s *stateSuite) TestApplicationCannotBeOwnedByTwoBranches(c *tc.C) {
+	appUUID, firstUnitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	secondUnitUUID := s.createUnitForApplication(c, appUUID, "mediawiki/1")
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{firstUnitUUID}), tc.ErrorIsNil)
+
+	err = s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{secondUnitUUID})
+	c.Check(err, tc.ErrorIs, generationerrors.ApplicationAlreadyOwned)
+	names, err := s.state.GetTrackedUnitNames(c.Context(), secondGenerationUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(names, tc.HasLen, 0)
+}
+
+func (s *stateSuite) TestApplicationOwnershipSurvivesUntracking(c *tc.C) {
+	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
+	c.Assert(s.state.UntrackUnits(c.Context(), firstGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
+
+	err = s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{unitUUID})
+	c.Check(err, tc.ErrorIs, generationerrors.ApplicationAlreadyOwned)
+}
+
+func (s *stateSuite) TestAbortReleasesApplicationOwnership(c *tc.C) {
+	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
+	c.Assert(s.state.Abort(c.Context(), firstGenerationUUID, "admin"), tc.ErrorIsNil)
+
+	c.Check(s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
 }
 
 func (s *stateSuite) TestTrackAndUntrackNoUnits(c *tc.C) {
