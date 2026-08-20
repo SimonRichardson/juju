@@ -417,6 +417,12 @@ func registerCommands(r commandRegistry) {
 	r.Register(machine.NewReprovisionMachineCommand())
 
 	// Manage model
+	r.Register(model.NewAddBranchCommand())
+	r.Register(model.NewTrackBranchCommand())
+	r.Register(model.NewCommitCommand())
+	r.Register(model.NewAbortCommand())
+	r.Register(model.NewCommitsCommand())
+	r.Register(model.NewShowCommitCommand())
 	r.Register(model.NewConfigCommand())
 	r.Register(model.NewDefaultsCommand())
 	r.Register(model.NewRetryProvisioningCommand())
