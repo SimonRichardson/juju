@@ -864,11 +864,9 @@ func (u *UniterAPI) charmURLForApplication(ctx context.Context, tag names.Applic
 }
 
 func (u *UniterAPI) charmURLForUnit(ctx context.Context, tag names.UnitTag) (string, bool, error) {
-	appName, err := names.UnitApplication(tag.Id())
-	if err != nil {
-		return "", false, internalerrors.Capture(err)
-	}
-	charmLocator, err := u.applicationService.GetCharmLocatorByApplicationName(ctx, appName)
+	charmLocator, err := u.applicationService.GetCharmLocatorByUnitName(
+		ctx, coreunit.Name(tag.Id()),
+	)
 	if err != nil {
 		return "", false, internalerrors.Capture(err)
 	}
@@ -1086,8 +1084,8 @@ func (u *UniterAPI) ConfigSettings(ctx context.Context, args params.Entities) (p
 			continue
 		}
 
-		appID, err := u.applicationService.GetApplicationUUIDByUnitName(ctx, unitName)
-		if errors.Is(err, applicationerrors.ApplicationNotFound) {
+		unitUUID, err := u.applicationService.GetUnitUUID(ctx, unitName)
+		if errors.Is(err, applicationerrors.ApplicationNotFound) || errors.Is(err, applicationerrors.UnitNotFound) {
 			result.Results[i].Error = apiservererrors.ServerError(apiservererrors.ErrPerm)
 			continue
 		} else if err != nil {
@@ -1095,7 +1093,7 @@ func (u *UniterAPI) ConfigSettings(ctx context.Context, args params.Entities) (p
 			continue
 		}
 
-		settings, err := u.applicationService.GetApplicationConfigWithDefaults(ctx, appID)
+		settings, err := u.applicationService.GetResolvedUnitApplicationConfigWithDefaults(ctx, unitUUID)
 		if err != nil {
 			result.Results[i].Error = apiservererrors.ServerError(err)
 			continue
