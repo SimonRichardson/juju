@@ -353,6 +353,18 @@ type ApplicationState interface {
 	// for application watchers.
 	NamespaceForWatchApplication() string
 
+	// NamespaceForWatchGenerationApplicationCharm returns the namespace
+	// identifier for branch application charm changes.
+	NamespaceForWatchGenerationApplicationCharm() string
+
+	// NamespaceForWatchGenerationApplicationConfig returns the namespace
+	// identifier for branch application config changes.
+	NamespaceForWatchGenerationApplicationConfig() string
+
+	// NamespaceForWatchGenerationApplicationResource returns the namespace
+	// identifier for branch application resource changes.
+	NamespaceForWatchGenerationApplicationResource() string
+
 	// NamespaceForWatchApplicationConfig returns the namespace string identifier
 	// for application configuration changes.
 	NamespaceForWatchApplicationConfig() string

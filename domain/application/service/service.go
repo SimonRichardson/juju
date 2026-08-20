@@ -438,8 +438,8 @@ type indexedChanged struct {
 	index  int
 }
 
-// WatchApplication watches for changes to the specified application in the
-// application table.
+// WatchApplication watches for changes to the specified application, including
+// changes to its charm and resources in the active branch.
 // If the application does not exist an error satisfying
 // [applicationerrors.NotFound] will be returned.
 func (s *WatchableService) WatchApplication(ctx context.Context, name string) (watcher.NotifyWatcher, error) {
@@ -455,6 +455,16 @@ func (s *WatchableService) WatchApplication(ctx context.Context, name string) (w
 		fmt.Sprintf("application watcher for %q", name),
 		eventsource.PredicateFilter(
 			s.st.NamespaceForWatchApplication(),
+			changestream.All,
+			eventsource.EqualsPredicate(uuid.String()),
+		),
+		eventsource.PredicateFilter(
+			s.st.NamespaceForWatchGenerationApplicationCharm(),
+			changestream.All,
+			eventsource.EqualsPredicate(uuid.String()),
+		),
+		eventsource.PredicateFilter(
+			s.st.NamespaceForWatchGenerationApplicationResource(),
 			changestream.All,
 			eventsource.EqualsPredicate(uuid.String()),
 		),
@@ -483,6 +493,11 @@ func (s *WatchableService) WatchApplicationConfig(ctx context.Context, name stri
 		fmt.Sprintf("application config watcher for %q", name),
 		eventsource.PredicateFilter(
 			s.st.NamespaceForWatchApplicationConfig(),
+			changestream.All,
+			eventsource.EqualsPredicate(uuid.String()),
+		),
+		eventsource.PredicateFilter(
+			s.st.NamespaceForWatchGenerationApplicationConfig(),
 			changestream.All,
 			eventsource.EqualsPredicate(uuid.String()),
 		),
@@ -559,6 +574,11 @@ func (s *WatchableService) WatchApplicationConfigHash(ctx context.Context, name 
 			return []string{sha256}, nil
 		},
 		eventsource.NamespaceFilter(table, changestream.All),
+		eventsource.PredicateFilter(
+			s.st.NamespaceForWatchGenerationApplicationConfig(),
+			changestream.All,
+			eventsource.EqualsPredicate(appID.String()),
+		),
 	)
 }
 

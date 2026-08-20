@@ -576,12 +576,28 @@ WHERE uuid=?`, id0.String())
 }
 
 func (s *watcherSuite) TestWatchApplication(c *tc.C) {
-	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, "application")
+	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, s.ModelUUID())
 
 	svc := s.setupService(c, factory)
 
 	appName := "foo"
 	appUUID := s.createIAASApplication(c, svc, appName)
+	otherAppUUID := s.createIAASApplicationWithCharmAndStoragePath(
+		c, svc, "other", &stubCharm{name: "branch"}, "",
+	)
+
+	var mainCharmUUID, branchCharmUUID string
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `
+SELECT charm_uuid FROM application WHERE uuid = ?
+`, appUUID.String()).Scan(&mainCharmUUID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `
+SELECT charm_uuid FROM application WHERE uuid = ?
+`, otherAppUUID.String()).Scan(&branchCharmUUID)
+	})
+	c.Assert(err, tc.ErrorIsNil)
 
 	ctx := c.Context()
 	s.AssertChangeStreamIdle(c, "before watcher start")
@@ -622,6 +638,105 @@ WHERE uuid=?`, appName, appUUID)
 		w.AssertNoChange()
 	})
 
+	generationUUID := uuid.MustNewUUID().String()
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation (
+    uuid, generation_id, name, state_id, created_by, created_at
+)
+VALUES (?, 0, 'test', 0, 'admin', DATETIME('now', 'utc'))
+`, generationUUID); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application_charm (
+    generation_uuid, application_uuid, charm_uuid
+)
+VALUES (?, ?, ?)
+`, generationUUID, appUUID.String(), branchCharmUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
+	// A branch charm change for another application is not relevant.
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application_charm (
+    generation_uuid, application_uuid, charm_uuid
+)
+VALUES (?, ?, ?)
+`, generationUUID, otherAppUUID.String(), branchCharmUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertNoChange()
+	})
+
+	// Updating and removing the branch override both change the resolved charm.
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+UPDATE generation_application_charm
+SET charm_uuid = ?
+WHERE generation_uuid = ? AND application_uuid = ?
+`, mainCharmUUID, generationUUID, appUUID.String())
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+DELETE FROM generation_application_charm
+WHERE generation_uuid = ? AND application_uuid = ?
+`, generationUUID, appUUID.String())
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
+	resourceUUID := uuid.MustNewUUID().String()
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `
+INSERT OR IGNORE INTO charm_resource (charm_uuid, name, kind_id)
+VALUES (?, 'website', 0)
+`, mainCharmUUID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO resource (
+    uuid, charm_uuid, charm_resource_name, revision,
+    origin_type_id, state_id, created_at
+)
+VALUES (?, ?, 'website', 1, 1, 0, DATETIME('now', 'utc'))
+`, resourceUUID, mainCharmUUID); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application_resource (
+    generation_uuid, application_uuid, charm_resource_name, resource_uuid
+)
+VALUES (?, ?, 'website', ?)
+`, generationUUID, appUUID.String(), resourceUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
 	// Assert that nothing changes if nothing happens.
 	harness.AddTest(c, func(c *tc.C) {}, func(w watchertest.WatcherC[struct{}]) {
 		w.AssertNoChange()
@@ -639,7 +754,7 @@ func (s *watcherSuite) TestWatchApplicationBadName(c *tc.C) {
 }
 
 func (s *watcherSuite) TestWatchApplicationConfig(c *tc.C) {
-	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, "application_config_hash")
+	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, s.ModelUUID())
 
 	svc := s.setupService(c, factory)
 
@@ -697,6 +812,31 @@ func (s *watcherSuite) TestWatchApplicationConfig(c *tc.C) {
 		w.AssertChange()
 	})
 
+	// Branch config changes notify through the same application config watcher.
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			generationUUID := uuid.MustNewUUID().String()
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation (
+    uuid, generation_id, name, state_id, created_by, created_at
+)
+VALUES (?, 0, 'test', 0, 'admin', DATETIME('now', 'utc'))
+`, generationUUID); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application_config (
+    generation_uuid, application_uuid, "key", type_id, value
+)
+VALUES (?, ?, 'foo', 0, 'branch-value')
+`, generationUUID, appUUID.String())
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
 	// Assert that nothing changes if nothing happens.
 	harness.AddTest(c, func(c *tc.C) {}, func(w watchertest.WatcherC[struct{}]) {
 		w.AssertNoChange()
@@ -714,7 +854,7 @@ func (s *watcherSuite) TestWatchApplicationConfigBadName(c *tc.C) {
 }
 
 func (s *watcherSuite) TestWatchApplicationConfigHash(c *tc.C) {
-	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, "application_config_hash")
+	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, s.ModelUUID())
 
 	db, err := factory(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
@@ -777,6 +917,26 @@ func (s *watcherSuite) TestWatchApplicationConfigHash(c *tc.C) {
 	}, func(w watchertest.WatcherC[[]string]) {
 		// We should only see one hash change.
 		hash := s.getApplicationConfigHash(c, db, appUUID)
+		w.Check(watchertest.StringSliceAssert(hash))
+	})
+
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation (
+    uuid, generation_id, name, state_id, created_by, created_at
+)
+VALUES (?, 0, 'test', 0, 'admin', DATETIME('now', 'utc'))
+`, uuid.MustNewUUID().String())
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+		err = svc.UpdateApplicationConfig(ctx, appUUID, map[string]string{
+			"foo": "branch-value",
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[[]string]) {
+		hash := s.getResolvedApplicationConfigHash(c, appUUID)
 		w.Check(watchertest.StringSliceAssert(hash))
 	})
 
@@ -1597,6 +1757,16 @@ func (s *watcherSuite) getApplicationConfigHash(c *tc.C, db changestream.Watchab
 	})
 	c.Assert(err, tc.ErrorIsNil)
 
+	return hash
+}
+
+func (s *watcherSuite) getResolvedApplicationConfigHash(c *tc.C, appUUID coreapplication.UUID) string {
+	modelDB := func(context.Context) (database.TxnRunner, error) {
+		return s.ModelTxnRunner(), nil
+	}
+	st := state.NewState(modelDB, s.modelUUID, clock.WallClock, loggertesting.WrapCheckLog(c))
+	hash, err := st.GetApplicationConfigHash(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
 	return hash
 }
 
