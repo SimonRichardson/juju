@@ -13,10 +13,6 @@ const (
 	// already in flight.
 	BranchAlreadyExists = errors.ConstError("branch already exists")
 
-	// BranchInProgress is returned when an operation that requires a branch
-	// with no tracked units is attempted while units are still tracking it.
-	BranchInProgress = errors.ConstError("branch is in progress")
-
 	// BranchCommitted is returned when an operation is attempted on a branch
 	// that has already been committed.
 	BranchCommitted = errors.ConstError("branch already committed")

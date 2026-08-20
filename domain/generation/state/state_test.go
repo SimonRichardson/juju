@@ -379,7 +379,7 @@ func (s *stateSuite) TestAbortNotFoundOrAlreadyCompleted(c *tc.C) {
 	c.Assert(s.state.Abort(c.Context(), genUUID, "admin"), tc.ErrorIs, generationerrors.BranchNotFound)
 }
 
-func (s *stateSuite) TestAbortInProgress(c *tc.C) {
+func (s *stateSuite) TestAbortClearsTrackedUnits(c *tc.C) {
 	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
 
 	genUUID := s.newUUID(c)
@@ -390,7 +390,40 @@ func (s *stateSuite) TestAbortInProgress(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 
 	err = s.state.Abort(c.Context(), genUUID, "admin")
-	c.Assert(err, tc.ErrorIs, generationerrors.BranchInProgress)
+	c.Assert(err, tc.ErrorIsNil)
+
+	tracked, err := s.state.HasTrackedUnits(c.Context(), genUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(tracked, tc.IsFalse)
+	_, err = s.state.GetBranchByName(c.Context(), "test")
+	c.Check(err, tc.ErrorIs, generationerrors.BranchNotFound)
+}
+
+func (s *stateSuite) TestAbortRollsBackWhenTrackingClearFails(c *tc.C) {
+	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	genUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), genUUID, "test", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), genUUID, []string{unitUUID}), tc.ErrorIsNil)
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+CREATE TRIGGER fail_generation_unit_delete
+BEFORE DELETE ON generation_unit
+BEGIN
+    SELECT RAISE(ABORT, 'tracking unavailable');
+END`)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	err = s.state.Abort(c.Context(), genUUID, "admin")
+	c.Check(err, tc.ErrorMatches, `clearing tracked units: .*tracking unavailable.*`)
+
+	tracked, err := s.state.HasTrackedUnits(c.Context(), genUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(tracked, tc.IsTrue)
+	_, err = s.state.GetBranchByName(c.Context(), "test")
+	c.Check(err, tc.ErrorIsNil)
 }
 
 func (s *stateSuite) TestCommit(c *tc.C) {

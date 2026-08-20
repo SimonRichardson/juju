@@ -325,8 +325,6 @@ AND    g.state_id = 0
 // The following errors are returned:
 // - [generationerrors.BranchNotFound] if the branch does not exist or is not
 // in flight.
-// - [generationerrors.BranchInProgress] if units are still tracking the
-// branch.
 func (st *State) Abort(ctx context.Context, generationUUID, abortedBy string) error {
 	db, err := st.DB(ctx)
 	if err != nil {
@@ -345,24 +343,15 @@ AND    state_id = 0
 		return errors.Errorf("preparing abort statement: %w", err)
 	}
 
-	countStmt, err := st.Prepare(`
-SELECT COUNT(*) AS &countRow.n
-FROM   generation_unit
+	clearTrackingStmt, err := st.Prepare(`
+DELETE FROM generation_unit
 WHERE  generation_uuid = $generationIdent.uuid
-`, countRow{}, generationIdent{})
+`, generationIdent{})
 	if err != nil {
-		return errors.Errorf("preparing count statement: %w", err)
+		return errors.Errorf("preparing tracking clear: %w", err)
 	}
 
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		var c countRow
-		if err := tx.Query(ctx, countStmt, generationIdent{UUID: generationUUID}).Get(&c); err != nil {
-			return errors.Errorf("counting tracked units: %w", err)
-		}
-		if c.N > 0 {
-			return generationerrors.BranchInProgress
-		}
-
 		row := generationRow{
 			UUID:        generationUUID,
 			StateID:     stateIDAborted,
@@ -378,6 +367,9 @@ WHERE  generation_uuid = $generationIdent.uuid
 		}
 		if affected == 0 {
 			return generationerrors.BranchNotFound
+		}
+		if err := tx.Query(ctx, clearTrackingStmt, generationIdent{UUID: generationUUID}).Run(); err != nil {
+			return errors.Errorf("clearing tracked units: %w", err)
 		}
 		return nil
 	})
