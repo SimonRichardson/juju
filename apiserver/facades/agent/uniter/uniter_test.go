@@ -87,6 +87,7 @@ func (s *uniterSuite) SetUpTest(c *tc.C) {
 	s.IsolationSuite.SetUpTest(c)
 
 	s.badTag = nil
+	s.authTag = nil
 }
 
 func (s *uniterSuite) TestEnsureDeadUnauthorised(c *tc.C) {
@@ -888,6 +889,28 @@ func (s *uniterSuite) TestCharmURL(c *tc.C) {
 			{Error: apiservererrors.ServerError(boom)},
 			{Error: apiservertesting.ErrUnauthorized},
 		},
+	})
+}
+
+func (s *uniterSuite) TestApplicationCharmURLResolvedForAuthenticatedUnit(c *tc.C) {
+	s.authTag = names.NewUnitTag("mysql/1")
+	defer s.setupMocks(c).Finish()
+
+	s.expectShouldAllowCharmUpgradeOnError(c, "mysql", false, nil)
+	locator := domaincharm.CharmLocator{
+		Name:         "mysql",
+		Source:       domaincharm.CharmHubSource,
+		Revision:     23,
+		Architecture: architecture.AMD64,
+	}
+	s.expectGetCharmLocatorByUnitName(c, "mysql/1", locator, nil)
+
+	result, err := s.uniter.CharmURL(c.Context(), params.Entities{
+		Entities: []params.Entity{{Tag: names.NewApplicationTag("mysql").String()}},
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.StringBoolResults{
+		Results: []params.StringBoolResult{{Result: "ch:amd64/mysql-23"}},
 	})
 }
 

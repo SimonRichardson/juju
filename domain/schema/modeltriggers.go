@@ -140,7 +140,34 @@ func customModelTriggers() []func() schema.Patch {
 		relationLifeSuspended(
 			customNamespaceRelationLifeSuspended,
 		),
+
+		// Unit branch tracking changes alter the charm resolved for the unit.
+		// Notify the existing application watcher so unit agents re-read it.
+		generationUnitApplicationChangeTrigger(tableApplication),
 	}
+}
+
+func generationUnitApplicationChangeTrigger(namespace int) func() schema.Patch {
+	stmt := fmt.Sprintf(`
+CREATE TRIGGER trg_log_generation_unit_application_insert
+AFTER INSERT ON generation_unit FOR EACH ROW
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    SELECT 2, %[1]d, u.application_uuid, DATETIME('now', 'utc')
+    FROM unit AS u
+    WHERE u.uuid = NEW.unit_uuid;
+END;
+
+CREATE TRIGGER trg_log_generation_unit_application_delete
+AFTER DELETE ON generation_unit FOR EACH ROW
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    SELECT 2, %[1]d, u.application_uuid, DATETIME('now', 'utc')
+    FROM unit AS u
+    WHERE u.uuid = OLD.unit_uuid;
+END;
+`, namespace)
+	return func() schema.Patch { return schema.MakePatch(stmt) }
 }
 
 // storageAttachmentLifeMachineProvisioningTrigger creates triggers for storage

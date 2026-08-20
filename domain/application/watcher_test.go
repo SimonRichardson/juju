@@ -575,6 +575,53 @@ WHERE uuid=?`, id0.String())
 	harness.Run(c, []string{})
 }
 
+func (s *watcherSuite) TestWatchApplicationsWithPendingGenerationCharm(c *tc.C) {
+	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, s.ModelUUID())
+	svc := s.setupService(c, factory)
+	appUUID := s.createIAASApplicationWithCharmAndStoragePath(
+		c, svc, "foo", &stubCharm{}, "deadbeef",
+	)
+	branchCharmUUID, _, err := svc.AddCharm(c.Context(), charm.AddCharmArgs{
+		Charm:         &stubCharm{name: "foo"},
+		Source:        corecharm.CharmHub,
+		ReferenceName: "foo",
+		Revision:      23,
+		Architecture:  arch.AMD64,
+		DownloadInfo: &charm.DownloadInfo{
+			Provenance:         charm.ProvenanceDownload,
+			DownloadURL:        "https://example.com/foo-23.charm",
+			DownloadSize:       23,
+			CharmhubIdentifier: "branch-ident",
+		},
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	s.AssertChangeStreamIdle(c, "before watcher start")
+	watcher, err := svc.WatchApplicationsWithPendingCharms(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	harness := watchertest.NewHarness(s, watchertest.NewWatcherC(c, watcher))
+
+	harness.AddTest(c, func(c *tc.C) {
+		generationUUID := uuid.MustNewUUID().String()
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation (uuid, generation_id, name, state_id, created_by, created_at)
+VALUES (?, 42, 'test', 0, 'admin', DATETIME('now', 'utc'))`, generationUUID); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application_charm (generation_uuid, application_uuid, charm_uuid)
+VALUES (?, ?, ?)`, generationUUID, appUUID, branchCharmUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[[]string]) {
+		w.Check(watchertest.StringSliceAssert[string](appUUID.String()))
+	})
+
+	harness.Run(c, []string{})
+}
+
 func (s *watcherSuite) TestWatchApplication(c *tc.C) {
 	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, s.ModelUUID())
 
@@ -739,6 +786,69 @@ VALUES (?, ?, 'website', ?)
 
 	// Assert that nothing changes if nothing happens.
 	harness.AddTest(c, func(c *tc.C) {}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertNoChange()
+	})
+
+	harness.Run(c, struct{}{})
+}
+
+func (s *watcherSuite) TestWatchApplicationGenerationUnit(c *tc.C) {
+	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, s.ModelUUID())
+	svc := s.setupService(c, factory)
+	s.createIAASApplication(c, svc, "foo", service.AddIAASUnitArg{})
+	s.createIAASApplication(c, svc, "other", service.AddIAASUnitArg{})
+
+	ctx := c.Context()
+	unitUUID, err := svc.GetUnitUUID(ctx, unit.Name("foo/0"))
+	c.Assert(err, tc.ErrorIsNil)
+	otherUnitUUID, err := svc.GetUnitUUID(ctx, unit.Name("other/0"))
+	c.Assert(err, tc.ErrorIsNil)
+	generationUUID := uuid.MustNewUUID().String()
+	err = s.TxnRunner().StdTxn(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO generation (uuid, generation_id, name, state_id, created_by, created_at)
+VALUES (?, 42, 'test', 0, 'admin', DATETIME('now', 'utc'))`, generationUUID)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	s.AssertChangeStreamIdle(c, "before watcher start")
+	watcher, err := svc.WatchApplication(ctx, "foo")
+	c.Assert(err, tc.ErrorIsNil)
+	harness := watchertest.NewHarness(s, watchertest.NewWatcherC(c, watcher))
+
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_unit (generation_uuid, unit_uuid)
+VALUES (?, ?)`, generationUUID, unitUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+DELETE FROM generation_unit WHERE unit_uuid = ?`, unitUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_unit (generation_uuid, unit_uuid)
+VALUES (?, ?)`, generationUUID, otherUnitUUID)
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
 		w.AssertNoChange()
 	})
 

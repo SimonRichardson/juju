@@ -40,6 +40,7 @@ import (
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher"
 	domainapplication "github.com/juju/juju/domain/application"
+	domaincharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
@@ -852,7 +853,15 @@ func (u *UniterAPI) charmURLForApplication(ctx context.Context, tag names.Applic
 	if err != nil {
 		return "", false, internalerrors.Capture(err)
 	}
-	charmLocator, err := u.applicationService.GetCharmLocatorByApplicationName(ctx, tag.Id())
+	var charmLocator domaincharm.CharmLocator
+	if unitTag, ok := u.auth.GetAuthTag().(names.UnitTag); ok &&
+		coreunit.Name(unitTag.Id()).Application() == tag.Id() {
+		charmLocator, err = u.applicationService.GetCharmLocatorByUnitName(
+			ctx, coreunit.Name(unitTag.Id()),
+		)
+	} else {
+		charmLocator, err = u.applicationService.GetCharmLocatorByApplicationName(ctx, tag.Id())
+	}
 	if err != nil {
 		return "", false, internalerrors.Capture(err)
 	}
