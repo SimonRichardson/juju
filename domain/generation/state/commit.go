@@ -47,24 +47,6 @@ AND    state_id = 0
 		return 0, errors.Errorf("preparing branch select: %w", err)
 	}
 
-	foldCharmStmt, err := st.Prepare(`
-UPDATE application
-SET charm_uuid = (
-    SELECT gac.charm_uuid
-    FROM generation_application_charm AS gac
-    WHERE gac.generation_uuid = $commitArg.generation_uuid
-    AND gac.application_uuid = application.uuid
-)
-WHERE uuid IN (
-    SELECT application_uuid
-    FROM generation_application_charm
-    WHERE generation_uuid = $commitArg.generation_uuid
-)
-`, commitArg{})
-	if err != nil {
-		return 0, errors.Errorf("preparing charm fold: %w", err)
-	}
-
 	foldConfigUpsertStmt, err := st.Prepare(`
 INSERT INTO application_config (application_uuid, "key", type_id, value)
 SELECT gac.application_uuid, gac."key", gac.type_id, gac.value
@@ -167,7 +149,7 @@ AND state_id = 0
 			return errors.Errorf("querying branch: %w", err)
 		}
 
-		if err := tx.Query(ctx, foldCharmStmt, args).Run(); err != nil {
+		if err := st.applyGenerationCharms(ctx, tx, generationUUID); err != nil {
 			return errors.Errorf("folding charm changes: %w", err)
 		}
 		if err := tx.Query(ctx, foldConfigUpsertStmt, args).Run(); err != nil {
