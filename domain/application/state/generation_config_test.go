@@ -140,3 +140,38 @@ func (s *applicationRefreshSuite) TestGenerationConfigBranchAndUnitErrors(c *tc.
 	_, err := s.state.GetResolvedUnitApplicationConfigWithDefaults(c.Context(), tc.Must(c, coreunit.NewUUID))
 	c.Check(err, tc.ErrorIs, applicationerrors.UnitNotFound)
 }
+
+func (s *applicationRefreshSuite) TestApplicationConfigHashIncludesActiveBranch(c *tc.C) {
+	appUUID := s.createApplication(c, createApplicationArgs{
+		appName: "mediawiki",
+		charmConfig: charm.Config{Options: map[string]charm.Option{
+			"title": {Type: charm.OptionString, Default: "main"},
+		}},
+	})
+
+	mainHash, err := s.state.GetApplicationConfigHash(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	s.createGeneration(c, "test", 0)
+	c.Assert(s.state.UpdateApplicationConfigAndSettings(
+		c.Context(), appUUID,
+		map[string]application.AddApplicationConfig{
+			"title": {Type: charm.OptionString, Value: "branch"},
+		},
+		application.UpdateApplicationSettingsArg{},
+	), tc.ErrorIsNil)
+
+	branchHash, err := s.state.GetApplicationConfigHash(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(branchHash, tc.Not(tc.Equals), mainHash)
+
+	branchHashAgain, err := s.state.GetApplicationConfigHash(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(branchHashAgain, tc.Equals, branchHash)
+
+	c.Assert(s.state.UnsetApplicationConfigKeys(
+		c.Context(), appUUID, []string{"title"},
+	), tc.ErrorIsNil)
+	tombstoneHash, err := s.state.GetApplicationConfigHash(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(tombstoneHash, tc.Not(tc.Equals), branchHash)
+}

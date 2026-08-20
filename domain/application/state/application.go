@@ -2838,7 +2838,7 @@ WHERE  name = $charmUpgradeOnError.name AND c.source_id < 2;
 }
 
 // GetApplicationConfigHash returns the SHA256 hash of the application config
-// for the specified application UUID.
+// for the specified application UUID, including active branch deltas.
 // If no application is found, an error satisfying
 // [applicationerrors.ApplicationNotFound] is returned.
 func (st *State) GetApplicationConfigHash(ctx context.Context, appID coreapplication.UUID) (string, error) {
@@ -2859,8 +2859,24 @@ WHERE  application_uuid = $entityUUID.uuid;
 	if err != nil {
 		return "", errors.Errorf("preparing query for application config hash: %w", err)
 	}
+	generationConfigStmt, err := st.Prepare(`
+SELECT gac.generation_uuid AS &generationApplicationConfig.generation_uuid,
+       gac.application_uuid AS &generationApplicationConfig.application_uuid,
+       gac."key" AS &generationApplicationConfig.key,
+       gac.type_id AS &generationApplicationConfig.type_id,
+       gac.value AS &generationApplicationConfig.value
+FROM   generation_application_config AS gac
+JOIN   generation AS g ON g.uuid = gac.generation_uuid
+WHERE  gac.application_uuid = $entityUUID.uuid
+AND    g.state_id = 0
+ORDER BY gac."key"
+`, generationApplicationConfig{}, ident)
+	if err != nil {
+		return "", errors.Errorf("preparing generation config hash query: %w", err)
+	}
 
 	var hash applicationConfigHash
+	var generationConfig []generationApplicationConfig
 	if err := db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		if err := st.checkApplicationNotDead(ctx, tx, appID); err != nil {
 			return errors.Capture(err)
@@ -2871,13 +2887,32 @@ WHERE  application_uuid = $entityUUID.uuid;
 		} else if err != nil {
 			return errors.Capture(err)
 		}
+		if err := tx.Query(ctx, generationConfigStmt, ident).GetAll(&generationConfig); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Capture(err)
+		}
 
 		return nil
 	}); err != nil {
 		return "", errors.Capture(err)
 	}
 
-	return hash.SHA256, nil
+	if len(generationConfig) == 0 {
+		return hash.SHA256, nil
+	}
+
+	h := sha256.New()
+	_, _ = h.Write([]byte(hash.SHA256))
+	for _, config := range generationConfig {
+		_, _ = h.Write([]byte(config.Key))
+		_, _ = h.Write([]byte(strconv.Itoa(config.TypeID)))
+		if config.Value == nil {
+			_, _ = h.Write([]byte{0})
+			continue
+		}
+		_, _ = h.Write([]byte{1})
+		_, _ = h.Write([]byte(fmt.Sprint(config.Value)))
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // GetApplicationPlatformAndChannel returns the platform and channel for the
@@ -3358,6 +3393,24 @@ VALUES ($setDeviceConstraintAttribute.*)
 // for application change watchers.
 func (*State) NamespaceForWatchApplication() string {
 	return "application"
+}
+
+// NamespaceForWatchGenerationApplicationCharm returns the namespace identifier
+// for branch application charm change watchers.
+func (*State) NamespaceForWatchGenerationApplicationCharm() string {
+	return "generation_application_charm"
+}
+
+// NamespaceForWatchGenerationApplicationConfig returns the namespace
+// identifier for branch application config change watchers.
+func (*State) NamespaceForWatchGenerationApplicationConfig() string {
+	return "generation_application_config"
+}
+
+// NamespaceForWatchGenerationApplicationResource returns the namespace
+// identifier for branch application resource change watchers.
+func (*State) NamespaceForWatchGenerationApplicationResource() string {
+	return "generation_application_resource"
 }
 
 // NamespaceForWatchApplicationConfig returns a namespace string identifier

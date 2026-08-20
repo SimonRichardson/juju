@@ -490,6 +490,9 @@ type MockStateMockRecorder struct {
 	namespaceForWatchApplicationScaleExpects                  []*gomock.Call0_1[string]
 	namespaceForWatchApplicationSettingExpects                []*gomock.Call0_1[string]
 	namespaceForWatchCharmExpects                             []*gomock.Call0_1[string]
+	namespaceForWatchGenerationApplicationCharmExpects        []*gomock.Call0_1[string]
+	namespaceForWatchGenerationApplicationConfigExpects       []*gomock.Call0_1[string]
+	namespaceForWatchGenerationApplicationResourceExpects     []*gomock.Call0_1[string]
 	namespaceForWatchNetNodeAddressExpects                    []*gomock.Call0_1[string]
 	namespaceForWatchUnitForLegacyUniterExpects               []*gomock.Call0_3[string, string, string]
 	registerCAASUnitExpects                                   []*gomock.Call3_1[context.Context, string, application0.RegisterCAASUnitArg, error]
@@ -2762,6 +2765,60 @@ func (mr *MockStateMockRecorder) NamespaceForWatchCharm() *MockStateNamespaceFor
 
 // MockStateNamespaceForWatchCharmCall is the typed call wrapper for NamespaceForWatchCharm.
 type MockStateNamespaceForWatchCharmCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationApplicationCharm mocks base method.
+func (m *MockState) NamespaceForWatchGenerationApplicationCharm() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationApplicationCharmExpects, m.ctrl, m, "NamespaceForWatchGenerationApplicationCharm")
+}
+
+// NamespaceForWatchGenerationApplicationCharm indicates an expected call of NamespaceForWatchGenerationApplicationCharm.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationCharm() *MockStateNamespaceForWatchGenerationApplicationCharmCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationApplicationCharm")
+	mr.namespaceForWatchGenerationApplicationCharmExpects = append(mr.namespaceForWatchGenerationApplicationCharmExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationApplicationCharmCall is the typed call wrapper for NamespaceForWatchGenerationApplicationCharm.
+type MockStateNamespaceForWatchGenerationApplicationCharmCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationApplicationConfig mocks base method.
+func (m *MockState) NamespaceForWatchGenerationApplicationConfig() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationApplicationConfigExpects, m.ctrl, m, "NamespaceForWatchGenerationApplicationConfig")
+}
+
+// NamespaceForWatchGenerationApplicationConfig indicates an expected call of NamespaceForWatchGenerationApplicationConfig.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationConfig() *MockStateNamespaceForWatchGenerationApplicationConfigCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationApplicationConfig")
+	mr.namespaceForWatchGenerationApplicationConfigExpects = append(mr.namespaceForWatchGenerationApplicationConfigExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationApplicationConfigCall is the typed call wrapper for NamespaceForWatchGenerationApplicationConfig.
+type MockStateNamespaceForWatchGenerationApplicationConfigCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationApplicationResource mocks base method.
+func (m *MockState) NamespaceForWatchGenerationApplicationResource() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationApplicationResourceExpects, m.ctrl, m, "NamespaceForWatchGenerationApplicationResource")
+}
+
+// NamespaceForWatchGenerationApplicationResource indicates an expected call of NamespaceForWatchGenerationApplicationResource.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationResource() *MockStateNamespaceForWatchGenerationApplicationResourceCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationApplicationResource")
+	mr.namespaceForWatchGenerationApplicationResourceExpects = append(mr.namespaceForWatchGenerationApplicationResourceExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationApplicationResourceCall is the typed call wrapper for NamespaceForWatchGenerationApplicationResource.
+type MockStateNamespaceForWatchGenerationApplicationResourceCall = gomock.Call0_1[string]
 
 // NamespaceForWatchNetNodeAddress mocks base method.
 func (m *MockState) NamespaceForWatchNetNodeAddress() string {
