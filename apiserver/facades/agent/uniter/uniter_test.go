@@ -856,12 +856,12 @@ func (s *uniterSuite) TestCharmURL(c *tc.C) {
 		Architecture: architecture.AMD64,
 	}
 	// Arrange: expected unit calls
-	s.expectGetCharmLocatorByApplicationName(c, "mysql", locator, nil)
+	s.expectGetCharmLocatorByUnitName(c, "mysql/0", locator, nil)
 
-	s.expectGetCharmLocatorByApplicationName(c, "wordpress", locator, nil)
+	s.expectGetCharmLocatorByUnitName(c, "wordpress/0", locator, nil)
 
 	boom := internalerrors.New("boom")
-	s.expectGetCharmLocatorByApplicationName(c, "foo", locator, boom)
+	s.expectGetCharmLocatorByUnitName(c, "foo/42", locator, boom)
 
 	// Arrange: expected application calls
 	s.expectShouldAllowCharmUpgradeOnError(c, "mysql", true, nil)
@@ -970,6 +970,10 @@ func (s *uniterSuite) expectGetCharmLocatorByApplicationName(c *tc.C, appName st
 	s.applicationService.EXPECT().GetCharmLocatorByApplicationName(gomock.Any(), appName).Return(charmLocator, err)
 }
 
+func (s *uniterSuite) expectGetCharmLocatorByUnitName(c *tc.C, unitName coreunit.Name, charmLocator domaincharm.CharmLocator, err error) {
+	s.applicationService.EXPECT().GetCharmLocatorByUnitName(gomock.Any(), unitName).Return(charmLocator, err)
+}
+
 func (s *uniterSuite) expectShouldAllowCharmUpgradeOnError(c *tc.C, appName string, v bool, err error) {
 	s.applicationService.EXPECT().ShouldAllowCharmUpgradeOnError(gomock.Any(), appName).Return(v, err)
 }
@@ -988,9 +992,9 @@ func (s *uniterSuite) TestConfigSettings(c *tc.C) {
 	settings := map[string]any{
 		"foo": "bar",
 	}
-	s.expectedGetConfigSettings("mysql/0", settings, nil)
-	s.expectedGetConfigSettings("wordpress/0", nil, nil)
-	s.expectedGetConfigSettings("postgresql/0", nil, applicationerrors.ApplicationNotFound)
+	s.expectedGetConfigSettings(c, "mysql/0", settings, nil)
+	s.expectedGetConfigSettings(c, "wordpress/0", nil, nil)
+	s.expectedGetConfigSettings(c, "postgresql/0", nil, applicationerrors.ApplicationNotFound)
 	s.badTag = names.NewUnitTag("foo/42")
 
 	// Act:
@@ -1742,11 +1746,12 @@ func (s *uniterSuite) TestGetUnitContextWithCharmTracingConfigError(c *tc.C) {
 	c.Check(res.APIAddresses, tc.DeepEquals, []string{"10.0.0.1:17070", "10.0.0.2:17070"})
 }
 
-func (s *uniterSuite) expectedGetConfigSettings(unitName coreunit.Name, settings map[string]any, err error) {
-	s.applicationService.EXPECT().GetApplicationUUIDByUnitName(gomock.Any(), unitName).Return(coreapplication.UUID(unitName.Application()), err)
+func (s *uniterSuite) expectedGetConfigSettings(c *tc.C, unitName coreunit.Name, settings map[string]any, err error) {
+	unitUUID := tc.Must(c, coreunit.NewUUID)
+	s.applicationService.EXPECT().GetUnitUUID(gomock.Any(), unitName).Return(unitUUID, err)
 	if err == nil {
-		s.applicationService.EXPECT().GetApplicationConfigWithDefaults(
-			gomock.Any(), coreapplication.UUID(unitName.Application()),
+		s.applicationService.EXPECT().GetResolvedUnitApplicationConfigWithDefaults(
+			gomock.Any(), unitUUID,
 		).Return(settings, nil)
 	}
 }
