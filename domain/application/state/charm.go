@@ -1104,9 +1104,9 @@ func (s *State) NamespaceForWatchCharm() string {
 	return "charm"
 }
 
-// SetGenerationCharm records a charm override for an application in the named
+// setGenerationCharm records a charm override for an application in the named
 // in-flight branch. Canonical application state is not changed.
-func (s *State) SetGenerationCharm(
+func (s *State) setGenerationCharm(
 	ctx context.Context,
 	branchName string,
 	appUUID coreapplication.UUID,

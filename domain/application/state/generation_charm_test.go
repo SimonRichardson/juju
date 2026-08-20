@@ -12,6 +12,7 @@ import (
 	coreapplication "github.com/juju/juju/core/application"
 	corecharm "github.com/juju/juju/core/charm"
 	coreunit "github.com/juju/juju/core/unit"
+	"github.com/juju/juju/domain/application"
 	applicationcharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	generationerrors "github.com/juju/juju/domain/generation/errors"
@@ -69,13 +70,15 @@ WHERE uuid = ?
 	return corecharm.ID(charmUUID), modifiedVersion
 }
 
-func (s *applicationRefreshSuite) TestSetGenerationCharm(c *tc.C) {
+func (s *applicationRefreshSuite) TestSetApplicationCharmUsesActiveGeneration(c *tc.C) {
 	appUUID := s.createApplication(c, createApplicationArgs{appName: "mediawiki"})
 	mainCharm, mainVersion := s.applicationCharm(c, appUUID)
 	branchCharm := s.createCharm(c, createCharmArgs{name: "mediawiki"})
 	s.createGeneration(c, "test", 0)
 
-	err := s.state.SetGenerationCharm(c.Context(), "test", appUUID, branchCharm)
+	err := s.state.SetApplicationCharm(
+		c.Context(), appUUID, branchCharm, application.SetCharmStateParams{},
+	)
 	c.Assert(err, tc.ErrorIsNil)
 
 	var gotApplicationUUID, gotCharmUUID string
@@ -102,8 +105,8 @@ func (s *applicationRefreshSuite) TestSetGenerationCharmUpdatesOverride(c *tc.C)
 	secondCharm := s.createCharm(c, createCharmArgs{name: "mediawiki-second"})
 	s.createGeneration(c, "test", 0)
 
-	c.Assert(s.state.SetGenerationCharm(c.Context(), "test", appUUID, firstCharm), tc.ErrorIsNil)
-	c.Assert(s.state.SetGenerationCharm(c.Context(), "test", appUUID, secondCharm), tc.ErrorIsNil)
+	c.Assert(s.state.setGenerationCharm(c.Context(), "test", appUUID, firstCharm), tc.ErrorIsNil)
+	c.Assert(s.state.setGenerationCharm(c.Context(), "test", appUUID, secondCharm), tc.ErrorIsNil)
 
 	var count int
 	var gotCharmUUID string
@@ -125,7 +128,7 @@ func (s *applicationRefreshSuite) TestSetGenerationCharmBranchErrors(c *tc.C) {
 	s.createGeneration(c, "aborted", 2)
 
 	for _, name := range []string{"missing", "committed", "aborted"} {
-		err := s.state.SetGenerationCharm(c.Context(), name, appUUID, branchCharm)
+		err := s.state.setGenerationCharm(c.Context(), name, appUUID, branchCharm)
 		c.Check(err, tc.ErrorIs, generationerrors.BranchNotFound)
 	}
 }
@@ -135,12 +138,12 @@ func (s *applicationRefreshSuite) TestSetGenerationCharmEntityErrors(c *tc.C) {
 	branchCharm := s.createCharm(c, createCharmArgs{name: "mediawiki"})
 	s.createGeneration(c, "test", 0)
 
-	err := s.state.SetGenerationCharm(
+	err := s.state.setGenerationCharm(
 		c.Context(), "test", tc.Must(c, coreapplication.NewUUID), branchCharm,
 	)
 	c.Check(err, tc.ErrorIs, applicationerrors.ApplicationNotFound)
 
-	err = s.state.SetGenerationCharm(
+	err = s.state.setGenerationCharm(
 		c.Context(), "test", appUUID, tc.Must(c, corecharm.NewID),
 	)
 	c.Check(err, tc.ErrorIs, applicationerrors.CharmNotFound)
@@ -156,7 +159,7 @@ func (s *applicationRefreshSuite) TestSetGenerationCharmDeadApplication(c *tc.C)
 	})
 	c.Assert(err, tc.ErrorIsNil)
 
-	err = s.state.SetGenerationCharm(c.Context(), "test", appUUID, branchCharm)
+	err = s.state.setGenerationCharm(c.Context(), "test", appUUID, branchCharm)
 	c.Check(err, tc.ErrorIs, applicationerrors.ApplicationIsDead)
 }
 
@@ -174,7 +177,7 @@ func (s *applicationRefreshSuite) TestSetGenerationCharmRejectsIncompatibleRelat
 	branchCharm := s.createCharm(c, createCharmArgs{name: "mediawiki-new"})
 	s.createGeneration(c, "test", 0)
 
-	err := s.state.SetGenerationCharm(c.Context(), "test", appUUID, branchCharm)
+	err := s.state.setGenerationCharm(c.Context(), "test", appUUID, branchCharm)
 	c.Check(err, tc.ErrorMatches, `.*charm has no corresponding relation "database"`)
 
 	var count int
@@ -210,7 +213,7 @@ func (s *applicationRefreshSuite) TestGetResolvedUnitCharmSelectiveTracking(c *t
 	mainUnit := s.addUnit(c, coreunit.Name("mediawiki/1"), appUUID)
 	generationUUID := s.createGeneration(c, "test", 0)
 	s.trackUnit(c, generationUUID, trackedUnit)
-	c.Assert(s.state.SetGenerationCharm(c.Context(), "test", appUUID, branchCharm), tc.ErrorIsNil)
+	c.Assert(s.state.setGenerationCharm(c.Context(), "test", appUUID, branchCharm), tc.ErrorIsNil)
 
 	got, err := s.state.GetResolvedUnitCharm(c.Context(), trackedUnit)
 	c.Assert(err, tc.ErrorIsNil)
@@ -241,7 +244,7 @@ func (s *applicationRefreshSuite) TestGetResolvedUnitCharmIgnoresOtherApplicatio
 	secondUnit := s.addUnit(c, coreunit.Name("wordpress/0"), secondAppUUID)
 	generationUUID := s.createGeneration(c, "test", 0)
 	s.trackUnit(c, generationUUID, secondUnit)
-	c.Assert(s.state.SetGenerationCharm(c.Context(), "test", firstAppUUID, branchCharm), tc.ErrorIsNil)
+	c.Assert(s.state.setGenerationCharm(c.Context(), "test", firstAppUUID, branchCharm), tc.ErrorIsNil)
 
 	got, err := s.state.GetResolvedUnitCharm(c.Context(), secondUnit)
 	c.Assert(err, tc.ErrorIsNil)
@@ -255,7 +258,7 @@ func (s *applicationRefreshSuite) TestGetResolvedUnitCharmIgnoresCompletedBranch
 	unitUUID := s.addUnit(c, coreunit.Name("mediawiki/0"), appUUID)
 	generationUUID := s.createGeneration(c, "test", 0)
 	s.trackUnit(c, generationUUID, unitUUID)
-	c.Assert(s.state.SetGenerationCharm(c.Context(), "test", appUUID, branchCharm), tc.ErrorIsNil)
+	c.Assert(s.state.setGenerationCharm(c.Context(), "test", appUUID, branchCharm), tc.ErrorIsNil)
 
 	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE generation SET state_id = 1 WHERE uuid = ?`, generationUUID)
