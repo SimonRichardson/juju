@@ -237,15 +237,13 @@ func (s *stateSuite) TestListBranches(c *tc.C) {
 	_, err = s.state.AddBranch(c.Context(), s.newUUID(c), "one", "admin")
 	c.Assert(err, tc.ErrorIsNil)
 	_, err = s.state.AddBranch(c.Context(), s.newUUID(c), "two", "admin")
-	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(err, tc.ErrorIs, generationerrors.BranchAlreadyExists)
 
 	got, err = s.state.ListBranches(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
-	c.Check(got, tc.HasLen, 2)
+	c.Check(got, tc.HasLen, 1)
 	c.Check(got[0].Name, tc.Equals, "one")
 	c.Check(got[0].GenerationID, tc.Equals, uint64(0))
-	c.Check(got[1].Name, tc.Equals, "two")
-	c.Check(got[1].GenerationID, tc.Equals, uint64(1))
 }
 
 func (s *stateSuite) TestBranchNameCanBeReusedAfterAbort(c *tc.C) {
@@ -305,22 +303,11 @@ func (s *stateSuite) TestTrackUnitsIsAtomic(c *tc.C) {
 	c.Check(names, tc.HasLen, 0)
 }
 
-func (s *stateSuite) TestUnitCannotTrackMultipleBranches(c *tc.C) {
-	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
-	firstGenerationUUID := s.newUUID(c)
-	secondGenerationUUID := s.newUUID(c)
-	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+func (s *stateSuite) TestOnlyOneBranchCanBeActive(c *tc.C) {
+	_, err := s.state.AddBranch(c.Context(), s.newUUID(c), "first", "admin")
 	c.Assert(err, tc.ErrorIsNil)
-	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
-	c.Assert(err, tc.ErrorIsNil)
-	c.Assert(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
-
-	err = s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{unitUUID})
-	c.Check(err, tc.NotNil)
-
-	branch, err := s.state.GetBranchForUnit(c.Context(), unitUUID)
-	c.Assert(err, tc.ErrorIsNil)
-	c.Check(branch.UUID, tc.Equals, firstGenerationUUID)
+	_, err = s.state.AddBranch(c.Context(), s.newUUID(c), "second", "admin")
+	c.Check(err, tc.ErrorIs, generationerrors.BranchAlreadyExists)
 }
 
 func (s *stateSuite) TestTrackAndUntrackNoUnits(c *tc.C) {

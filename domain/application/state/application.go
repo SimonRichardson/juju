@@ -1771,6 +1771,23 @@ WHERE  uuid = $applicationAndCharmUUID.application_uuid
 	if err != nil {
 		return errors.Errorf("preparing set application charm: %w", err)
 	}
+	setGenerationCharmStmt, err := st.Prepare(`
+INSERT INTO generation_application_charm (
+    generation_uuid,
+    application_uuid,
+    charm_uuid
+)
+VALUES (
+    $activeGeneration.uuid,
+    $generationApplicationCharm.application_uuid,
+    $generationApplicationCharm.charm_uuid
+)
+ON CONFLICT (generation_uuid, application_uuid) DO UPDATE SET
+    charm_uuid = excluded.charm_uuid
+`, activeGeneration{}, generationApplicationCharm{})
+	if err != nil {
+		return errors.Errorf("preparing active generation charm upsert: %w", err)
+	}
 
 	updateCharmModifiedVersionStmt, err := st.Prepare(`
 UPDATE application
@@ -1793,8 +1810,30 @@ WHERE  uuid = $entityUUID.uuid
 			return errors.Capture(err)
 		}
 
+		active, ok, err := st.getActiveGeneration(ctx, tx)
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if ok {
+			generationCharm := generationApplicationCharm{
+				ApplicationUUID: appID.String(),
+				CharmUUID:       chID.String(),
+			}
+			if err := tx.Query(
+				ctx, setGenerationCharmStmt, active, generationCharm,
+			).Run(); err != nil {
+				return errors.Errorf("setting active generation charm: %w", err)
+			}
+			if err := st.upsertGenerationApplicationResources(
+				ctx, tx, active.UUID, appID, params.Resources,
+			); err != nil {
+				return errors.Capture(err)
+			}
+			return nil
+		}
+
 		// Update storage directives for the new charm.
-		err := st.updateApplicationStorageDirectives(
+		err = st.updateApplicationStorageDirectives(
 			ctx, tx, appID, chID.String(), params.StorageDirectivesToUpdate)
 		if err != nil {
 			return errors.Errorf("updating storage directives: %w", err)
@@ -2489,6 +2528,17 @@ func (st *State) UpdateApplicationConfigAndSettings(
 	config map[string]application.AddApplicationConfig,
 	settings application.UpdateApplicationSettingsArg,
 ) error {
+	active, ok, err := st.activeGeneration(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+	if ok {
+		if settings.Trust != nil {
+			return errors.Errorf("application trust cannot be changed while a branch is active")
+		}
+		return st.setGenerationApplicationConfig(ctx, active.Name, appID, config)
+	}
+
 	db, err := st.DB(ctx)
 	if err != nil {
 		return errors.Capture(err)
@@ -2568,6 +2618,17 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 // If no application is found, an error satisfying
 // [applicationerrors.ApplicationNotFound] is returned.
 func (st *State) UnsetApplicationConfigKeys(ctx context.Context, appID coreapplication.UUID, keys []string) error {
+	active, ok, err := st.activeGeneration(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+	if ok {
+		if slices.Contains(keys, "trust") {
+			return errors.Errorf("application trust cannot be changed while a branch is active")
+		}
+		return st.unsetGenerationApplicationConfigKeys(ctx, active.Name, appID, keys)
+	}
+
 	db, err := st.DB(ctx)
 	if err != nil {
 		return errors.Capture(err)

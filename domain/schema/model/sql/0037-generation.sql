@@ -1,6 +1,6 @@
 -- A generation is a named in-flight branch. The canonical tables
 -- (application, application_config, charm, resource, application_resource)
--- hold the committed state ("main"/"master"); a branch records application
+-- hold the committed state ("main"); a branch records application
 -- scoped deltas in the generation_application_* tables, applied only to units
 -- that track it via generation_unit.
 
@@ -17,8 +17,8 @@ INSERT INTO generation_state VALUES
 
 -- generation is a branch. generation_id is a monotonic, human-facing sequence
 -- number allocated from the sequence table (namespace: generation).
--- name is unique amongst in-flight branches; committed and aborted branches
--- free their name for reuse.
+-- Only one branch may be in flight at a time. Committed and aborted branches
+-- free the active slot and their name for reuse.
 CREATE TABLE generation (
     uuid TEXT NOT NULL PRIMARY KEY,
     generation_id INT NOT NULL,
@@ -38,6 +38,9 @@ ON generation (generation_id);
 
 CREATE UNIQUE INDEX idx_generation_name
 ON generation (name) WHERE state_id = 0;
+
+CREATE UNIQUE INDEX idx_generation_active
+ON generation (state_id) WHERE state_id = 0;
 
 -- generation_unit records which units track a branch. A unit tracks at most
 -- one branch at a time; the unit_uuid index supports resolving the branch a
@@ -79,9 +82,9 @@ CREATE INDEX idx_generation_application_charm_application
 ON generation_application_charm (application_uuid);
 
 -- generation_application_config holds config deltas for an application under a
--- branch. Absence of a row means "inherit master". A row with a NULL value is
+-- branch. Absence of a row means "inherit main". A row with a NULL value is
 -- an explicit unset (tombstone): revert to the charm default, overriding any
--- user-set value on master.
+-- user-set value on main.
 CREATE TABLE generation_application_config (
     generation_uuid TEXT NOT NULL,
     application_uuid TEXT NOT NULL,

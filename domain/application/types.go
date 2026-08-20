@@ -513,10 +513,6 @@ type MigratingStorageDirectiveArg struct {
 // SetCharmParams contains the parameters for updating
 // an application's charm and storage.
 type SetCharmParams struct {
-	// BranchName identifies the in-flight branch receiving the charm override.
-	// An empty branch name updates the canonical main application charm.
-	BranchName string
-
 	// CharmOrigin contains the origin information for the new charm.
 	CharmOrigin charm.Origin
 
@@ -535,6 +531,18 @@ type SetCharmParams struct {
 	// StorageDirectiveOverrides is a map of storage names to storage directives to
 	// update during the upgrade.
 	StorageDirectiveOverrides map[string]ApplicationStorageDirectiveOverride
+
+	// Resources contains available resource records selected by the refresh.
+	Resources []ResourceSelection
+}
+
+// ResourceSelection identifies a resource selected for an application.
+type ResourceSelection struct {
+	// Name is the charm resource name.
+	Name string
+
+	// ResourceUUID identifies an existing available resource record.
+	ResourceUUID resource.UUID
 }
 
 // SetCharmStateParams contains the parameters for updating
@@ -559,6 +567,9 @@ type SetCharmStateParams struct {
 	// StorageDirectivesToUpdate contains storage directives that need to be
 	// applied based on the new charm's storage requirements.
 	StorageDirectivesToUpdate []domainstorage.DirectiveArg
+
+	// Resources contains available resource records selected by the refresh.
+	Resources []ResourceSelection
 }
 
 // ApplicationDetails contains details about an application.
