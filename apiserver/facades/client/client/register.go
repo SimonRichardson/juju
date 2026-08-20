@@ -45,6 +45,7 @@ func newFacadeV8(ctx facade.ModelContext) (*Client, error) {
 
 		applicationService:        domainServices.Application(),
 		crossModelRelationService: domainServices.CrossModelRelation(),
+		generationService:         domainServices.Generation(),
 		blockDeviceService:        domainServices.BlockDevice(),
 		machineService:            domainServices.Machine(),
 		modelInfoService:          domainServices.ModelInfo(),
