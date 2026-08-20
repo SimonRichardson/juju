@@ -35,7 +35,7 @@ func (st *State) GetCharmConfigForApplicationUpdate(
 		if err := st.checkApplicationNotDead(ctx, tx, appUUID); err != nil {
 			return errors.Capture(err)
 		}
-		active, ok, err := st.getActiveGeneration(ctx, tx)
+		active, ok, err := st.getGenerationForApplication(ctx, tx, appUUID.String())
 		if err != nil {
 			return errors.Capture(err)
 		}
@@ -84,17 +84,6 @@ func (st *State) setGenerationApplicationConfig(
 		return errors.Capture(err)
 	}
 
-	stmt, err := st.Prepare(`
-INSERT INTO generation_application_config (*)
-VALUES ($generationApplicationConfig.*)
-ON CONFLICT (generation_uuid, application_uuid, "key") DO UPDATE SET
-    type_id = excluded.type_id,
-    value = excluded.value
-`, generationApplicationConfig{})
-	if err != nil {
-		return errors.Errorf("preparing generation config upsert: %w", err)
-	}
-
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		if err := st.checkApplicationNotDead(ctx, tx, appUUID); err != nil {
 			return errors.Capture(err)
@@ -106,26 +95,51 @@ ON CONFLICT (generation_uuid, application_uuid, "key") DO UPDATE SET
 			return errors.Capture(err)
 		}
 
-		rows := make([]generationApplicationConfig, 0, len(config))
-		for key, value := range config {
-			typeID, err := encodeConfigType(value.Type)
-			if err != nil {
-				return errors.Errorf("encoding config type: %w", err)
-			}
-			rows = append(rows, generationApplicationConfig{
-				GenerationUUID:  generationUUID,
-				ApplicationUUID: appUUID.String(),
-				Key:             key,
-				TypeID:          typeID,
-				Value:           value.Value,
-			})
-		}
-		if err := tx.Query(ctx, stmt, rows).Run(); err != nil {
-			return errors.Errorf("setting generation config: %w", err)
-		}
-		return nil
+		return st.setGenerationApplicationConfigTx(
+			ctx, tx, generationUUID, appUUID, config,
+		)
 	})
 	return errors.Capture(err)
+}
+
+func (st *State) setGenerationApplicationConfigTx(
+	ctx context.Context,
+	tx *sqlair.TX,
+	generationUUID string,
+	appUUID coreapplication.UUID,
+	config map[string]application.AddApplicationConfig,
+) error {
+	if len(config) == 0 {
+		return nil
+	}
+	stmt, err := st.Prepare(`
+INSERT INTO generation_application_config (*)
+VALUES ($generationApplicationConfig.*)
+ON CONFLICT (generation_uuid, application_uuid, "key") DO UPDATE SET
+    type_id = excluded.type_id,
+    value = excluded.value
+`, generationApplicationConfig{})
+	if err != nil {
+		return errors.Errorf("preparing generation config upsert: %w", err)
+	}
+	rows := make([]generationApplicationConfig, 0, len(config))
+	for key, value := range config {
+		typeID, err := encodeConfigType(value.Type)
+		if err != nil {
+			return errors.Errorf("encoding config type: %w", err)
+		}
+		rows = append(rows, generationApplicationConfig{
+			GenerationUUID:  generationUUID,
+			ApplicationUUID: appUUID.String(),
+			Key:             key,
+			TypeID:          typeID,
+			Value:           value.Value,
+		})
+	}
+	if err := tx.Query(ctx, stmt, rows).Run(); err != nil {
+		return errors.Errorf("setting generation config: %w", err)
+	}
+	return nil
 }
 
 // unsetGenerationApplicationConfigKeys records tombstones for known charm
@@ -144,6 +158,33 @@ func (st *State) unsetGenerationApplicationConfigKeys(
 		return errors.Capture(err)
 	}
 
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := st.checkApplicationNotDead(ctx, tx, appUUID); err != nil {
+			return errors.Capture(err)
+		}
+		generationUUID, err := st.getInFlightGenerationUUID(
+			ctx, tx, generationName{Name: branchName},
+		)
+		if err != nil {
+			return errors.Capture(err)
+		}
+		return st.unsetGenerationApplicationConfigKeysTx(
+			ctx, tx, generationUUID, appUUID, keys,
+		)
+	})
+	return errors.Capture(err)
+}
+
+func (st *State) unsetGenerationApplicationConfigKeysTx(
+	ctx context.Context,
+	tx *sqlair.TX,
+	generationUUID string,
+	appUUID coreapplication.UUID,
+	keys []string,
+) error {
+	if len(keys) == 0 {
+		return nil
+	}
 	keyArgs := make(sqlair.S, len(keys))
 	for i, key := range keys {
 		keyArgs[i] = key
@@ -151,9 +192,9 @@ func (st *State) unsetGenerationApplicationConfigKeys(
 	configStmt, err := st.Prepare(`
 SELECT cc."key" AS &configKeyType.key,
        cc.type_id AS &configKeyType.type_id
-FROM   charm_config AS cc
-WHERE  cc.charm_uuid = $charmUUID.charm_uuid
-AND    cc."key" IN ($S[:])
+FROM charm_config AS cc
+WHERE cc.charm_uuid = $charmUUID.charm_uuid
+AND cc."key" IN ($S[:])
 `, configKeyType{}, charmUUID{}, sqlair.S{})
 	if err != nil {
 		return errors.Errorf("preparing generation config key query: %w", err)
@@ -168,48 +209,34 @@ ON CONFLICT (generation_uuid, application_uuid, "key") DO UPDATE SET
 	if err != nil {
 		return errors.Errorf("preparing generation config tombstone upsert: %w", err)
 	}
-
-	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		if err := st.checkApplicationNotDead(ctx, tx, appUUID); err != nil {
-			return errors.Capture(err)
-		}
-		generationUUID, err := st.getInFlightGenerationUUID(
-			ctx, tx, generationName{Name: branchName},
-		)
-		if err != nil {
-			return errors.Capture(err)
-		}
-		resolvedCharm, err := st.getGenerationApplicationCharmUUID(ctx, tx, generationApplicationIdent{
+	resolvedCharm, err := st.getGenerationApplicationCharmUUID(ctx, tx, generationApplicationIdent{
+		GenerationUUID:  generationUUID,
+		ApplicationUUID: appUUID.String(),
+	})
+	if err != nil {
+		return errors.Capture(err)
+	}
+	var knownKeys []configKeyType
+	if err := tx.Query(ctx, configStmt, charmUUID{UUID: resolvedCharm}, keyArgs).GetAll(&knownKeys); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+		return errors.Errorf("querying generation config keys: %w", err)
+	}
+	rows := make([]generationApplicationConfig, 0, len(knownKeys))
+	for _, key := range knownKeys {
+		rows = append(rows, generationApplicationConfig{
 			GenerationUUID:  generationUUID,
 			ApplicationUUID: appUUID.String(),
+			Key:             key.Key,
+			TypeID:          key.TypeID,
+			Value:           nil,
 		})
-		if err != nil {
-			return errors.Capture(err)
-		}
-
-		var knownKeys []configKeyType
-		if err := tx.Query(ctx, configStmt, charmUUID{UUID: resolvedCharm}, keyArgs).GetAll(&knownKeys); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
-			return errors.Errorf("querying generation config keys: %w", err)
-		}
-		rows := make([]generationApplicationConfig, 0, len(knownKeys))
-		for _, key := range knownKeys {
-			rows = append(rows, generationApplicationConfig{
-				GenerationUUID:  generationUUID,
-				ApplicationUUID: appUUID.String(),
-				Key:             key.Key,
-				TypeID:          key.TypeID,
-				Value:           nil,
-			})
-		}
-		if len(rows) == 0 {
-			return nil
-		}
-		if err := tx.Query(ctx, upsertStmt, rows).Run(); err != nil {
-			return errors.Errorf("unsetting generation config: %w", err)
-		}
+	}
+	if len(rows) == 0 {
 		return nil
-	})
-	return errors.Capture(err)
+	}
+	if err := tx.Query(ctx, upsertStmt, rows).Run(); err != nil {
+		return errors.Errorf("unsetting generation config: %w", err)
+	}
+	return nil
 }
 
 // GetResolvedUnitApplicationConfigWithDefaults returns a unit's effective

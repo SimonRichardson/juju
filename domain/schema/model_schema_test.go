@@ -397,6 +397,7 @@ func (s *modelSchemaSuite) TestModelTables(c *tc.C) {
 		"generation",
 		"generation_state",
 		"generation_unit",
+		"generation_application",
 		"generation_application_charm",
 		"generation_application_config",
 		"generation_application_resource",
@@ -793,6 +794,9 @@ func (s *modelSchemaSuite) TestModelTriggers(c *tc.C) {
 		"trg_log_generation_application_charm_delete",
 		"trg_log_generation_application_charm_insert",
 		"trg_log_generation_application_charm_update",
+		"trg_log_generation_application_delete",
+		"trg_log_generation_application_insert",
+		"trg_log_generation_application_update",
 
 		"trg_log_generation_application_config_delete",
 		"trg_log_generation_application_config_insert",

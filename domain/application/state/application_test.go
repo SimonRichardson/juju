@@ -2100,6 +2100,11 @@ INSERT INTO generation (uuid, generation_id, name, state_id, created_by, created
 VALUES (?, 42, 'test', 0, 'admin', DATETIME('now', 'utc'))`, generationUUID); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+VALUES (?, ?)`, generationUUID, appUUID); err != nil {
+			return err
+		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO generation_application_charm (generation_uuid, application_uuid, charm_uuid)
 VALUES (?, ?, ?)`, generationUUID, appUUID, branchCharmUUID)

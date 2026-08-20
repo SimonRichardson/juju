@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -84,9 +84,9 @@ func (c *commitsCommand) Run(ctx *cmd.Context) error {
 }
 
 func (c *commitsCommand) formatCommits(commits []params.Generation) formattedCommitList {
-	sort.Slice(commits, func(i, j int) bool {
-		return commits[i].GenerationId > commits[j].GenerationId
-	})
+	// The service returns commits ordered by committed_at, oldest first.
+	// Reverse that order for the CLI without interpreting generation IDs.
+	slices.Reverse(commits)
 
 	now := time.Now()
 	if c.now != nil {

@@ -23,7 +23,7 @@ func (s *commitCommandSuite) TestCommitAllowsGenerationZero(c *tc.C) {
 	command := &commitCommand{generationCommandBase: commandBase(api)}
 	ctx, err := cmdtesting.RunCommand(c, wrapGenerationCommand(command), "test")
 	c.Assert(err, tc.ErrorIsNil)
-	c.Check(cmdtesting.Stdout(ctx), tc.Equals, "model is now at generation 0\n")
+	c.Check(cmdtesting.Stdout(ctx), tc.Equals, "Committed branch \"test\" as generation 0\n")
 	c.Check(api.branchName, tc.Equals, "test")
 	c.Check(api.closed, tc.Equals, 1)
 }

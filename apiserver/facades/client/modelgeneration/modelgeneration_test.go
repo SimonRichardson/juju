@@ -169,6 +169,26 @@ func (s *facadeSuite) TestTrackBranchInvalidEntity(c *tc.C) {
 	c.Check(result.Results[0].Error.Message, tc.Matches, `expected unit or application tag.*`)
 }
 
+func (s *facadeSuite) TestTrackBranchApplicationOwnedByAnotherBranch(c *tc.C) {
+	api, generationService, applicationService, authorizer := s.setup(c)
+	s.expectAccess(authorizer, permission.AdminAccess)
+	unitUUID := tc.Must(c, coreunit.NewUUID)
+	applicationService.EXPECT().GetUnitUUID(
+		gomock.Any(), coreunit.Name("mysql/0"),
+	).Return(unitUUID, nil)
+	generationService.EXPECT().TrackBranch(
+		gomock.Any(), "test", []coreunit.UUID{unitUUID},
+	).Return(generationerrors.ApplicationAlreadyOwned)
+
+	result, err := api.TrackBranch(c.Context(), params.BranchTrackArg{
+		BranchName: "test",
+		Entities:   []params.Entity{{Tag: names.NewUnitTag("mysql/0").String()}},
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(result.Results, tc.HasLen, 1)
+	c.Check(result.Results[0].Error.Message, tc.Equals, "application is already owned by another branch")
+}
+
 func (s *facadeSuite) TestCommitAndAbort(c *tc.C) {
 	api, generationService, _, authorizer := s.setup(c)
 	s.expectAccess(authorizer, permission.AdminAccess)

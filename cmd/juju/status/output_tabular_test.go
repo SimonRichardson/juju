@@ -62,6 +62,7 @@ func (s *outputTabularSuite) TestFormatterAddsBranchesAndUnitReferences(c *tc.C)
 				AssignedUnits: map[string][]string{"mediawiki": {"mediawiki/0"}},
 				Created:       time.Now().Add(-9*time.Minute - 10*time.Second).Unix(),
 				CreatedBy:     "admin",
+				GenerationId:  42,
 			},
 		},
 		Applications: map[string]params.ApplicationStatus{
@@ -83,14 +84,32 @@ func (s *outputTabularSuite) TestFormatterAddsBranchesAndUnitReferences(c *tc.C)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(formatted.Branches, tc.DeepEquals, map[string]branchStatus{
 		"test": {
-			Ref:       "#1",
+			Ref:       "#42",
 			Created:   "9 minutes ago",
 			CreatedBy: "admin",
 			Active:    true,
 		},
 	})
-	c.Check(formatted.Applications["mediawiki"].Units["mediawiki/0"].Branch, tc.Equals, "#1")
+	c.Check(formatted.Applications["mediawiki"].Units["mediawiki/0"].Branch, tc.Equals, "#42")
 	c.Check(formatted.Applications["mediawiki"].Units["mediawiki/1"].Branch, tc.Equals, "")
+}
+
+func (s *outputTabularSuite) TestFormatterBranchReferencesUseGenerationIDs(c *tc.C) {
+	status := &params.FullStatus{
+		Model: params.ModelStatusInfo{CloudTag: "cloud-dummy"},
+		Branches: map[string]params.BranchStatus{
+			"alpha": {GenerationId: 99},
+			"zulu":  {GenerationId: 3},
+		},
+	}
+	formatter := NewStatusFormatter(NewStatusFormatterParams{
+		Status: status, OutputName: "tabular",
+	})
+
+	formatted, err := formatter.Format()
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(formatted.Branches["alpha"].Ref, tc.Equals, "#99")
+	c.Check(formatted.Branches["zulu"].Ref, tc.Equals, "#3")
 }
 
 func (s *outputTabularSuite) TestFormatTabularBranches(c *tc.C) {

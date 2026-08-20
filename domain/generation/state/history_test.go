@@ -54,22 +54,36 @@ func (s *stateSuite) TestGenerationCommitConfigTableError(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 }
 
-func (s *stateSuite) TestListCommitsOldestFirst(c *tc.C) {
-	for _, name := range []string{"one", "two"} {
-		genUUID := s.newUUID(c)
-		_, err := s.state.AddBranch(c.Context(), genUUID, name, "creator")
-		c.Assert(err, tc.ErrorIsNil)
-		_, err = s.state.Commit(c.Context(), genUUID, s.newUUID(c), "committer")
-		c.Assert(err, tc.ErrorIsNil)
-	}
+func (s *stateSuite) TestListCommitsOrderedByCommittedAt(c *tc.C) {
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "one", "creator")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "two", "creator")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.Commit(c.Context(), firstGenerationUUID, s.newUUID(c), "committer")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.Commit(c.Context(), secondGenerationUUID, s.newUUID(c), "committer")
+	c.Assert(err, tc.ErrorIsNil)
+
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+UPDATE generation_commit
+SET committed_at = CASE name
+    WHEN 'one' THEN '2026-08-20 12:00:00'
+    WHEN 'two' THEN '2026-08-20 11:00:00'
+END`)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
 
 	commits, err := s.state.ListCommits(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 	c.Assert(commits, tc.HasLen, 2)
-	c.Check(commits[0].Name, tc.Equals, "one")
-	c.Check(commits[0].GenerationID, tc.Equals, uint64(0))
-	c.Check(commits[1].Name, tc.Equals, "two")
-	c.Check(commits[1].GenerationID, tc.Equals, uint64(1))
+	c.Check(commits[0].Name, tc.Equals, "two")
+	c.Check(commits[0].GenerationID, tc.Equals, uint64(1))
+	c.Check(commits[1].Name, tc.Equals, "one")
+	c.Check(commits[1].GenerationID, tc.Equals, uint64(0))
 }
 
 func (s *stateSuite) TestCommitNotFound(c *tc.C) {

@@ -62,6 +62,6 @@ func (c *commitCommand) Run(ctx *cmd.Context) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	_, err = fmt.Fprintf(ctx.Stdout, "model is now at generation %d\n", generationID)
+	_, err = fmt.Fprintf(ctx.Stdout, "Committed branch %q as generation %d\n", c.branchName, generationID)
 	return errors.Trace(err)
 }

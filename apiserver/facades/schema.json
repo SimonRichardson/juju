@@ -5816,13 +5816,17 @@
                         },
                         "created-by": {
                             "type": "string"
+                        },
+                        "generation-id": {
+                            "type": "integer"
                         }
                     },
                     "additionalProperties": false,
                     "required": [
                         "assigned-units",
                         "created",
-                        "created-by"
+                        "created-by",
+                        "generation-id"
                     ]
                 },
                 "DetailedStatus": {

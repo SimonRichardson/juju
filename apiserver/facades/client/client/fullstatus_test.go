@@ -92,9 +92,10 @@ func (s *fullStatusSuite) TestFetchBranchStatuses(c *tc.C) {
 	createdAt := time.Unix(42, 0)
 	service := stubGenerationService{
 		branches: []generation.Generation{{
-			Name:      "test",
-			CreatedAt: createdAt,
-			CreatedBy: "admin",
+			Name:         "test",
+			GenerationID: 42,
+			CreatedAt:    createdAt,
+			CreatedBy:    "admin",
 		}},
 		tracked: map[string][]coreunit.Name{
 			"test": {"mediawiki/0", "mediawiki/1", "mysql/0"},
@@ -109,8 +110,9 @@ func (s *fullStatusSuite) TestFetchBranchStatuses(c *tc.C) {
 				"mediawiki": {"mediawiki/0", "mediawiki/1"},
 				"mysql":     {"mysql/0"},
 			},
-			Created:   42,
-			CreatedBy: "admin",
+			Created:      42,
+			CreatedBy:    "admin",
+			GenerationId: 42,
 		},
 	})
 }

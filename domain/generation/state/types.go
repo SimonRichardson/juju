@@ -48,6 +48,16 @@ type generationUnit struct {
 	UnitUUID       string `db:"unit_uuid"`
 }
 
+type generationApplication struct {
+	GenerationUUID  string `db:"generation_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+}
+
+type generationUnitApplication struct {
+	UnitUUID        string `db:"unit_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+}
+
 // unitName is used to read a unit's name.
 type unitName struct {
 	Name string `db:"name"`

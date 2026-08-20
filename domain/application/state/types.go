@@ -73,7 +73,7 @@ type generationName struct {
 	Name string `db:"name"`
 }
 
-type activeGeneration struct {
+type applicationGeneration struct {
 	UUID string `db:"uuid"`
 	Name string `db:"name"`
 }

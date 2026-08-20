@@ -17,7 +17,7 @@ import (
 )
 
 // AddBranch creates a new in-flight branch with the given name and returns its
-// monotonic generation id.
+// generation identifier.
 func (s *Service) AddBranch(ctx context.Context, name, createdBy string) (uint64, error) {
 	if name == "" {
 		return 0, errors.Errorf("branch name cannot be empty")
@@ -48,7 +48,9 @@ func (s *Service) ListBranches(ctx context.Context) ([]generation.Generation, er
 	return transform.SliceOrErr(branches, generationFromInternal)
 }
 
-// TrackBranch records that the given units are tracking the named branch.
+// TrackBranch records that the given units are tracking the named branch. The
+// units' applications are claimed exclusively by the branch until it commits
+// or aborts.
 func (s *Service) TrackBranch(ctx context.Context, branchName string, unitUUIDs []coreunit.UUID) error {
 	branch, err := s.st.GetBranchByName(ctx, branchName)
 	if err != nil {
@@ -127,7 +129,8 @@ func (s *Service) AbortBranch(ctx context.Context, branchName, abortedBy string)
 	return s.st.Abort(ctx, branch.UUID, abortedBy)
 }
 
-// ListCommits returns the committed generation history, oldest first.
+// ListCommits returns the committed generation history by commit time, oldest
+// first.
 func (s *Service) ListCommits(ctx context.Context) ([]generation.Commit, error) {
 	commits, err := s.st.ListCommits(ctx)
 	if err != nil {

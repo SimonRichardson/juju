@@ -56,9 +56,33 @@ func (s *stateSuite) TestCommitClearsTrackingAndNameCanBeReused(c *tc.C) {
 	_, err = s.state.GetBranchForUnit(c.Context(), unitUUID)
 	c.Assert(err, tc.ErrorIs, generationerrors.BranchNotFound)
 
-	id, err := s.state.AddBranch(c.Context(), s.newUUID(c), "test", "creator")
+	newGenerationUUID := s.newUUID(c)
+	id, err := s.state.AddBranch(c.Context(), newGenerationUUID, "test", "creator")
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(id, tc.Equals, uint64(1))
+	c.Check(s.state.TrackUnits(c.Context(), newGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
+}
+
+func (s *stateSuite) TestCommitDoesNotAffectOtherActiveBranch(c *tc.C) {
+	_, firstUnitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	_, secondUnitUUID := s.createUnit(c, "wordpress", "wordpress/0")
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{firstUnitUUID}), tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{secondUnitUUID}), tc.ErrorIsNil)
+
+	_, err = s.state.Commit(c.Context(), firstGenerationUUID, s.newUUID(c), "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	second, err := s.state.GetBranchByName(c.Context(), "second")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(second.UUID, tc.Equals, secondGenerationUUID)
+	unitBranch, err := s.state.GetBranchForUnit(c.Context(), secondUnitUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(unitBranch.Name, tc.Equals, "second")
 }
 
 func (s *stateSuite) TestCommitBranchNotFoundOrAlreadyCompleted(c *tc.C) {
@@ -172,6 +196,32 @@ END`)
 	commits, err := s.state.ListCommits(c.Context())
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(commits, tc.HasLen, 0)
+}
+
+func (s *stateSuite) TestCommitRollsBackWhenApplicationOwnershipClearFails(c *tc.C) {
+	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	generationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), generationUUID, "test", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), generationUUID, []string{unitUUID}), tc.ErrorIsNil)
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+CREATE TRIGGER fail_generation_application_delete
+BEFORE DELETE ON generation_application
+BEGIN
+    SELECT RAISE(ABORT, 'ownership unavailable');
+END`)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	_, err = s.state.Commit(c.Context(), generationUUID, s.newUUID(c), "admin")
+	c.Check(err, tc.ErrorMatches, `clearing application ownership: .*ownership unavailable.*`)
+	_, err = s.state.GetBranchByName(c.Context(), "test")
+	c.Check(err, tc.ErrorIsNil)
+	tracked, err := s.state.HasTrackedUnits(c.Context(), generationUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(tracked, tc.IsTrue)
 }
 
 func (s *stateSuite) TestCommitRollsBackWhenConfigHashFails(c *tc.C) {

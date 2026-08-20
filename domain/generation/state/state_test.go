@@ -68,6 +68,30 @@ VALUES (?, ?, 0, ?, ?, ?)`, unitUUID, unitName, netNodeUUID, appUUID, charmUUID)
 	return appUUID, unitUUID
 }
 
+func (s *stateSuite) createUnitForApplication(
+	c *tc.C, appUUID, unitName string,
+) string {
+	unitUUID := s.newUUID(c)
+	netNodeUUID := s.newUUID(c)
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		var charmUUID string
+		if err := tx.QueryRowContext(ctx, `
+SELECT charm_uuid FROM application WHERE uuid = ?`, appUUID).Scan(&charmUUID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO net_node (uuid) VALUES (?)`, netNodeUUID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO unit (uuid, name, life_id, net_node_uuid, application_uuid, charm_uuid)
+VALUES (?, ?, 0, ?, ?, ?)`, unitUUID, unitName, netNodeUUID, appUUID, charmUUID)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	return unitUUID
+}
+
 func (s *stateSuite) TestDatabaseError(c *tc.C) {
 	boom := errors.New("boom")
 	state := NewState(func(context.Context) (coredatabase.TxnRunner, error) {
