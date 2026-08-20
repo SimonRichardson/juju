@@ -174,6 +174,15 @@ type ApplicationState interface {
 	// the provided parameters and validates changes.
 	SetApplicationCharm(ctx context.Context, appUUID coreapplication.UUID, charmID corecharm.ID, params application.SetCharmStateParams) error
 
+	// SetGenerationCharm records a charm override for an application in the
+	// named in-flight branch.
+	SetGenerationCharm(ctx context.Context, branchName string, appUUID coreapplication.UUID, charmID corecharm.ID) error
+
+	// GetResolvedUnitCharm returns the desired charm for a unit, resolving an
+	// in-flight branch override before falling back to the main application
+	// charm.
+	GetResolvedUnitCharm(ctx context.Context, unitUUID coreunit.UUID) (corecharm.ID, error)
+
 	// GetApplicationUUIDByUnitName returns the application UUID for the named unit,
 	// returning an error satisfying [applicationerrors.UnitNotFound] if the
 	// unit doesn't exist.
@@ -772,6 +781,29 @@ func (s *Service) GetCharmLocatorByApplicationName(ctx context.Context, name str
 	charmID, err := s.st.GetCharmIDByApplicationName(ctx, name)
 	if err != nil {
 		return charm.CharmLocator{}, errors.Capture(err)
+	}
+
+	locator, err := s.getCharmLocatorByID(ctx, charmID)
+	return locator, errors.Capture(err)
+}
+
+// GetCharmLocatorByUnitName returns the desired charm locator for a unit. An
+// in-flight branch charm override is preferred over the main application
+// charm.
+func (s *Service) GetCharmLocatorByUnitName(ctx context.Context, unitName coreunit.Name) (charm.CharmLocator, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	unitUUID, err := s.GetUnitUUID(ctx, unitName)
+	if err != nil {
+		return charm.CharmLocator{}, errors.Capture(err)
+	}
+
+	charmID, err := s.st.GetResolvedUnitCharm(ctx, unitUUID)
+	if err != nil {
+		return charm.CharmLocator{}, errors.Errorf(
+			"getting resolved charm for unit %q: %w", unitName, err,
+		)
 	}
 
 	locator, err := s.getCharmLocatorByID(ctx, charmID)
@@ -1734,6 +1766,17 @@ func (s *ProviderService) SetApplicationCharm(ctx context.Context, appName strin
 	finalStorageDirectives := append(toCreate, toUpdate...)
 	if err := storage.ValidateApplicationStorageDirectives(newCharmStorage, finalStorageDirectives); err != nil {
 		return errors.Errorf("validating final storage directives against charm storage: %w", err)
+	}
+
+	if params.BranchName != "" {
+		err = s.st.SetGenerationCharm(ctx, params.BranchName, appUUID, charmID)
+		if err != nil {
+			return errors.Errorf(
+				"setting application %q charm in branch %q: %w",
+				appName, params.BranchName, err,
+			)
+		}
+		return nil
 	}
 
 	paramsState, err := makeSetCharmStateArg(params, toCreate, toUpdate)

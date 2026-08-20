@@ -305,6 +305,24 @@ func (s *stateSuite) TestTrackUnitsIsAtomic(c *tc.C) {
 	c.Check(names, tc.HasLen, 0)
 }
 
+func (s *stateSuite) TestUnitCannotTrackMultipleBranches(c *tc.C) {
+	_, unitUUID := s.createUnit(c, "mediawiki", "mediawiki/0")
+	firstGenerationUUID := s.newUUID(c)
+	secondGenerationUUID := s.newUUID(c)
+	_, err := s.state.AddBranch(c.Context(), firstGenerationUUID, "first", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = s.state.AddBranch(c.Context(), secondGenerationUUID, "second", "admin")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.TrackUnits(c.Context(), firstGenerationUUID, []string{unitUUID}), tc.ErrorIsNil)
+
+	err = s.state.TrackUnits(c.Context(), secondGenerationUUID, []string{unitUUID})
+	c.Check(err, tc.NotNil)
+
+	branch, err := s.state.GetBranchForUnit(c.Context(), unitUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(branch.UUID, tc.Equals, firstGenerationUUID)
+}
+
 func (s *stateSuite) TestTrackAndUntrackNoUnits(c *tc.C) {
 	c.Assert(s.state.TrackUnits(c.Context(), "missing", nil), tc.ErrorIsNil)
 	c.Assert(s.state.UntrackUnits(c.Context(), "missing", nil), tc.ErrorIsNil)

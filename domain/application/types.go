@@ -513,6 +513,10 @@ type MigratingStorageDirectiveArg struct {
 // SetCharmParams contains the parameters for updating
 // an application's charm and storage.
 type SetCharmParams struct {
+	// BranchName identifies the in-flight branch receiving the charm override.
+	// An empty branch name updates the canonical main application charm.
+	BranchName string
+
 	// CharmOrigin contains the origin information for the new charm.
 	CharmOrigin charm.Origin
 
