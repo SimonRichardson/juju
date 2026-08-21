@@ -1429,6 +1429,19 @@ WHERE  a.name = $applicationName.name AND c.source_id < 2;
 	return "application_config_hash", queryFunc
 }
 
+// InitialWatchStatementUnitApplicationConfigHash returns the initial query for
+// a unit's resolved application config hash watcher.
+func (st *State) InitialWatchStatementUnitApplicationConfigHash(unitID coreunit.UUID) (string, eventsource.NamespaceQuery) {
+	queryFunc := func(ctx context.Context, runner database.TxnRunner) ([]string, error) {
+		hash, err := st.getUnitApplicationConfigHash(ctx, runner, unitID)
+		if err != nil {
+			return nil, errors.Capture(err)
+		}
+		return []string{hash}, nil
+	}
+	return "application_config_hash", queryFunc
+}
+
 // InitialWatchStatementApplications returns the initial namespace
 // query for applications events, as well as the watcher namespace to watch.
 func (st *State) InitialWatchStatementApplications() (string, eventsource.NamespaceQuery) {
@@ -2936,12 +2949,85 @@ ORDER BY gac."key"
 		return "", errors.Capture(err)
 	}
 
-	if len(generationConfig) == 0 {
-		return hash.SHA256, nil
+	return resolvedApplicationConfigHash(hash.SHA256, generationConfig), nil
+}
+
+// GetUnitApplicationConfigHash returns the application config hash resolved
+// for the specified unit's main or in-flight branch context.
+func (st *State) GetUnitApplicationConfigHash(ctx context.Context, unitID coreunit.UUID) (string, error) {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	return st.getUnitApplicationConfigHash(ctx, db, unitID)
+}
+
+type applicationConfigTxnRunner interface {
+	Txn(context.Context, func(context.Context, *sqlair.TX) error) error
+}
+
+func (st *State) getUnitApplicationConfigHash(
+	ctx context.Context, runner applicationConfigTxnRunner, unitID coreunit.UUID,
+) (string, error) {
+	ident := unitUUID{UnitUUID: unitID.String()}
+	baseStmt, err := st.Prepare(`
+SELECT ach.sha256 AS &applicationConfigHash.sha256
+FROM   unit AS u
+JOIN   application_config_hash AS ach ON ach.application_uuid = u.application_uuid
+WHERE  u.uuid = $unitUUID.uuid
+`, applicationConfigHash{}, ident)
+	if err != nil {
+		return "", errors.Errorf("preparing unit config hash query: %w", err)
+	}
+	branchStmt, err := st.Prepare(`
+WITH unit_context AS (
+    SELECT u.application_uuid AS application_uuid,
+           gu.generation_uuid AS generation_uuid
+    FROM   unit AS u
+    JOIN   generation_unit AS gu ON gu.unit_uuid = u.uuid
+    JOIN   generation AS g ON g.uuid = gu.generation_uuid
+                            AND g.state_id = 0
+    WHERE  u.uuid = $unitUUID.uuid
+)
+SELECT gac.generation_uuid AS &generationApplicationConfig.generation_uuid,
+       gac.application_uuid AS &generationApplicationConfig.application_uuid,
+       gac."key" AS &generationApplicationConfig.key,
+       gac.type_id AS &generationApplicationConfig.type_id,
+       gac.value AS &generationApplicationConfig.value
+FROM   generation_application_config AS gac
+JOIN   unit_context AS uc ON uc.generation_uuid = gac.generation_uuid
+                          AND uc.application_uuid = gac.application_uuid
+ORDER BY gac."key"
+`, generationApplicationConfig{}, ident)
+	if err != nil {
+		return "", errors.Errorf("preparing unit generation config hash query: %w", err)
 	}
 
+	var hash applicationConfigHash
+	var generationConfig []generationApplicationConfig
+	err = runner.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := tx.Query(ctx, baseStmt, ident).Get(&hash); errors.Is(err, sqlair.ErrNoRows) {
+			return applicationerrors.UnitNotFound
+		} else if err != nil {
+			return errors.Capture(err)
+		}
+		if err := tx.Query(ctx, branchStmt, ident).GetAll(&generationConfig); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Capture(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	return resolvedApplicationConfigHash(hash.SHA256, generationConfig), nil
+}
+
+func resolvedApplicationConfigHash(baseHash string, generationConfig []generationApplicationConfig) string {
+	if len(generationConfig) == 0 {
+		return baseHash
+	}
 	h := sha256.New()
-	_, _ = h.Write([]byte(hash.SHA256))
+	_, _ = h.Write([]byte(baseHash))
 	for _, config := range generationConfig {
 		_, _ = h.Write([]byte(config.Key))
 		_, _ = h.Write([]byte(strconv.Itoa(config.TypeID)))
@@ -2952,7 +3038,7 @@ ORDER BY gac."key"
 		_, _ = h.Write([]byte{1})
 		_, _ = h.Write(fmt.Append(nil, config.Value))
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // GetApplicationPlatformAndChannel returns the platform and channel for the
@@ -3445,6 +3531,12 @@ func (*State) NamespaceForWatchGenerationApplicationCharm() string {
 // identifier for branch application config change watchers.
 func (*State) NamespaceForWatchGenerationApplicationConfig() string {
 	return "generation_application_config"
+}
+
+// NamespaceForWatchGenerationUnit returns the namespace identifier for branch
+// unit tracking change watchers.
+func (*State) NamespaceForWatchGenerationUnit() string {
+	return "generation_unit"
 }
 
 // NamespaceForWatchGenerationApplicationResource returns the namespace

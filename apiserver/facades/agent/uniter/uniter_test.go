@@ -741,7 +741,7 @@ func (s *uniterSuite) TestWatchConfiSettingsHash(c *tc.C) {
 	// Arrange: expect a watcher for mysql
 	ch := make(chan []string, 1)
 	w := watchertest.NewMockStringsWatcher(ch)
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "mysql").Return(w, nil)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("mysql/0")).Return(w, nil)
 	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("1", nil)
 	ch <- []string{"change1"}
 
@@ -749,7 +749,7 @@ func (s *uniterSuite) TestWatchConfiSettingsHash(c *tc.C) {
 	s.badTag = names.NewUnitTag("wordpress/0")
 
 	// Arrange: expect a state error for postgresql
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "postgresql").Return(nil, applicationerrors.UnitNotFound)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("postgresql/0")).Return(nil, applicationerrors.UnitNotFound)
 
 	result, err := s.uniter.WatchConfigSettingsHash(c.Context(), args)
 	c.Assert(err, tc.ErrorIsNil)
@@ -778,7 +778,7 @@ func (s *uniterSuite) TestWatchTrustConfiSettingsHash(c *tc.C) {
 	// Arrange: expect a watcher for mysql
 	ch := make(chan []string, 1)
 	w := watchertest.NewMockStringsWatcher(ch)
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "mysql").Return(w, nil)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("mysql/0")).Return(w, nil)
 	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("1", nil)
 	ch <- []string{"change1"}
 
@@ -786,7 +786,7 @@ func (s *uniterSuite) TestWatchTrustConfiSettingsHash(c *tc.C) {
 	s.badTag = names.NewUnitTag("wordpress/0")
 
 	// Arrange: expect a state error for postgresql
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "postgresql").Return(nil, applicationerrors.UnitNotFound)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("postgresql/0")).Return(nil, applicationerrors.UnitNotFound)
 
 	result, err := s.uniter.WatchTrustConfigSettingsHash(c.Context(), args)
 	c.Assert(err, tc.ErrorIsNil)

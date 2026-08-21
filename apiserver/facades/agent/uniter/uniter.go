@@ -2692,7 +2692,7 @@ func (u *UniterAPI) goalStateUnits(ctx context.Context, appName string, appID ap
 // substantive config change).
 func (u *UniterAPI) WatchConfigSettingsHash(ctx context.Context, args params.Entities) (params.StringsWatchResults, error) {
 	getWatcher := func(ctx context.Context, unitName coreunit.Name) (watcher.StringsWatcher, error) {
-		return u.applicationService.WatchApplicationConfigHash(ctx, unitName.Application())
+		return u.applicationService.WatchUnitApplicationConfigHash(ctx, unitName)
 	}
 	result, err := u.watchHashes(ctx, args, getWatcher)
 	if err != nil {
@@ -2707,7 +2707,7 @@ func (u *UniterAPI) WatchConfigSettingsHash(ctx context.Context, args params.Ent
 // changed since it last saw the config.
 func (u *UniterAPI) WatchTrustConfigSettingsHash(ctx context.Context, args params.Entities) (params.StringsWatchResults, error) {
 	getWatcher := func(ctx context.Context, unitName coreunit.Name) (watcher.StringsWatcher, error) {
-		return u.applicationService.WatchApplicationConfigHash(ctx, unitName.Application())
+		return u.applicationService.WatchUnitApplicationConfigHash(ctx, unitName)
 	}
 	result, err := u.watchHashes(ctx, args, getWatcher)
 	if err != nil {

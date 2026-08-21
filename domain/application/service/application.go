@@ -286,6 +286,10 @@ type ApplicationState interface {
 	// [applicationerrors.ApplicationNotFound] is returned.
 	GetApplicationConfigHash(ctx context.Context, appUUID coreapplication.UUID) (string, error)
 
+	// GetUnitApplicationConfigHash returns the application config hash resolved
+	// for the specified unit's main or in-flight branch context.
+	GetUnitApplicationConfigHash(ctx context.Context, unitUUID coreunit.UUID) (string, error)
+
 	// InitialWatchStatementUnitLife returns the initial namespace query for the
 	// application unit life watcher.
 	InitialWatchStatementUnitLife(appName string) (string, eventsource.NamespaceQuery)
@@ -297,6 +301,10 @@ type ApplicationState interface {
 	// InitialWatchStatementApplicationConfigHash returns the initial namespace
 	// query for the application config hash watcher.
 	InitialWatchStatementApplicationConfigHash(appName string) (string, eventsource.NamespaceQuery)
+
+	// InitialWatchStatementUnitApplicationConfigHash returns the initial query
+	// for a unit's resolved application config hash watcher.
+	InitialWatchStatementUnitApplicationConfigHash(unitUUID coreunit.UUID) (string, eventsource.NamespaceQuery)
 
 	// InitialWatchStatementUnitAddressesHash returns the initial namespace query
 	// for the unit addresses hash watcher as well as the tables to be watched
@@ -360,6 +368,10 @@ type ApplicationState interface {
 	// NamespaceForWatchGenerationApplicationConfig returns the namespace
 	// identifier for branch application config changes.
 	NamespaceForWatchGenerationApplicationConfig() string
+
+	// NamespaceForWatchGenerationUnit returns the namespace identifier for
+	// branch unit tracking changes.
+	NamespaceForWatchGenerationUnit() string
 
 	// NamespaceForWatchGenerationApplicationResource returns the namespace
 	// identifier for branch application resource changes.

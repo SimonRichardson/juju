@@ -445,6 +445,7 @@ type MockStateMockRecorder struct {
 	getStorageAddInfoByUnitUUIDExpects                        []*gomock.Call3_2[context.Context, unit.UUID, storage.Name, internal.StorageInfoForAdd, error]
 	getStorageAttachInfoByUnitUUIDAndStorageUUIDExpects       []*gomock.Call3_2[context.Context, unit.UUID, storage0.StorageInstanceUUID, storage0.StorageInstanceInfoForUnitAttach, error]
 	getStorageAttachInfoForStorageInstancesExpects            []*gomock.Call2_2[context.Context, []storage0.StorageInstanceUUID, []storage0.StorageInstanceInfoForAttach, error]
+	getUnitApplicationConfigHashExpects                       []*gomock.Call2_2[context.Context, unit.UUID, string, error]
 	getUnitK8sPodInfoExpects                                  []*gomock.Call2_2[context.Context, unit.Name, application0.K8sPodInfo, error]
 	getUnitLifeExpects                                        []*gomock.Call2_2[context.Context, unit.Name, life.Life, error]
 	getUnitMachineNameExpects                                 []*gomock.Call2_2[context.Context, string, string, error]
@@ -467,6 +468,7 @@ type MockStateMockRecorder struct {
 	initialWatchStatementApplicationsExpects                  []*gomock.Call0_2[string, eventsource.NamespaceQuery]
 	initialWatchStatementApplicationsWithPendingCharmsExpects []*gomock.Call0_2[string, eventsource.NamespaceQuery]
 	initialWatchStatementUnitAddressesHashExpects             []*gomock.Call2_3[application.UUID, string, string, string, eventsource.NamespaceQuery]
+	initialWatchStatementUnitApplicationConfigHashExpects     []*gomock.Call1_2[unit.UUID, string, eventsource.NamespaceQuery]
 	initialWatchStatementUnitInsertDeleteOnNetNodeExpects     []*gomock.Call1_2[string, string, eventsource.NamespaceQuery]
 	initialWatchStatementUnitLifeExpects                      []*gomock.Call1_2[string, string, eventsource.NamespaceQuery]
 	insertMigratingApplicationExpects                         []*gomock.Call3_1[context.Context, string, application0.InsertApplicationArgs, error]
@@ -493,6 +495,7 @@ type MockStateMockRecorder struct {
 	namespaceForWatchGenerationApplicationCharmExpects        []*gomock.Call0_1[string]
 	namespaceForWatchGenerationApplicationConfigExpects       []*gomock.Call0_1[string]
 	namespaceForWatchGenerationApplicationResourceExpects     []*gomock.Call0_1[string]
+	namespaceForWatchGenerationUnitExpects                    []*gomock.Call0_1[string]
 	namespaceForWatchNetNodeAddressExpects                    []*gomock.Call0_1[string]
 	namespaceForWatchUnitForLegacyUniterExpects               []*gomock.Call0_3[string, string, string]
 	registerCAASUnitExpects                                   []*gomock.Call3_1[context.Context, string, application0.RegisterCAASUnitArg, error]
@@ -1954,6 +1957,24 @@ func (mr *MockStateMockRecorder) GetStorageAttachInfoForStorageInstances(ctx, st
 // MockStateGetStorageAttachInfoForStorageInstancesCall is the typed call wrapper for GetStorageAttachInfoForStorageInstances.
 type MockStateGetStorageAttachInfoForStorageInstancesCall = gomock.Call2_2[context.Context, []storage0.StorageInstanceUUID, []storage0.StorageInstanceInfoForAttach, error]
 
+// GetUnitApplicationConfigHash mocks base method.
+func (m *MockState) GetUnitApplicationConfigHash(ctx context.Context, unitUUID unit.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getUnitApplicationConfigHashExpects, m.ctrl, m, "GetUnitApplicationConfigHash", ctx, unitUUID)
+}
+
+// GetUnitApplicationConfigHash indicates an expected call of GetUnitApplicationConfigHash.
+func (mr *MockStateMockRecorder) GetUnitApplicationConfigHash(ctx, unitUUID any) *MockStateGetUnitApplicationConfigHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.UUID, string, error](mr.mock.ctrl.T, mr.mock, "GetUnitApplicationConfigHash", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitUUID))
+	mr.getUnitApplicationConfigHashExpects = append(mr.getUnitApplicationConfigHashExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetUnitApplicationConfigHashCall is the typed call wrapper for GetUnitApplicationConfigHash.
+type MockStateGetUnitApplicationConfigHashCall = gomock.Call2_2[context.Context, unit.UUID, string, error]
+
 // GetUnitK8sPodInfo mocks base method.
 func (m *MockState) GetUnitK8sPodInfo(arg0 context.Context, arg1 unit.Name) (application0.K8sPodInfo, error) {
 	m.ctrl.T.Helper()
@@ -2349,6 +2370,24 @@ func (mr *MockStateMockRecorder) InitialWatchStatementUnitAddressesHash(appUUID,
 
 // MockStateInitialWatchStatementUnitAddressesHashCall is the typed call wrapper for InitialWatchStatementUnitAddressesHash.
 type MockStateInitialWatchStatementUnitAddressesHashCall = gomock.Call2_3[application.UUID, string, string, string, eventsource.NamespaceQuery]
+
+// InitialWatchStatementUnitApplicationConfigHash mocks base method.
+func (m *MockState) InitialWatchStatementUnitApplicationConfigHash(unitUUID unit.UUID) (string, eventsource.NamespaceQuery) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch1_2(&m.recorder.initialWatchStatementUnitApplicationConfigHashExpects, m.ctrl, m, "InitialWatchStatementUnitApplicationConfigHash", unitUUID)
+}
+
+// InitialWatchStatementUnitApplicationConfigHash indicates an expected call of InitialWatchStatementUnitApplicationConfigHash.
+func (mr *MockStateMockRecorder) InitialWatchStatementUnitApplicationConfigHash(unitUUID any) *MockStateInitialWatchStatementUnitApplicationConfigHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall1_2[unit.UUID, string, eventsource.NamespaceQuery](mr.mock.ctrl.T, mr.mock, "InitialWatchStatementUnitApplicationConfigHash", gomock.EnsureMatcher(unitUUID))
+	mr.initialWatchStatementUnitApplicationConfigHashExpects = append(mr.initialWatchStatementUnitApplicationConfigHashExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateInitialWatchStatementUnitApplicationConfigHashCall is the typed call wrapper for InitialWatchStatementUnitApplicationConfigHash.
+type MockStateInitialWatchStatementUnitApplicationConfigHashCall = gomock.Call1_2[unit.UUID, string, eventsource.NamespaceQuery]
 
 // InitialWatchStatementUnitInsertDeleteOnNetNode mocks base method.
 func (m *MockState) InitialWatchStatementUnitInsertDeleteOnNetNode(netNodeUUID string) (string, eventsource.NamespaceQuery) {
@@ -2819,6 +2858,24 @@ func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationResource(
 
 // MockStateNamespaceForWatchGenerationApplicationResourceCall is the typed call wrapper for NamespaceForWatchGenerationApplicationResource.
 type MockStateNamespaceForWatchGenerationApplicationResourceCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationUnit mocks base method.
+func (m *MockState) NamespaceForWatchGenerationUnit() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationUnitExpects, m.ctrl, m, "NamespaceForWatchGenerationUnit")
+}
+
+// NamespaceForWatchGenerationUnit indicates an expected call of NamespaceForWatchGenerationUnit.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationUnit() *MockStateNamespaceForWatchGenerationUnitCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationUnit")
+	mr.namespaceForWatchGenerationUnitExpects = append(mr.namespaceForWatchGenerationUnitExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationUnitCall is the typed call wrapper for NamespaceForWatchGenerationUnit.
+type MockStateNamespaceForWatchGenerationUnitCall = gomock.Call0_1[string]
 
 // NamespaceForWatchNetNodeAddress mocks base method.
 func (m *MockState) NamespaceForWatchNetNodeAddress() string {

@@ -63,6 +63,14 @@ func (s *applicationRefreshSuite) TestGenerationConfigUsesResolvedCharmAndTombst
 		"title": {Type: charm.OptionString, Value: new("main-value")},
 		"count": {Type: charm.OptionInt, Value: new("1")},
 	})
+	trackedHash, err := s.state.GetUnitApplicationConfigHash(c.Context(), trackedUnit)
+	c.Assert(err, tc.ErrorIsNil)
+	mainHash, err := s.state.GetUnitApplicationConfigHash(c.Context(), mainUnit)
+	c.Assert(err, tc.ErrorIsNil)
+	canonicalHash, err := s.state.GetApplicationConfigHash(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(trackedHash, tc.Equals, canonicalHash)
+	c.Check(mainHash == canonicalHash, tc.IsFalse)
 
 	var canonicalTitle string
 	var branchRows, tombstones int
