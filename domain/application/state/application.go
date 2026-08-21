@@ -1354,10 +1354,22 @@ VALUES ($ipAddress.*);
 func (st *State) InitialWatchStatementApplicationsWithPendingCharms() (string, eventsource.NamespaceQuery) {
 	queryFunc := func(ctx context.Context, runner database.TxnRunner) ([]string, error) {
 		stmt, err := st.Prepare(`
-SELECT a.uuid AS &entityUUID.uuid
-FROM   application a
-JOIN   charm c ON a.charm_uuid = c.uuid
-WHERE  c.available = FALSE AND c.source_id < 2;
+WITH resolved_application_charm AS (
+    SELECT a.uuid AS application_uuid,
+           COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
+    FROM application AS a
+    LEFT JOIN generation_application AS ga ON ga.application_uuid = a.uuid
+    LEFT JOIN generation AS g ON g.uuid = ga.generation_uuid
+                              AND g.state_id = 0
+    LEFT JOIN generation_application_charm AS gac
+           ON gac.generation_uuid = g.uuid
+           AND gac.application_uuid = a.uuid
+)
+SELECT rac.application_uuid AS &entityUUID.uuid
+FROM resolved_application_charm AS rac
+JOIN charm AS c ON c.uuid = rac.charm_uuid
+WHERE c.available = FALSE
+AND c.source_id < 2;
 `, entityUUID{})
 		if err != nil {
 			return nil, errors.Capture(err)
@@ -1413,6 +1425,19 @@ WHERE  a.name = $applicationName.name AND c.source_id < 2;
 			hashes[i] = r.SHA256
 		}
 		return hashes, nil
+	}
+	return "application_config_hash", queryFunc
+}
+
+// InitialWatchStatementUnitApplicationConfigHash returns the initial query for
+// a unit's resolved application config hash watcher.
+func (st *State) InitialWatchStatementUnitApplicationConfigHash(unitID coreunit.UUID) (string, eventsource.NamespaceQuery) {
+	queryFunc := func(ctx context.Context, runner database.TxnRunner) ([]string, error) {
+		hash, err := st.getUnitApplicationConfigHash(ctx, runner, unitID)
+		if err != nil {
+			return nil, errors.Capture(err)
+		}
+		return []string{hash}, nil
 	}
 	return "application_config_hash", queryFunc
 }
@@ -1647,11 +1672,22 @@ func (st *State) GetApplicationsWithPendingCharmsFromUUIDs(ctx context.Context, 
 	type applicationIDs []coreapplication.UUID
 
 	stmt, err := st.Prepare(`
-SELECT a.uuid AS &entityUUID.uuid
-FROM   application AS a
-JOIN   charm AS c ON a.charm_uuid = c.uuid
-WHERE  a.uuid IN ($applicationIDs[:])
-AND c.available = FALSE
+WITH resolved_application_charm AS (
+    SELECT a.uuid AS application_uuid,
+           COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
+    FROM application AS a
+    LEFT JOIN generation_application AS ga ON ga.application_uuid = a.uuid
+    LEFT JOIN generation AS g ON g.uuid = ga.generation_uuid
+                              AND g.state_id = 0
+    LEFT JOIN generation_application_charm AS gac
+           ON gac.generation_uuid = g.uuid
+           AND gac.application_uuid = a.uuid
+    WHERE a.uuid IN ($applicationIDs[:])
+)
+SELECT rac.application_uuid AS &entityUUID.uuid
+FROM resolved_application_charm AS rac
+JOIN charm AS c ON c.uuid = rac.charm_uuid
+WHERE c.available = FALSE
 AND c.source_id < 2
 `, entityUUID{}, applicationIDs{})
 	if err != nil {
@@ -1771,6 +1807,23 @@ WHERE  uuid = $applicationAndCharmUUID.application_uuid
 	if err != nil {
 		return errors.Errorf("preparing set application charm: %w", err)
 	}
+	setGenerationCharmStmt, err := st.Prepare(`
+INSERT INTO generation_application_charm (
+    generation_uuid,
+    application_uuid,
+    charm_uuid
+)
+VALUES (
+    $applicationGeneration.uuid,
+    $generationApplicationCharm.application_uuid,
+    $generationApplicationCharm.charm_uuid
+)
+ON CONFLICT (generation_uuid, application_uuid) DO UPDATE SET
+    charm_uuid = excluded.charm_uuid
+`, applicationGeneration{}, generationApplicationCharm{})
+	if err != nil {
+		return errors.Errorf("preparing owned generation charm upsert: %w", err)
+	}
 
 	updateCharmModifiedVersionStmt, err := st.Prepare(`
 UPDATE application
@@ -1793,8 +1846,30 @@ WHERE  uuid = $entityUUID.uuid
 			return errors.Capture(err)
 		}
 
+		active, ok, err := st.getGenerationForApplication(ctx, tx, appID.String())
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if ok {
+			generationCharm := generationApplicationCharm{
+				ApplicationUUID: appID.String(),
+				CharmUUID:       chID.String(),
+			}
+			if err := tx.Query(
+				ctx, setGenerationCharmStmt, active, generationCharm,
+			).Run(); err != nil {
+				return errors.Errorf("setting owned generation charm: %w", err)
+			}
+			if err := st.upsertGenerationApplicationResources(
+				ctx, tx, active.UUID, appID, params.Resources,
+			); err != nil {
+				return errors.Capture(err)
+			}
+			return nil
+		}
+
 		// Update storage directives for the new charm.
-		err := st.updateApplicationStorageDirectives(
+		err = st.updateApplicationStorageDirectives(
 			ctx, tx, appID, chID.String(), params.StorageDirectivesToUpdate)
 		if err != nil {
 			return errors.Errorf("updating storage directives: %w", err)
@@ -2093,19 +2168,34 @@ func (st *State) GetAsyncCharmDownloadInfo(ctx context.Context, appID coreapplic
 	appIdent := entityUUID{UUID: appID.String()}
 
 	query, err := st.Prepare(`
+WITH resolved_application_charm AS (
+    SELECT a.uuid AS application_uuid,
+           COALESCE(gac.charm_uuid, a.charm_uuid) AS charm_uuid
+    FROM application AS a
+    LEFT JOIN generation_application AS ga ON ga.application_uuid = a.uuid
+    LEFT JOIN generation AS g ON g.uuid = ga.generation_uuid
+                              AND g.state_id = 0
+    LEFT JOIN generation_application_charm AS gac
+           ON gac.generation_uuid = g.uuid
+           AND gac.application_uuid = a.uuid
+    WHERE a.uuid = $entityUUID.uuid
+)
 SELECT
-    v.charm_uuid AS &applicationCharmDownloadInfo.charm_uuid,
-    v.name AS &applicationCharmDownloadInfo.name,
-    v.available AS &applicationCharmDownloadInfo.available,
-    v.hash AS &applicationCharmDownloadInfo.hash,
-    v.provenance AS &applicationCharmDownloadInfo.provenance,
-    v.charmhub_identifier AS &applicationCharmDownloadInfo.charmhub_identifier,
-    v.download_url AS &applicationCharmDownloadInfo.download_url,
-    v.download_size AS &applicationCharmDownloadInfo.download_size,
-    cs.name AS &applicationCharmDownloadInfo.source
-FROM v_application_charm_download_info AS v
-JOIN charm_source AS cs ON v.source_id = cs.id
-WHERE v.application_uuid = $entityUUID.uuid
+	    c.uuid AS &applicationCharmDownloadInfo.charm_uuid,
+	    c.reference_name AS &applicationCharmDownloadInfo.name,
+	    c.available AS &applicationCharmDownloadInfo.available,
+	    ch.hash AS &applicationCharmDownloadInfo.hash,
+	    cp.name AS &applicationCharmDownloadInfo.provenance,
+	    cdi.charmhub_identifier AS &applicationCharmDownloadInfo.charmhub_identifier,
+	    cdi.download_url AS &applicationCharmDownloadInfo.download_url,
+	    cdi.download_size AS &applicationCharmDownloadInfo.download_size,
+	    cs.name AS &applicationCharmDownloadInfo.source
+FROM resolved_application_charm AS rac
+JOIN charm AS c ON c.uuid = rac.charm_uuid
+JOIN charm_source AS cs ON cs.id = c.source_id
+LEFT JOIN charm_download_info AS cdi ON cdi.charm_uuid = c.uuid
+LEFT JOIN charm_provenance AS cp ON cp.id = cdi.provenance_id
+LEFT JOIN charm_hash AS ch ON ch.charm_uuid = c.uuid
 `, applicationCharmDownloadInfo{}, appIdent)
 	if err != nil {
 		return application.CharmDownloadInfo{}, errors.Errorf("preparing query for application %q: %w", appID, err)
@@ -2536,6 +2626,18 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 		if err := st.checkApplicationNotDead(ctx, tx, appID); err != nil {
 			return errors.Capture(err)
 		}
+		generation, owned, err := st.getGenerationForApplication(ctx, tx, appID.String())
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if owned {
+			if settings.Trust != nil {
+				return errors.Errorf("application trust cannot be changed while the application is owned by a branch")
+			}
+			return st.setGenerationApplicationConfigTx(
+				ctx, tx, generation.UUID, appID, config,
+			)
+		}
 
 		if len(upserts) > 0 {
 			if err := tx.Query(ctx, upsertStmt, upserts).Run(); err != nil {
@@ -2620,6 +2722,18 @@ ON CONFLICT(application_uuid) DO UPDATE SET
 			return applicationerrors.ApplicationNotFound
 		} else if err != nil {
 			return errors.Errorf("querying application: %w", err)
+		}
+		generation, owned, err := st.getGenerationForApplication(ctx, tx, appID.String())
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if owned {
+			if slices.Contains(keys, "trust") {
+				return errors.Errorf("application trust cannot be changed while the application is owned by a branch")
+			}
+			return st.unsetGenerationApplicationConfigKeysTx(
+				ctx, tx, generation.UUID, appID, keys,
+			)
 		}
 
 		if err := tx.Query(ctx, deleteStmt, removals, ident).Run(); internaldatabase.IsErrConstraintForeignKey(err) {
@@ -2777,7 +2891,7 @@ WHERE  name = $charmUpgradeOnError.name AND c.source_id < 2;
 }
 
 // GetApplicationConfigHash returns the SHA256 hash of the application config
-// for the specified application UUID.
+// for the specified application UUID, including active branch deltas.
 // If no application is found, an error satisfying
 // [applicationerrors.ApplicationNotFound] is returned.
 func (st *State) GetApplicationConfigHash(ctx context.Context, appID coreapplication.UUID) (string, error) {
@@ -2798,8 +2912,24 @@ WHERE  application_uuid = $entityUUID.uuid;
 	if err != nil {
 		return "", errors.Errorf("preparing query for application config hash: %w", err)
 	}
+	generationConfigStmt, err := st.Prepare(`
+SELECT gac.generation_uuid AS &generationApplicationConfig.generation_uuid,
+       gac.application_uuid AS &generationApplicationConfig.application_uuid,
+       gac."key" AS &generationApplicationConfig.key,
+       gac.type_id AS &generationApplicationConfig.type_id,
+       gac.value AS &generationApplicationConfig.value
+FROM   generation_application_config AS gac
+JOIN   generation AS g ON g.uuid = gac.generation_uuid
+WHERE  gac.application_uuid = $entityUUID.uuid
+AND    g.state_id = 0
+ORDER BY gac."key"
+`, generationApplicationConfig{}, ident)
+	if err != nil {
+		return "", errors.Errorf("preparing generation config hash query: %w", err)
+	}
 
 	var hash applicationConfigHash
+	var generationConfig []generationApplicationConfig
 	if err := db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		if err := st.checkApplicationNotDead(ctx, tx, appID); err != nil {
 			return errors.Capture(err)
@@ -2810,13 +2940,105 @@ WHERE  application_uuid = $entityUUID.uuid;
 		} else if err != nil {
 			return errors.Capture(err)
 		}
+		if err := tx.Query(ctx, generationConfigStmt, ident).GetAll(&generationConfig); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Capture(err)
+		}
 
 		return nil
 	}); err != nil {
 		return "", errors.Capture(err)
 	}
 
-	return hash.SHA256, nil
+	return resolvedApplicationConfigHash(hash.SHA256, generationConfig), nil
+}
+
+// GetUnitApplicationConfigHash returns the application config hash resolved
+// for the specified unit's main or in-flight branch context.
+func (st *State) GetUnitApplicationConfigHash(ctx context.Context, unitID coreunit.UUID) (string, error) {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	return st.getUnitApplicationConfigHash(ctx, db, unitID)
+}
+
+type applicationConfigTxnRunner interface {
+	Txn(context.Context, func(context.Context, *sqlair.TX) error) error
+}
+
+func (st *State) getUnitApplicationConfigHash(
+	ctx context.Context, runner applicationConfigTxnRunner, unitID coreunit.UUID,
+) (string, error) {
+	ident := unitUUID{UnitUUID: unitID.String()}
+	baseStmt, err := st.Prepare(`
+SELECT ach.sha256 AS &applicationConfigHash.sha256
+FROM   unit AS u
+JOIN   application_config_hash AS ach ON ach.application_uuid = u.application_uuid
+WHERE  u.uuid = $unitUUID.uuid
+`, applicationConfigHash{}, ident)
+	if err != nil {
+		return "", errors.Errorf("preparing unit config hash query: %w", err)
+	}
+	branchStmt, err := st.Prepare(`
+WITH unit_context AS (
+    SELECT u.application_uuid AS application_uuid,
+           gu.generation_uuid AS generation_uuid
+    FROM   unit AS u
+    JOIN   generation_unit AS gu ON gu.unit_uuid = u.uuid
+    JOIN   generation AS g ON g.uuid = gu.generation_uuid
+                            AND g.state_id = 0
+    WHERE  u.uuid = $unitUUID.uuid
+)
+SELECT gac.generation_uuid AS &generationApplicationConfig.generation_uuid,
+       gac.application_uuid AS &generationApplicationConfig.application_uuid,
+       gac."key" AS &generationApplicationConfig.key,
+       gac.type_id AS &generationApplicationConfig.type_id,
+       gac.value AS &generationApplicationConfig.value
+FROM   generation_application_config AS gac
+JOIN   unit_context AS uc ON uc.generation_uuid = gac.generation_uuid
+                          AND uc.application_uuid = gac.application_uuid
+ORDER BY gac."key"
+`, generationApplicationConfig{}, ident)
+	if err != nil {
+		return "", errors.Errorf("preparing unit generation config hash query: %w", err)
+	}
+
+	var hash applicationConfigHash
+	var generationConfig []generationApplicationConfig
+	err = runner.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := tx.Query(ctx, baseStmt, ident).Get(&hash); errors.Is(err, sqlair.ErrNoRows) {
+			return applicationerrors.UnitNotFound
+		} else if err != nil {
+			return errors.Capture(err)
+		}
+		if err := tx.Query(ctx, branchStmt, ident).GetAll(&generationConfig); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Capture(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	return resolvedApplicationConfigHash(hash.SHA256, generationConfig), nil
+}
+
+func resolvedApplicationConfigHash(baseHash string, generationConfig []generationApplicationConfig) string {
+	if len(generationConfig) == 0 {
+		return baseHash
+	}
+	h := sha256.New()
+	_, _ = h.Write([]byte(baseHash))
+	for _, config := range generationConfig {
+		_, _ = h.Write([]byte(config.Key))
+		_, _ = h.Write([]byte(strconv.Itoa(config.TypeID)))
+		if config.Value == nil {
+			_, _ = h.Write([]byte{0})
+			continue
+		}
+		_, _ = h.Write([]byte{1})
+		_, _ = h.Write(fmt.Append(nil, config.Value))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // GetApplicationPlatformAndChannel returns the platform and channel for the
@@ -3297,6 +3519,30 @@ VALUES ($setDeviceConstraintAttribute.*)
 // for application change watchers.
 func (*State) NamespaceForWatchApplication() string {
 	return "application"
+}
+
+// NamespaceForWatchGenerationApplicationCharm returns the namespace identifier
+// for branch application charm change watchers.
+func (*State) NamespaceForWatchGenerationApplicationCharm() string {
+	return "generation_application_charm"
+}
+
+// NamespaceForWatchGenerationApplicationConfig returns the namespace
+// identifier for branch application config change watchers.
+func (*State) NamespaceForWatchGenerationApplicationConfig() string {
+	return "generation_application_config"
+}
+
+// NamespaceForWatchGenerationUnit returns the namespace identifier for branch
+// unit tracking change watchers.
+func (*State) NamespaceForWatchGenerationUnit() string {
+	return "generation_unit"
+}
+
+// NamespaceForWatchGenerationApplicationResource returns the namespace
+// identifier for branch application resource change watchers.
+func (*State) NamespaceForWatchGenerationApplicationResource() string {
+	return "generation_application_resource"
 }
 
 // NamespaceForWatchApplicationConfig returns a namespace string identifier

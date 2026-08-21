@@ -87,6 +87,7 @@ func (s *uniterSuite) SetUpTest(c *tc.C) {
 	s.IsolationSuite.SetUpTest(c)
 
 	s.badTag = nil
+	s.authTag = nil
 }
 
 func (s *uniterSuite) TestEnsureDeadUnauthorised(c *tc.C) {
@@ -740,7 +741,7 @@ func (s *uniterSuite) TestWatchConfiSettingsHash(c *tc.C) {
 	// Arrange: expect a watcher for mysql
 	ch := make(chan []string, 1)
 	w := watchertest.NewMockStringsWatcher(ch)
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "mysql").Return(w, nil)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("mysql/0")).Return(w, nil)
 	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("1", nil)
 	ch <- []string{"change1"}
 
@@ -748,7 +749,7 @@ func (s *uniterSuite) TestWatchConfiSettingsHash(c *tc.C) {
 	s.badTag = names.NewUnitTag("wordpress/0")
 
 	// Arrange: expect a state error for postgresql
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "postgresql").Return(nil, applicationerrors.UnitNotFound)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("postgresql/0")).Return(nil, applicationerrors.UnitNotFound)
 
 	result, err := s.uniter.WatchConfigSettingsHash(c.Context(), args)
 	c.Assert(err, tc.ErrorIsNil)
@@ -777,7 +778,7 @@ func (s *uniterSuite) TestWatchTrustConfiSettingsHash(c *tc.C) {
 	// Arrange: expect a watcher for mysql
 	ch := make(chan []string, 1)
 	w := watchertest.NewMockStringsWatcher(ch)
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "mysql").Return(w, nil)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("mysql/0")).Return(w, nil)
 	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("1", nil)
 	ch <- []string{"change1"}
 
@@ -785,7 +786,7 @@ func (s *uniterSuite) TestWatchTrustConfiSettingsHash(c *tc.C) {
 	s.badTag = names.NewUnitTag("wordpress/0")
 
 	// Arrange: expect a state error for postgresql
-	s.applicationService.EXPECT().WatchApplicationConfigHash(gomock.Any(), "postgresql").Return(nil, applicationerrors.UnitNotFound)
+	s.applicationService.EXPECT().WatchUnitApplicationConfigHash(gomock.Any(), coreunit.Name("postgresql/0")).Return(nil, applicationerrors.UnitNotFound)
 
 	result, err := s.uniter.WatchTrustConfigSettingsHash(c.Context(), args)
 	c.Assert(err, tc.ErrorIsNil)
@@ -856,12 +857,12 @@ func (s *uniterSuite) TestCharmURL(c *tc.C) {
 		Architecture: architecture.AMD64,
 	}
 	// Arrange: expected unit calls
-	s.expectGetCharmLocatorByApplicationName(c, "mysql", locator, nil)
+	s.expectGetCharmLocatorByUnitName(c, "mysql/0", locator, nil)
 
-	s.expectGetCharmLocatorByApplicationName(c, "wordpress", locator, nil)
+	s.expectGetCharmLocatorByUnitName(c, "wordpress/0", locator, nil)
 
 	boom := internalerrors.New("boom")
-	s.expectGetCharmLocatorByApplicationName(c, "foo", locator, boom)
+	s.expectGetCharmLocatorByUnitName(c, "foo/42", locator, boom)
 
 	// Arrange: expected application calls
 	s.expectShouldAllowCharmUpgradeOnError(c, "mysql", true, nil)
@@ -888,6 +889,28 @@ func (s *uniterSuite) TestCharmURL(c *tc.C) {
 			{Error: apiservererrors.ServerError(boom)},
 			{Error: apiservertesting.ErrUnauthorized},
 		},
+	})
+}
+
+func (s *uniterSuite) TestApplicationCharmURLResolvedForAuthenticatedUnit(c *tc.C) {
+	s.authTag = names.NewUnitTag("mysql/1")
+	defer s.setupMocks(c).Finish()
+
+	s.expectShouldAllowCharmUpgradeOnError(c, "mysql", false, nil)
+	locator := domaincharm.CharmLocator{
+		Name:         "mysql",
+		Source:       domaincharm.CharmHubSource,
+		Revision:     23,
+		Architecture: architecture.AMD64,
+	}
+	s.expectGetCharmLocatorByUnitName(c, "mysql/1", locator, nil)
+
+	result, err := s.uniter.CharmURL(c.Context(), params.Entities{
+		Entities: []params.Entity{{Tag: names.NewApplicationTag("mysql").String()}},
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.StringBoolResults{
+		Results: []params.StringBoolResult{{Result: "ch:amd64/mysql-23"}},
 	})
 }
 
@@ -970,6 +993,10 @@ func (s *uniterSuite) expectGetCharmLocatorByApplicationName(c *tc.C, appName st
 	s.applicationService.EXPECT().GetCharmLocatorByApplicationName(gomock.Any(), appName).Return(charmLocator, err)
 }
 
+func (s *uniterSuite) expectGetCharmLocatorByUnitName(c *tc.C, unitName coreunit.Name, charmLocator domaincharm.CharmLocator, err error) {
+	s.applicationService.EXPECT().GetCharmLocatorByUnitName(gomock.Any(), unitName).Return(charmLocator, err)
+}
+
 func (s *uniterSuite) expectShouldAllowCharmUpgradeOnError(c *tc.C, appName string, v bool, err error) {
 	s.applicationService.EXPECT().ShouldAllowCharmUpgradeOnError(gomock.Any(), appName).Return(v, err)
 }
@@ -988,9 +1015,9 @@ func (s *uniterSuite) TestConfigSettings(c *tc.C) {
 	settings := map[string]any{
 		"foo": "bar",
 	}
-	s.expectedGetConfigSettings("mysql/0", settings, nil)
-	s.expectedGetConfigSettings("wordpress/0", nil, nil)
-	s.expectedGetConfigSettings("postgresql/0", nil, applicationerrors.ApplicationNotFound)
+	s.expectedGetConfigSettings(c, "mysql/0", settings, nil)
+	s.expectedGetConfigSettings(c, "wordpress/0", nil, nil)
+	s.expectedGetConfigSettings(c, "postgresql/0", nil, applicationerrors.ApplicationNotFound)
 	s.badTag = names.NewUnitTag("foo/42")
 
 	// Act:
@@ -1742,11 +1769,12 @@ func (s *uniterSuite) TestGetUnitContextWithCharmTracingConfigError(c *tc.C) {
 	c.Check(res.APIAddresses, tc.DeepEquals, []string{"10.0.0.1:17070", "10.0.0.2:17070"})
 }
 
-func (s *uniterSuite) expectedGetConfigSettings(unitName coreunit.Name, settings map[string]any, err error) {
-	s.applicationService.EXPECT().GetApplicationUUIDByUnitName(gomock.Any(), unitName).Return(coreapplication.UUID(unitName.Application()), err)
+func (s *uniterSuite) expectedGetConfigSettings(c *tc.C, unitName coreunit.Name, settings map[string]any, err error) {
+	unitUUID := tc.Must(c, coreunit.NewUUID)
+	s.applicationService.EXPECT().GetUnitUUID(gomock.Any(), unitName).Return(unitUUID, err)
 	if err == nil {
-		s.applicationService.EXPECT().GetApplicationConfigWithDefaults(
-			gomock.Any(), coreapplication.UUID(unitName.Application()),
+		s.applicationService.EXPECT().GetResolvedUnitApplicationConfigWithDefaults(
+			gomock.Any(), unitUUID,
 		).Return(settings, nil)
 	}
 }

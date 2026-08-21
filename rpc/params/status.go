@@ -42,7 +42,8 @@ func (fs *FullStatus) IsEmpty() bool {
 		len(fs.Machines) == 0 &&
 		len(fs.Offers) == 0 &&
 		len(fs.RemoteApplicationOfferers) == 0 &&
-		len(fs.Relations) == 0
+		len(fs.Relations) == 0 &&
+		len(fs.Branches) == 0
 }
 
 // ModelStatusInfo holds status information about the model itself.
@@ -326,4 +327,5 @@ type BranchStatus struct {
 	AssignedUnits map[string][]string `json:"assigned-units"`
 	Created       int64               `json:"created"`
 	CreatedBy     string              `json:"created-by"`
+	GenerationId  uint64              `json:"generation-id"`
 }

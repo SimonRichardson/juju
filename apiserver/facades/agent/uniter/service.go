@@ -205,9 +205,13 @@ type ApplicationService interface {
 	// [applicationerrors.ApplicationNotFound] is returned.
 	GetApplicationConfigWithDefaults(context.Context, coreapplication.UUID) (internalcharm.Config, error)
 
-	// WatchApplicationConfigHash watches for changes to the specified application's
-	// config hash.
-	WatchApplicationConfigHash(ctx context.Context, name string) (watcher.StringsWatcher, error)
+	// GetResolvedUnitApplicationConfigWithDefaults returns the effective charm
+	// config for the named unit.
+	GetResolvedUnitApplicationConfigWithDefaults(context.Context, coreunit.UUID) (internalcharm.Config, error)
+
+	// WatchUnitApplicationConfigHash watches the effective application config
+	// hash for the specified unit.
+	WatchUnitApplicationConfigHash(ctx context.Context, unitName coreunit.Name) (watcher.StringsWatcher, error)
 
 	// WatchUnitAddressesHash watches for changes to the specified unit's
 	// addresses hash, as well as changes to the endpoint bindings for the spaces
@@ -223,6 +227,9 @@ type ApplicationService interface {
 
 	// GetCharmLocatorByApplicationName returns a CharmLocator by application name.
 	GetCharmLocatorByApplicationName(ctx context.Context, name string) (charm.CharmLocator, error)
+
+	// GetCharmLocatorByUnitName returns the charm resolved for the named unit.
+	GetCharmLocatorByUnitName(ctx context.Context, name coreunit.Name) (charm.CharmLocator, error)
 
 	// ShouldAllowCharmUpgradeOnError indicates if the units of an application should
 	// upgrade to the latest version of the application charm even if they are in

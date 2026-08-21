@@ -174,6 +174,11 @@ type ApplicationState interface {
 	// the provided parameters and validates changes.
 	SetApplicationCharm(ctx context.Context, appUUID coreapplication.UUID, charmID corecharm.ID, params application.SetCharmStateParams) error
 
+	// GetResolvedUnitCharm returns the desired charm for a unit, resolving an
+	// in-flight branch override before falling back to the main application
+	// charm.
+	GetResolvedUnitCharm(ctx context.Context, unitUUID coreunit.UUID) (corecharm.ID, error)
+
 	// GetApplicationUUIDByUnitName returns the application UUID for the named unit,
 	// returning an error satisfying [applicationerrors.UnitNotFound] if the
 	// unit doesn't exist.
@@ -240,6 +245,18 @@ type ApplicationState interface {
 		error,
 	)
 
+	// GetCharmConfigForApplicationUpdate returns the config schema for the
+	// charm receiving application config updates.
+	GetCharmConfigForApplicationUpdate(ctx context.Context, appUUID coreapplication.UUID) (corecharm.ID, charm.Config, error)
+
+	// GetResolvedUnitApplicationConfigWithDefaults returns effective config for
+	// a unit using its resolved charm and in-flight branch deltas.
+	GetResolvedUnitApplicationConfigWithDefaults(ctx context.Context, unitUUID coreunit.UUID) (map[string]application.ApplicationConfig, error)
+
+	// GetResolvedUnitResource returns the selected resource for a unit and
+	// resource name, preferring its in-flight branch override.
+	GetResolvedUnitResource(ctx context.Context, unitUUID coreunit.UUID, name string) (resource.UUID, error)
+
 	// GetApplicationTrustSetting returns the application trust setting.
 	// If no application is found, an error satisfying
 	// [applicationerrors.ApplicationNotFound] is returned.
@@ -269,6 +286,10 @@ type ApplicationState interface {
 	// [applicationerrors.ApplicationNotFound] is returned.
 	GetApplicationConfigHash(ctx context.Context, appUUID coreapplication.UUID) (string, error)
 
+	// GetUnitApplicationConfigHash returns the application config hash resolved
+	// for the specified unit's main or in-flight branch context.
+	GetUnitApplicationConfigHash(ctx context.Context, unitUUID coreunit.UUID) (string, error)
+
 	// InitialWatchStatementUnitLife returns the initial namespace query for the
 	// application unit life watcher.
 	InitialWatchStatementUnitLife(appName string) (string, eventsource.NamespaceQuery)
@@ -280,6 +301,10 @@ type ApplicationState interface {
 	// InitialWatchStatementApplicationConfigHash returns the initial namespace
 	// query for the application config hash watcher.
 	InitialWatchStatementApplicationConfigHash(appName string) (string, eventsource.NamespaceQuery)
+
+	// InitialWatchStatementUnitApplicationConfigHash returns the initial query
+	// for a unit's resolved application config hash watcher.
+	InitialWatchStatementUnitApplicationConfigHash(unitUUID coreunit.UUID) (string, eventsource.NamespaceQuery)
 
 	// InitialWatchStatementUnitAddressesHash returns the initial namespace query
 	// for the unit addresses hash watcher as well as the tables to be watched
@@ -335,6 +360,22 @@ type ApplicationState interface {
 	// NamespaceForWatchApplication returns the namespace identifier
 	// for application watchers.
 	NamespaceForWatchApplication() string
+
+	// NamespaceForWatchGenerationApplicationCharm returns the namespace
+	// identifier for branch application charm changes.
+	NamespaceForWatchGenerationApplicationCharm() string
+
+	// NamespaceForWatchGenerationApplicationConfig returns the namespace
+	// identifier for branch application config changes.
+	NamespaceForWatchGenerationApplicationConfig() string
+
+	// NamespaceForWatchGenerationUnit returns the namespace identifier for
+	// branch unit tracking changes.
+	NamespaceForWatchGenerationUnit() string
+
+	// NamespaceForWatchGenerationApplicationResource returns the namespace
+	// identifier for branch application resource changes.
+	NamespaceForWatchGenerationApplicationResource() string
 
 	// NamespaceForWatchApplicationConfig returns the namespace string identifier
 	// for application configuration changes.
@@ -772,6 +813,29 @@ func (s *Service) GetCharmLocatorByApplicationName(ctx context.Context, name str
 	charmID, err := s.st.GetCharmIDByApplicationName(ctx, name)
 	if err != nil {
 		return charm.CharmLocator{}, errors.Capture(err)
+	}
+
+	locator, err := s.getCharmLocatorByID(ctx, charmID)
+	return locator, errors.Capture(err)
+}
+
+// GetCharmLocatorByUnitName returns the desired charm locator for a unit. An
+// in-flight branch charm override is preferred over the main application
+// charm.
+func (s *Service) GetCharmLocatorByUnitName(ctx context.Context, unitName coreunit.Name) (charm.CharmLocator, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	unitUUID, err := s.GetUnitUUID(ctx, unitName)
+	if err != nil {
+		return charm.CharmLocator{}, errors.Capture(err)
+	}
+
+	charmID, err := s.st.GetResolvedUnitCharm(ctx, unitUUID)
+	if err != nil {
+		return charm.CharmLocator{}, errors.Errorf(
+			"getting resolved charm for unit %q: %w", unitName, err,
+		)
 	}
 
 	locator, err := s.getCharmLocatorByID(ctx, charmID)
@@ -1266,6 +1330,28 @@ func (s *Service) GetApplicationConfigWithDefaults(ctx context.Context, appUUID 
 	return appConfig, nil
 }
 
+// GetResolvedUnitApplicationConfigWithDefaults returns effective config for a
+// unit using its resolved charm and in-flight branch deltas.
+func (s *Service) GetResolvedUnitApplicationConfigWithDefaults(
+	ctx context.Context, unitUUID coreunit.UUID,
+) (internalcharm.Config, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	if err := unitUUID.Validate(); err != nil {
+		return nil, errors.Errorf("unit UUID: %w", err)
+	}
+	cfg, err := s.st.GetResolvedUnitApplicationConfigWithDefaults(ctx, unitUUID)
+	if err != nil {
+		return nil, errors.Capture(err)
+	}
+	result, err := decodeApplicationConfig(cfg)
+	if err != nil {
+		return nil, errors.Errorf("decoding resolved unit config: %w", err)
+	}
+	return result, nil
+}
+
 // GetApplicationTrustSetting returns the application trust setting.
 // The following errors may be returned:
 // - [applicationerrors.ApplicationNotFound] if the application doesn't exist
@@ -1400,7 +1486,7 @@ func (s *Service) UpdateApplicationConfig(ctx context.Context, appUUID coreappli
 	// Return back the charm UUID, so that we can verify that the charm
 	// hasn't changed between this call and the transaction to set it.
 
-	_, cfg, err := s.st.GetCharmConfigByApplicationUUID(ctx, appUUID)
+	_, cfg, err := s.st.GetCharmConfigForApplicationUpdate(ctx, appUUID)
 	if err != nil {
 		return errors.Capture(err)
 	}
@@ -1438,6 +1524,23 @@ func (s *Service) UpdateApplicationConfig(ctx context.Context, appUUID coreappli
 	return s.st.UpdateApplicationConfigAndSettings(ctx, appUUID, encodedConfig, application.UpdateApplicationSettingsArg{
 		Trust: trust,
 	})
+}
+
+// GetResolvedUnitResource returns the selected resource for a unit and resource
+// name, preferring its in-flight branch override.
+func (s *Service) GetResolvedUnitResource(
+	ctx context.Context, unitUUID coreunit.UUID, name string,
+) (resource.UUID, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	if err := unitUUID.Validate(); err != nil {
+		return "", errors.Errorf("unit UUID: %w", err)
+	}
+	if name == "" {
+		return "", errors.Errorf("resource name cannot be empty").Add(applicationerrors.InvalidResourceArgs)
+	}
+	return s.st.GetResolvedUnitResource(ctx, unitUUID, name)
 }
 
 // GetApplicationConstraints returns the application constraints for the
@@ -1736,6 +1839,15 @@ func (s *ProviderService) SetApplicationCharm(ctx context.Context, appName strin
 		return errors.Errorf("validating final storage directives against charm storage: %w", err)
 	}
 
+	for _, selection := range params.Resources {
+		if selection.Name == "" {
+			return errors.Errorf("resource name cannot be empty").Add(applicationerrors.InvalidResourceArgs)
+		}
+		if err := selection.ResourceUUID.Validate(); err != nil {
+			return errors.Errorf("resource %q UUID: %w", selection.Name, err)
+		}
+	}
+
 	paramsState, err := makeSetCharmStateArg(params, toCreate, toUpdate)
 	if err != nil {
 		return errors.Capture(err)
@@ -2028,5 +2140,6 @@ func makeSetCharmStateArg(setCharmParams application.SetCharmParams,
 		EndpointBindings:          setCharmParams.EndpointBindings,
 		StorageDirectivesToCreate: toCreate,
 		StorageDirectivesToUpdate: toUpdate,
+		Resources:                 setCharmParams.Resources,
 	}, nil
 }

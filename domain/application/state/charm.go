@@ -10,11 +10,14 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/juju/collections/transform"
 
+	coreapplication "github.com/juju/juju/core/application"
 	corecharm "github.com/juju/juju/core/charm"
+	coreunit "github.com/juju/juju/core/unit"
 	domainapplication "github.com/juju/juju/domain/application"
 	"github.com/juju/juju/domain/application/architecture"
 	"github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
+	generationerrors "github.com/juju/juju/domain/generation/errors"
 	domainsequence "github.com/juju/juju/domain/sequence"
 	sequencestate "github.com/juju/juju/domain/sequence/state"
 	"github.com/juju/juju/internal/errors"
@@ -1099,6 +1102,117 @@ func decodeCharmLocator(c charmLocator) (charm.CharmLocator, error) {
 // NamespaceForWatchCharm return the namespace used to listen charm changes
 func (s *State) NamespaceForWatchCharm() string {
 	return "charm"
+}
+
+// setGenerationCharm records a charm override for an application in the named
+// in-flight branch. Canonical application state is not changed.
+func (s *State) setGenerationCharm(
+	ctx context.Context,
+	branchName string,
+	appUUID coreapplication.UUID,
+	charmID corecharm.ID,
+) error {
+	db, err := s.DB(ctx)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	input := generationApplicationCharm{
+		ApplicationUUID: appUUID.String(),
+		CharmUUID:       charmID.String(),
+	}
+	name := generationName{Name: branchName}
+	charmIdent := entityUUID{UUID: charmID.String()}
+
+	stmt, err := s.Prepare(`
+INSERT INTO generation_application_charm (
+    generation_uuid,
+    application_uuid,
+    charm_uuid
+)
+SELECT g.uuid,
+       $generationApplicationCharm.application_uuid,
+       $generationApplicationCharm.charm_uuid
+FROM   generation AS g
+WHERE  g.name = $generationName.name
+AND    g.state_id = 0
+ON CONFLICT (generation_uuid, application_uuid) DO UPDATE SET
+    charm_uuid = excluded.charm_uuid
+`, input, name)
+	if err != nil {
+		return errors.Errorf("preparing generation charm upsert: %w", err)
+	}
+
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := s.checkApplicationNotDead(ctx, tx, appUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if err := s.checkCharmExists(ctx, tx, charmID.String()); err != nil {
+			return errors.Capture(err)
+		}
+		if err := s.precheckUpgradeRelation(ctx, tx, appUUID, charmIdent); err != nil {
+			return errors.Capture(err)
+		}
+
+		var outcome sqlair.Outcome
+		if err := tx.Query(ctx, stmt, input, name).Get(&outcome); err != nil {
+			return errors.Errorf("setting generation charm: %w", err)
+		}
+		affected, err := outcome.Result().RowsAffected()
+		if err != nil {
+			return errors.Errorf("determining generation charm result: %w", err)
+		}
+		if affected == 0 {
+			return generationerrors.BranchNotFound
+		}
+		return nil
+	})
+	return errors.Capture(err)
+}
+
+// GetResolvedUnitCharm returns the desired charm for a unit, preferring an
+// override from the in-flight branch tracked by the unit.
+func (s *State) GetResolvedUnitCharm(ctx context.Context, unitID coreunit.UUID) (corecharm.ID, error) {
+	db, err := s.DB(ctx)
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+
+	ident := unitUUID{UnitUUID: unitID.String()}
+	stmt, err := s.Prepare(`
+WITH unit_generation AS (
+    SELECT u.application_uuid AS application_uuid,
+           g.uuid AS generation_uuid
+    FROM   unit AS u
+    LEFT JOIN generation_unit AS gu ON gu.unit_uuid = u.uuid
+    LEFT JOIN generation AS g ON g.uuid = gu.generation_uuid
+                              AND g.state_id = 0
+    WHERE  u.uuid = $unitUUID.uuid
+)
+SELECT COALESCE(gac.charm_uuid, a.charm_uuid) AS &charmUUID.charm_uuid
+FROM   unit_generation AS ug
+JOIN   application AS a ON a.uuid = ug.application_uuid
+LEFT JOIN generation_application_charm AS gac
+       ON gac.generation_uuid = ug.generation_uuid
+       AND gac.application_uuid = ug.application_uuid
+`, ident, charmUUID{})
+	if err != nil {
+		return "", errors.Errorf("preparing resolved unit charm query: %w", err)
+	}
+
+	var result charmUUID
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		if err := tx.Query(ctx, stmt, ident).Get(&result); errors.Is(err, sqlair.ErrNoRows) {
+			return applicationerrors.UnitNotFound
+		} else if err != nil {
+			return errors.Errorf("getting resolved unit charm: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	return corecharm.ID(result.UUID), nil
 }
 
 func (s *State) getCharmIDByApplicationUUID(ctx context.Context, tx *sqlair.TX, appID string) (string, error) {

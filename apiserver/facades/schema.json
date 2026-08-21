@@ -5816,13 +5816,17 @@
                         },
                         "created-by": {
                             "type": "string"
+                        },
+                        "generation-id": {
+                            "type": "integer"
                         }
                     },
                     "additionalProperties": false,
                     "required": [
                         "assigned-units",
                         "created",
-                        "created-by"
+                        "created-by",
+                        "generation-id"
                     ]
                 },
                 "DetailedStatus": {
@@ -10678,6 +10682,377 @@
                         }
                     },
                     "additionalProperties": false
+                }
+            }
+        }
+    },
+    {
+        "Name": "ModelGeneration",
+        "Description": "",
+        "Version": 4,
+        "Schema": {
+            "type": "object",
+            "properties": {
+                "AbortBranch": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchArg"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/ErrorResult"
+                        }
+                    }
+                },
+                "AddBranch": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchArg"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/ErrorResult"
+                        }
+                    }
+                },
+                "BranchInfo": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchInfoArgs"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/BranchResults"
+                        }
+                    }
+                },
+                "CommitBranch": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchArg"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/IntResult"
+                        }
+                    }
+                },
+                "HasActiveBranch": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchArg"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/BoolResult"
+                        }
+                    }
+                },
+                "ListCommits": {
+                    "type": "object",
+                    "properties": {
+                        "Result": {
+                            "$ref": "#/definitions/BranchResults"
+                        }
+                    }
+                },
+                "ShowCommit": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/GenerationId"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/GenerationResult"
+                        }
+                    }
+                },
+                "TrackBranch": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchTrackArg"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/ErrorResults"
+                        }
+                    }
+                },
+                "UntrackBranch": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/BranchTrackArg"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/ErrorResults"
+                        }
+                    }
+                }
+            },
+            "definitions": {
+                "BoolResult": {
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        },
+                        "result": {
+                            "type": "boolean"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "result"
+                    ]
+                },
+                "BranchArg": {
+                    "type": "object",
+                    "properties": {
+                        "branch": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "branch"
+                    ]
+                },
+                "BranchInfoArgs": {
+                    "type": "object",
+                    "properties": {
+                        "branches": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "detailed": {
+                            "type": "boolean"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "branches",
+                        "detailed"
+                    ]
+                },
+                "BranchResults": {
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        },
+                        "generations": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/Generation"
+                            }
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "generations"
+                    ]
+                },
+                "BranchTrackArg": {
+                    "type": "object",
+                    "properties": {
+                        "branch": {
+                            "type": "string"
+                        },
+                        "entities": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/Entity"
+                            }
+                        },
+                        "num-units": {
+                            "type": "integer"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "branch",
+                        "entities"
+                    ]
+                },
+                "Entity": {
+                    "type": "object",
+                    "properties": {
+                        "tag": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "tag"
+                    ]
+                },
+                "Error": {
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string"
+                        },
+                        "info": {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "message",
+                        "code"
+                    ]
+                },
+                "ErrorResult": {
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "ErrorResults": {
+                    "type": "object",
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ErrorResult"
+                            }
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "results"
+                    ]
+                },
+                "Generation": {
+                    "type": "object",
+                    "properties": {
+                        "applications": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/GenerationApplication"
+                            }
+                        },
+                        "branch": {
+                            "type": "string"
+                        },
+                        "completed": {
+                            "type": "integer"
+                        },
+                        "completed-by": {
+                            "type": "string"
+                        },
+                        "created": {
+                            "type": "integer"
+                        },
+                        "created-by": {
+                            "type": "string"
+                        },
+                        "generation-id": {
+                            "type": "integer"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "branch",
+                        "created",
+                        "created-by",
+                        "applications"
+                    ]
+                },
+                "GenerationApplication": {
+                    "type": "object",
+                    "properties": {
+                        "application": {
+                            "type": "string"
+                        },
+                        "config": {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        },
+                        "pending": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "progress": {
+                            "type": "string"
+                        },
+                        "tracking": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "application",
+                        "progress",
+                        "config"
+                    ]
+                },
+                "GenerationId": {
+                    "type": "object",
+                    "properties": {
+                        "generation-id": {
+                            "type": "integer"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "generation-id"
+                    ]
+                },
+                "GenerationResult": {
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        },
+                        "generation": {
+                            "$ref": "#/definitions/Generation"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "generation"
+                    ]
+                },
+                "IntResult": {
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        },
+                        "result": {
+                            "type": "integer"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "result"
+                    ]
                 }
             }
         }

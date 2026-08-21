@@ -28,6 +28,7 @@ import (
 	exportservice "github.com/juju/juju/domain/export/service"
 	externalcontrollerservice "github.com/juju/juju/domain/externalcontroller/service"
 	flagservice "github.com/juju/juju/domain/flag/service"
+	generationservice "github.com/juju/juju/domain/generation/service"
 	keymanagerservice "github.com/juju/juju/domain/keymanager/service"
 	keyupdaterservice "github.com/juju/juju/domain/keyupdater/service"
 	loggingservice "github.com/juju/juju/domain/logging/service"
@@ -134,6 +135,8 @@ type ModelDomainServices interface {
 	BlockDevice() *blockdeviceservice.WatchableService
 	// Application returns the application service.
 	Application() *applicationservice.WatchableService
+	// Generation returns the model generation service.
+	Generation() *generationservice.Service
 	// Status returns the application status service.
 	Status() *statusservice.LeadershipService
 	// Resolve returns the resolve service.

@@ -40,6 +40,7 @@ import (
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher"
 	domainapplication "github.com/juju/juju/domain/application"
+	domaincharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
@@ -852,7 +853,15 @@ func (u *UniterAPI) charmURLForApplication(ctx context.Context, tag names.Applic
 	if err != nil {
 		return "", false, internalerrors.Capture(err)
 	}
-	charmLocator, err := u.applicationService.GetCharmLocatorByApplicationName(ctx, tag.Id())
+	var charmLocator domaincharm.CharmLocator
+	if unitTag, ok := u.auth.GetAuthTag().(names.UnitTag); ok &&
+		coreunit.Name(unitTag.Id()).Application() == tag.Id() {
+		charmLocator, err = u.applicationService.GetCharmLocatorByUnitName(
+			ctx, coreunit.Name(unitTag.Id()),
+		)
+	} else {
+		charmLocator, err = u.applicationService.GetCharmLocatorByApplicationName(ctx, tag.Id())
+	}
 	if err != nil {
 		return "", false, internalerrors.Capture(err)
 	}
@@ -864,11 +873,9 @@ func (u *UniterAPI) charmURLForApplication(ctx context.Context, tag names.Applic
 }
 
 func (u *UniterAPI) charmURLForUnit(ctx context.Context, tag names.UnitTag) (string, bool, error) {
-	appName, err := names.UnitApplication(tag.Id())
-	if err != nil {
-		return "", false, internalerrors.Capture(err)
-	}
-	charmLocator, err := u.applicationService.GetCharmLocatorByApplicationName(ctx, appName)
+	charmLocator, err := u.applicationService.GetCharmLocatorByUnitName(
+		ctx, coreunit.Name(tag.Id()),
+	)
 	if err != nil {
 		return "", false, internalerrors.Capture(err)
 	}
@@ -1086,8 +1093,8 @@ func (u *UniterAPI) ConfigSettings(ctx context.Context, args params.Entities) (p
 			continue
 		}
 
-		appID, err := u.applicationService.GetApplicationUUIDByUnitName(ctx, unitName)
-		if errors.Is(err, applicationerrors.ApplicationNotFound) {
+		unitUUID, err := u.applicationService.GetUnitUUID(ctx, unitName)
+		if errors.Is(err, applicationerrors.ApplicationNotFound) || errors.Is(err, applicationerrors.UnitNotFound) {
 			result.Results[i].Error = apiservererrors.ServerError(apiservererrors.ErrPerm)
 			continue
 		} else if err != nil {
@@ -1095,7 +1102,7 @@ func (u *UniterAPI) ConfigSettings(ctx context.Context, args params.Entities) (p
 			continue
 		}
 
-		settings, err := u.applicationService.GetApplicationConfigWithDefaults(ctx, appID)
+		settings, err := u.applicationService.GetResolvedUnitApplicationConfigWithDefaults(ctx, unitUUID)
 		if err != nil {
 			result.Results[i].Error = apiservererrors.ServerError(err)
 			continue
@@ -2685,7 +2692,7 @@ func (u *UniterAPI) goalStateUnits(ctx context.Context, appName string, appID ap
 // substantive config change).
 func (u *UniterAPI) WatchConfigSettingsHash(ctx context.Context, args params.Entities) (params.StringsWatchResults, error) {
 	getWatcher := func(ctx context.Context, unitName coreunit.Name) (watcher.StringsWatcher, error) {
-		return u.applicationService.WatchApplicationConfigHash(ctx, unitName.Application())
+		return u.applicationService.WatchUnitApplicationConfigHash(ctx, unitName)
 	}
 	result, err := u.watchHashes(ctx, args, getWatcher)
 	if err != nil {
@@ -2700,7 +2707,7 @@ func (u *UniterAPI) WatchConfigSettingsHash(ctx context.Context, args params.Ent
 // changed since it last saw the config.
 func (u *UniterAPI) WatchTrustConfigSettingsHash(ctx context.Context, args params.Entities) (params.StringsWatchResults, error) {
 	getWatcher := func(ctx context.Context, unitName coreunit.Name) (watcher.StringsWatcher, error) {
-		return u.applicationService.WatchApplicationConfigHash(ctx, unitName.Application())
+		return u.applicationService.WatchUnitApplicationConfigHash(ctx, unitName)
 	}
 	result, err := u.watchHashes(ctx, args, getWatcher)
 	if err != nil {

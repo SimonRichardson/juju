@@ -52,6 +52,8 @@ import (
 	crossmodelrelationstatemodel "github.com/juju/juju/domain/crossmodelrelation/state/model"
 	exportservice "github.com/juju/juju/domain/export/service"
 	exportstate "github.com/juju/juju/domain/export/state/model"
+	generationservice "github.com/juju/juju/domain/generation/service"
+	generationstate "github.com/juju/juju/domain/generation/state"
 	keymanagerservice "github.com/juju/juju/domain/keymanager/service"
 	keymanagerstate "github.com/juju/juju/domain/keymanager/state"
 	keyupdaterservice "github.com/juju/juju/domain/keyupdater/service"
@@ -304,6 +306,13 @@ func (s *ModelServices) Application() *applicationservice.WatchableService {
 		s.modelUUID,
 		s.clock,
 		logger,
+	)
+}
+
+// Generation returns the model's generation service.
+func (s *ModelServices) Generation() *generationservice.Service {
+	return generationservice.NewService(
+		generationstate.NewState(changestream.NewTxnRunnerFactory(s.modelDB)),
 	)
 }
 
