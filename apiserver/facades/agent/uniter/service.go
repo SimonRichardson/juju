@@ -209,9 +209,9 @@ type ApplicationService interface {
 	// config for the named unit.
 	GetResolvedUnitApplicationConfigWithDefaults(context.Context, coreunit.UUID) (internalcharm.Config, error)
 
-	// WatchApplicationConfigHash watches for changes to the specified application's
-	// config hash.
-	WatchApplicationConfigHash(ctx context.Context, name string) (watcher.StringsWatcher, error)
+	// WatchUnitApplicationConfigHash watches the effective application config
+	// hash for the specified unit.
+	WatchUnitApplicationConfigHash(ctx context.Context, unitName coreunit.Name) (watcher.StringsWatcher, error)
 
 	// WatchUnitAddressesHash watches for changes to the specified unit's
 	// addresses hash, as well as changes to the endpoint bindings for the spaces

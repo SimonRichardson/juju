@@ -585,6 +585,71 @@ func (s *WatchableService) WatchApplicationConfigHash(ctx context.Context, name 
 	)
 }
 
+// WatchUnitApplicationConfigHash watches the effective application config hash
+// for the specified unit. Branch config events that do not alter this unit's
+// resolved config are suppressed.
+func (s *WatchableService) WatchUnitApplicationConfigHash(
+	ctx context.Context, unitName coreunit.Name,
+) (watcher.StringsWatcher, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	unitID, err := s.GetUnitUUID(ctx, unitName)
+	if err != nil {
+		return nil, errors.Errorf("getting ID of unit %s: %w", unitName, err)
+	}
+	appID, err := s.GetApplicationUUIDByName(ctx, unitName.Application())
+	if err != nil {
+		return nil, errors.Errorf("getting ID of application %s: %w", unitName.Application(), err)
+	}
+
+	var sha256 string
+	table, query := s.st.InitialWatchStatementUnitApplicationConfigHash(unitID)
+	return s.watcherFactory.NewNamespaceMapperWatcher(
+		ctx,
+		func(ctx context.Context, txn database.TxnRunner) ([]string, error) {
+			initialResults, err := query(ctx, txn)
+			if err != nil {
+				return nil, errors.Capture(err)
+			}
+			if num := len(initialResults); num != 1 {
+				return nil, errors.Errorf("expected one config hash for unit %q, got %d", unitName, num)
+			}
+			sha256 = initialResults[0]
+			return initialResults, nil
+		},
+		fmt.Sprintf("unit application config hash watcher for %q", unitName),
+		func(ctx context.Context, changes []changestream.ChangeEvent) ([]string, error) {
+			ctx, span := trace.Start(ctx, trace.NameFromFunc())
+			defer span.End()
+
+			if len(changes) == 0 {
+				return nil, nil
+			}
+			currentSHA256, err := s.st.GetUnitApplicationConfigHash(ctx, unitID)
+			if err != nil {
+				return nil, errors.Capture(err)
+			}
+			if currentSHA256 == sha256 {
+				return nil, nil
+			}
+			sha256 = currentSHA256
+			return []string{sha256}, nil
+		},
+		eventsource.NamespaceFilter(table, changestream.All),
+		eventsource.PredicateFilter(
+			s.st.NamespaceForWatchGenerationApplicationConfig(),
+			changestream.All,
+			eventsource.EqualsPredicate(appID.String()),
+		),
+		eventsource.PredicateFilter(
+			s.st.NamespaceForWatchGenerationUnit(),
+			changestream.All,
+			eventsource.EqualsPredicate(unitID.String()),
+		),
+	)
+}
+
 // WatchApplicationSettings watches for changes to the specified application's
 // settings.
 // This functions returns the following errors:
