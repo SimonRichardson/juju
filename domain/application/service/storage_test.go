@@ -7,6 +7,7 @@ import (
 	"github.com/canonical/gomock/gomock"
 	"github.com/juju/tc"
 
+	applicationcharm "github.com/juju/juju/domain/application/charm"
 	"github.com/juju/juju/domain/application/internal"
 	domainstorage "github.com/juju/juju/domain/storage"
 )
@@ -21,6 +22,18 @@ func setAddUnitNoopStorageExpects(
 	st *MockState,
 	storageService *MockStorageService,
 ) {
+	setAddUnitNoopStorageExpectsForCharm(c, st, storageService, applicationcharm.Charm{})
+}
+
+func setAddUnitNoopStorageExpectsForCharm(
+	c *tc.C,
+	st *MockState,
+	storageService *MockStorageService,
+	ch applicationcharm.Charm,
+) {
+	st.EXPECT().GetCharmByApplicationUUID(gomock.Any(), gomock.Any()).Return(
+		ch, nil,
+	).AnyTimes()
 	st.EXPECT().GetStorageAttachInfoForStorageInstances(
 		gomock.Any(), tc.Bind(tc.HasLen, 0),
 	).AnyTimes()
