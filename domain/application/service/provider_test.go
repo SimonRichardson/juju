@@ -39,6 +39,7 @@ import (
 	"github.com/juju/juju/domain/constraints"
 	"github.com/juju/juju/domain/deployment"
 	internalcharm "github.com/juju/juju/domain/deployment/charm"
+	charmassumes "github.com/juju/juju/domain/deployment/charm/assumes"
 	charmresource "github.com/juju/juju/domain/deployment/charm/resource"
 	modelerrors "github.com/juju/juju/domain/model/errors"
 	domainnetwork "github.com/juju/juju/domain/network"
@@ -57,6 +58,54 @@ func TestProviderServiceSuite(t *testing.T) {
 	tc.Run(t, &providerServiceSuite{})
 }
 
+func (s *providerServiceSuite) TestUnitRuntimeType(c *tc.C) {
+	testCases := []struct {
+		about   string
+		assumes *charmassumes.ExpressionTree
+		expect  application.UnitRuntimeType
+	}{
+		{about: "no assumes defaults to delta", expect: application.UnitRuntimeTypeDelta},
+		{
+			about: "unrelated assumes default to delta",
+			assumes: &charmassumes.ExpressionTree{Expression: charmassumes.FeatureExpression{
+				Name: "juju",
+			}},
+			expect: application.UnitRuntimeTypeDelta,
+		},
+		{
+			about: "optional holistic uniter assumes default to delta",
+			assumes: &charmassumes.ExpressionTree{Expression: charmassumes.CompositeExpression{
+				ExprType: charmassumes.AnyOfExpression,
+				SubExpressions: []charmassumes.Expression{
+					charmassumes.FeatureExpression{Name: holisticUniterAssumption},
+					charmassumes.FeatureExpression{Name: "juju"},
+				},
+			}},
+			expect: application.UnitRuntimeTypeDelta,
+		},
+		{
+			about: "holistic uniter assumes select holistic",
+			assumes: &charmassumes.ExpressionTree{Expression: charmassumes.CompositeExpression{
+				ExprType: charmassumes.AllOfExpression,
+				SubExpressions: []charmassumes.Expression{
+					charmassumes.FeatureExpression{Name: "juju"},
+					charmassumes.CompositeExpression{
+						ExprType: charmassumes.AnyOfExpression,
+						SubExpressions: []charmassumes.Expression{
+							charmassumes.FeatureExpression{Name: holisticUniterAssumption},
+						},
+					},
+				},
+			}},
+			expect: application.UnitRuntimeTypeHolistic,
+		},
+	}
+
+	for _, test := range testCases {
+		c.Check(unitRuntimeType(test.assumes), tc.Equals, test.expect, tc.Commentf(test.about))
+	}
+}
+
 func (s *providerServiceSuite) TestCreateCAASApplication(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 	setCreateApplicationNoopStorageExpects(c, s.state, s.storageService)
@@ -67,6 +116,7 @@ func (s *providerServiceSuite) TestCreateCAASApplication(c *tc.C) {
 	now := new(s.clock.Now())
 	us := []application.AddCAASUnitArg{{
 		AddUnitArg: application.AddUnitArg{
+			RuntimeType: application.UnitRuntimeTypeHolistic,
 			UnitUUID:    tc.Must(c, coreunit.NewUUID),
 			NetNodeUUID: tc.Must(c, domainnetwork.NewNetNodeUUID),
 			UnitStatusArg: application.UnitStatusArg{
@@ -85,10 +135,21 @@ func (s *providerServiceSuite) TestCreateCAASApplication(c *tc.C) {
 			},
 		},
 	}}
+	holisticAssumes := &charmassumes.ExpressionTree{
+		Expression: charmassumes.CompositeExpression{
+			ExprType: charmassumes.AllOfExpression,
+			SubExpressions: []charmassumes.Expression{
+				charmassumes.FeatureExpression{Name: holisticUniterAssumption},
+			},
+		},
+	}
+	encodedAssumes, err := encodeMetadataAssumes(holisticAssumes)
+	c.Assert(err, tc.ErrorIsNil)
 	ch := applicationcharm.Charm{
 		Metadata: applicationcharm.Metadata{
-			Name:  "ubuntu",
-			RunAs: "default",
+			Name:    "ubuntu",
+			Assumes: encodedAssumes,
+			RunAs:   "default",
 			Resources: map[string]applicationcharm.Resource{
 				"foo": {Name: "foo", Type: applicationcharm.ResourceTypeFile},
 				"bar": {Name: "bar", Type: applicationcharm.ResourceTypeContainerImage},
@@ -180,7 +241,8 @@ func (s *providerServiceSuite) TestCreateCAASApplication(c *tc.C) {
 		},
 	}).MinTimes(1)
 	s.charm.EXPECT().Meta().Return(&internalcharm.Meta{
-		Name: "ubuntu",
+		Name:    "ubuntu",
+		Assumes: holisticAssumes,
 		Resources: map[string]charmresource.Meta{
 			"foo": {Name: "foo", Type: charmresource.TypeFile},
 			"bar": {Name: "bar", Type: charmresource.TypeContainerImage},
@@ -188,7 +250,7 @@ func (s *providerServiceSuite) TestCreateCAASApplication(c *tc.C) {
 		},
 	}).MinTimes(1)
 
-	_, err := s.service.CreateCAASApplication(c.Context(), "ubuntu", s.charm, corecharm.Origin{
+	_, err = s.service.CreateCAASApplication(c.Context(), "ubuntu", s.charm, corecharm.Origin{
 		Source:   corecharm.CharmHub,
 		Platform: corecharm.MustParsePlatform("arm64/ubuntu/24.04"),
 		Revision: new(42),
@@ -2444,7 +2506,7 @@ func (s *providerServiceSuite) TestGetSupportedFeatures(c *tc.C) {
 		Name:        "juju",
 		Description: assumes.UserFriendlyFeatureDescriptions["juju"],
 		Version:     &agentVersion,
-	})
+	}, assumes.HolisticUniterFeature())
 	c.Check(features, tc.DeepEquals, fs)
 }
 
@@ -2493,7 +2555,7 @@ func (s *providerServiceSuite) TestGetSupportedFeaturesNotSupported(c *tc.C) {
 		Name:        "juju",
 		Description: assumes.UserFriendlyFeatureDescriptions["juju"],
 		Version:     &agentVersion,
-	})
+	}, assumes.HolisticUniterFeature())
 	c.Check(features, tc.DeepEquals, fs)
 }
 
@@ -2609,13 +2671,25 @@ func (s *providerServiceSuite) TestSetConstraints(c *tc.C) {
 func (s *providerServiceSuite) TestAddCAASUnitsEmptyConstraints(c *tc.C) {
 	ctrl := s.setupMocks(c)
 	defer ctrl.Finish()
-	setAddUnitNoopStorageExpects(c, s.state, s.storageService)
+	holisticAssumes := &charmassumes.ExpressionTree{
+		Expression: charmassumes.CompositeExpression{
+			ExprType: charmassumes.AllOfExpression,
+			SubExpressions: []charmassumes.Expression{
+				charmassumes.FeatureExpression{Name: holisticUniterAssumption},
+			},
+		},
+	}
+	encodedAssumes, err := encodeMetadataAssumes(holisticAssumes)
+	c.Assert(err, tc.ErrorIsNil)
+	setAddUnitNoopStorageExpectsForCharm(c, s.state, s.storageService,
+		applicationcharm.Charm{Metadata: applicationcharm.Metadata{Assumes: encodedAssumes}})
 
 	appUUID := tc.Must(c, coreapplication.NewUUID)
 
 	now := new(s.clock.Now())
 	u := []application.AddCAASUnitArg{{
 		AddUnitArg: application.AddUnitArg{
+			RuntimeType: application.UnitRuntimeTypeHolistic,
 			UnitStatusArg: application.UnitStatusArg{
 				AgentStatus: &status.StatusInfo[status.UnitAgentStatusType]{
 					Status: status.UnitAgentStatusAllocating,

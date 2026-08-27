@@ -129,6 +129,29 @@ assumes:
 	c.Assert(err, tc.ErrorIsNil, tc.Commentf("expected assumes expression tree to be satisfied"))
 }
 
+func (s *SatCheckerSuite) TestHolisticUniterAssumeSatisfied(c *tc.C) {
+	var fs FeatureSet
+	fs.Add(HolisticUniterFeature())
+
+	exprTree := mustParseAssumesExpr(c, `
+assumes:
+  - holistic-uniter
+`)
+
+	err := fs.Satisfies(exprTree)
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *SatCheckerSuite) TestHolisticUniterAssumeNotSatisfied(c *tc.C) {
+	exprTree := mustParseAssumesExpr(c, `
+assumes:
+  - holistic-uniter
+`)
+
+	err := (FeatureSet{}).Satisfies(exprTree)
+	c.Assert(err, tc.ErrorMatches, `(?s).*charm requires the holistic unit runtime.*`)
+}
+
 func genFeatureSet(c *tc.C) FeatureSet {
 	var fs FeatureSet
 	fs.Add(
