@@ -41,6 +41,7 @@ import (
 	"github.com/juju/juju/core/watcher"
 	domainapplication "github.com/juju/juju/domain/application"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
+	"github.com/juju/juju/domain/blockdevice"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
 	domainlife "github.com/juju/juju/domain/life"
@@ -51,6 +52,7 @@ import (
 	"github.com/juju/juju/domain/relation"
 	relationerrors "github.com/juju/juju/domain/relation/errors"
 	resolveerrors "github.com/juju/juju/domain/resolve/errors"
+	"github.com/juju/juju/domain/storage"
 	"github.com/juju/juju/domain/unitstate"
 	internalerrors "github.com/juju/juju/internal/errors"
 	"github.com/juju/juju/rpc/params"
@@ -3458,6 +3460,10 @@ func (u *UniterAPI) getUnitSnapshot(
 	if err != nil {
 		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
+	storage, err := u.getStorageSnapshots(ctx, tag)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
 	unitContext, err := u.getUnitContext(ctx, unitName)
 	if err != nil {
 		return params.UnitSnapshot{}, errors.Trace(err)
@@ -3496,6 +3502,7 @@ func (u *UniterAPI) getUnitSnapshot(
 		UnitStatus:           detailedStatusFromStatusInfo(unitStatus),
 		ApplicationStatus:    detailedStatusFromStatusInfo(applicationStatus),
 		Relations:            relations,
+		Storage:              storage,
 		PortRanges:           portRangesForUnit(unitContext, tag),
 		APIAddresses:         apiAddresses,
 		CloudAPIVersion:      unitContext.CloudAPIVersion,
@@ -3504,6 +3511,47 @@ func (u *UniterAPI) getUnitSnapshot(
 		PrivateAddress:       unitContext.PrivateAddress,
 		CharmTracingConfig:   snapshotTracingConfig,
 	}, nil
+}
+
+func (u *UniterAPI) getStorageSnapshots(ctx context.Context, unitTag names.UnitTag) ([]params.StorageSnapshot, error) {
+	unitUUID, err := u.StorageAPI.getUnitUUID(ctx, unitTag)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	storageIDs, err := u.storageProvisioningService.GetStorageAttachmentIDsForUnit(ctx, unitUUID)
+	if err != nil {
+		return nil, internalerrors.Capture(err)
+	}
+
+	result := make([]params.StorageSnapshot, 0, len(storageIDs))
+	for _, storageID := range storageIDs {
+		attachmentUUID, err := u.storageProvisioningService.GetStorageAttachmentUUIDForUnit(ctx, storageID, unitUUID)
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+		info, err := u.storageProvisioningService.GetUnitStorageAttachmentInfo(ctx, attachmentUUID)
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+		lifeValue, err := info.Life.Value()
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+
+		snapshot := params.StorageSnapshot{ID: storageID, Kind: info.Kind.String(), Life: lifeValue}
+		switch info.Kind {
+		case storage.StorageKindFilesystem:
+			snapshot.Location = info.FilesystemMountPoint
+		case storage.StorageKindBlock:
+			device, err := u.blockDeviceService.GetBlockDevice(ctx, info.BlockDeviceUUID)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			snapshot.Location = blockdevice.IDLink(device.DeviceLinks)
+		}
+		result = append(result, snapshot)
+	}
+	return result, nil
 }
 
 func detailedStatusFromStatusInfo(statusInfo status.StatusInfo) params.DetailedStatus {

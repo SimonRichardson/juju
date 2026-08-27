@@ -20,6 +20,7 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	apiservertesting "github.com/juju/juju/apiserver/testing"
 	coreapplication "github.com/juju/juju/core/application"
+	coreblockdevice "github.com/juju/juju/core/blockdevice"
 	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/life"
 	coremachine "github.com/juju/juju/core/machine"
@@ -37,6 +38,7 @@ import (
 	domaincharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	"github.com/juju/juju/domain/application/service"
+	domainblockdevice "github.com/juju/juju/domain/blockdevice"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
 	domainlife "github.com/juju/juju/domain/life"
@@ -51,6 +53,7 @@ import (
 	resolveerrors "github.com/juju/juju/domain/resolve/errors"
 	domainsecret "github.com/juju/juju/domain/secret"
 	domainstorage "github.com/juju/juju/domain/storage"
+	"github.com/juju/juju/domain/storageprovisioning"
 	tracingservice "github.com/juju/juju/domain/tracing/service"
 	"github.com/juju/juju/domain/unitstate"
 	internalerrors "github.com/juju/juju/internal/errors"
@@ -66,17 +69,19 @@ type uniterSuite struct {
 	badTag  names.Tag
 	authTag names.Tag
 
-	applicationService    *MockApplicationService
-	relationService       *MockRelationService
-	statusService         *MockStatusService
-	machineService        *MockMachineService
-	operationService      *MockOperationService
-	networkService        *MockNetworkService
-	portService           *MockPortService
-	controllerNodeService *MockControllerNodeService
-	resolveService        *MockResolveService
-	removalService        *MockRemovalService
-	tracingService        *MockTracingService
+	applicationService         *MockApplicationService
+	relationService            *MockRelationService
+	statusService              *MockStatusService
+	blockDeviceService         *MockBlockDeviceService
+	storageProvisioningService *MockStorageProvisioningService
+	machineService             *MockMachineService
+	operationService           *MockOperationService
+	networkService             *MockNetworkService
+	portService                *MockPortService
+	controllerNodeService      *MockControllerNodeService
+	resolveService             *MockResolveService
+	removalService             *MockRemovalService
+	tracingService             *MockTracingService
 
 	watcherRegistry *MockWatcherRegistry
 
@@ -228,6 +233,35 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		Status:  status.Active,
 		Message: "available",
 	}, nil)
+	unitUUID := coreunit.UUID("unit-uuid")
+	s.applicationService.EXPECT().GetUnitUUID(gomock.Any(), unitName).Return(unitUUID, nil)
+	s.storageProvisioningService.EXPECT().GetStorageAttachmentIDsForUnit(gomock.Any(), unitUUID).Return([]string{"data/0", "disk/0"}, nil)
+	attachmentUUID := domainstorage.StorageAttachmentUUID("attachment-uuid")
+	s.storageProvisioningService.EXPECT().GetStorageAttachmentUUIDForUnit(gomock.Any(), "data/0", unitUUID).Return(attachmentUUID, nil)
+	s.storageProvisioningService.EXPECT().GetUnitStorageAttachmentInfo(gomock.Any(), attachmentUUID).Return(
+		storageprovisioning.StorageAttachmentInfo{
+			Kind:                 domainstorage.StorageKindFilesystem,
+			Life:                 domainlife.Alive,
+			FilesystemMountPoint: "/var/lib/mysql",
+		}, nil,
+	)
+	blockAttachmentUUID := domainstorage.StorageAttachmentUUID("block-attachment-uuid")
+	s.storageProvisioningService.EXPECT().GetStorageAttachmentUUIDForUnit(gomock.Any(), "disk/0", unitUUID).Return(blockAttachmentUUID, nil)
+	blockDeviceUUID := domainblockdevice.BlockDeviceUUID("block-device-uuid")
+	s.storageProvisioningService.EXPECT().GetUnitStorageAttachmentInfo(gomock.Any(), blockAttachmentUUID).Return(
+		storageprovisioning.StorageAttachmentInfo{
+			Kind:            domainstorage.StorageKindBlock,
+			Life:            domainlife.Dying,
+			BlockDeviceUUID: blockDeviceUUID,
+		}, nil,
+	)
+	s.blockDeviceService.EXPECT().GetBlockDevice(gomock.Any(), blockDeviceUUID).Return(
+		coreblockdevice.BlockDevice{DeviceLinks: []string{
+			"/dev/sdb",
+			"/dev/disk/by-id/long-device-link",
+			"/dev/disk/by-id/short",
+		}}, nil,
+	)
 	s.applicationService.EXPECT().GetIAASUnitContext(gomock.Any(), unitName).Return(service.IAASUnitContext{
 		CloudAPIVersion: "v1",
 		PrivateAddress:  &privateAddress,
@@ -266,6 +300,10 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		ApplicationStatus: params.DetailedStatus{
 			Status: "active",
 			Info:   "available",
+		},
+		Storage: []params.StorageSnapshot{
+			{ID: "data/0", Kind: "filesystem", Location: "/var/lib/mysql", Life: life.Alive},
+			{ID: "disk/0", Kind: "block", Location: "/dev/disk/by-id/short", Life: life.Dying},
 		},
 		PortRanges:         []params.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
 		APIAddresses:       []string{"10.0.0.2:17070"},
@@ -1993,6 +2031,8 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	s.applicationService = NewMockApplicationService(ctrl)
 	s.relationService = NewMockRelationService(ctrl)
 	s.statusService = NewMockStatusService(ctrl)
+	s.blockDeviceService = NewMockBlockDeviceService(ctrl)
+	s.storageProvisioningService = NewMockStorageProvisioningService(ctrl)
 	s.machineService = NewMockMachineService(ctrl)
 	s.networkService = NewMockNetworkService(ctrl)
 	s.operationService = NewMockOperationService(ctrl)
@@ -2010,6 +2050,11 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	}
 
 	s.uniter = &UniterAPI{
+		StorageAPI: &StorageAPI{
+			applicationService:         s.applicationService,
+			blockDeviceService:         s.blockDeviceService,
+			storageProvisioningService: s.storageProvisioningService,
+		},
 		applicationService:    s.applicationService,
 		relationService:       s.relationService,
 		statusService:         s.statusService,
@@ -2034,6 +2079,8 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 		s.applicationService = nil
 		s.relationService = nil
 		s.statusService = nil
+		s.blockDeviceService = nil
+		s.storageProvisioningService = nil
 		s.machineService = nil
 		s.networkService = nil
 		s.operationService = nil
