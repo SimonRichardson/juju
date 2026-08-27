@@ -384,6 +384,70 @@ func (s *unitSuite) TestWatchNotImplemented(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, errors.NotImplemented)
 }
 
+func (s *unitSuite) TestWatchComposite(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		if objType == "NotifyWatcher" {
+			return nil
+		}
+		c.Check(objType, tc.Equals, "Uniter")
+		c.Check(request, tc.Equals, "WatchUnitComposite")
+		c.Check(arg, tc.DeepEquals, params.Entity{Tag: "unit-mysql-0"})
+		c.Assert(result, tc.FitsTypeOf, &params.NotifyWatchResult{})
+		*(result.(*params.NotifyWatchResult)) = params.NotifyWatchResult{NotifyWatcherId: "1"}
+		return nil
+	})
+	client := uniter.NewClient(apiCaller, names.NewUnitTag("mysql/0"))
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+
+	w, err := unit.WatchComposite(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	wc := watchertest.NewNotifyWatcherC(c, w)
+	defer wc.AssertStops()
+}
+
+func (s *unitSuite) TestWatchResolveMode(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		if objType == "NotifyWatcher" {
+			if request != "Next" && request != "Stop" {
+				c.Fatalf("unexpected watcher request %q", request)
+			}
+			return nil
+		}
+		c.Assert(objType, tc.Equals, "Uniter")
+		c.Assert(request, tc.Equals, "WatchUnitResolveMode")
+		c.Assert(arg, tc.DeepEquals, params.Entity{Tag: "unit-mysql-0"})
+		c.Assert(result, tc.FitsTypeOf, &params.NotifyWatchResult{})
+		*(result.(*params.NotifyWatchResult)) = params.NotifyWatchResult{
+			NotifyWatcherId: "1",
+		}
+		return nil
+	})
+	tag := names.NewUnitTag("mysql/0")
+	client := uniter.NewClient(apiCaller, tag)
+
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+	w, err := unit.WatchResolveMode(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	wc := watchertest.NewNotifyWatcherC(c, w)
+	defer wc.AssertStops()
+
+	// Initial event.
+	_, ok := <-w.Changes()
+	c.Assert(ok, tc.IsTrue)
+}
+
+func (s *unitSuite) TestWatchResolveModeNotImplemented(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		return apiservererrors.ServerError(errors.NotImplementedf("not implemented"))
+	})
+	tag := names.NewUnitTag("mysql/0")
+	client := uniter.NewClient(apiCaller, tag)
+
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+	_, err := unit.WatchResolveMode(c.Context())
+	c.Assert(err, tc.ErrorIs, errors.NotImplemented)
+}
+
 func (s *unitSuite) TestWatchRelations(c *tc.C) {
 	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
 		if objType == "StringsWatcher" {
