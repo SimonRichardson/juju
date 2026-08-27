@@ -3181,6 +3181,46 @@ func (u *UniterAPI) WatchUnit(ctx context.Context, entity params.Entity) (params
 	}, nil
 }
 
+// WatchUnitComposite starts a NotifyWatcher for all state affecting a
+// holistic unit runtime's snapshot.
+func (u *UniterAPI) WatchUnitComposite(ctx context.Context, entity params.Entity) (params.NotifyWatchResult, error) {
+	canWatch, err := u.accessUnit(ctx)
+	if err != nil {
+		return params.NotifyWatchResult{}, errors.Trace(err)
+	}
+
+	tag, err := names.ParseUnitTag(entity.Tag)
+	if err != nil {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(apiservererrors.ErrPerm)}, nil
+	}
+	if !canWatch(tag) {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(apiservererrors.ErrPerm)}, nil
+	}
+
+	unitName, err := coreunit.NewName(tag.Id())
+	if err != nil {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
+			errors.BadRequestf("parsing unit name: %s", tag.Id()),
+		)}, nil
+	}
+	w, err := u.applicationService.WatchUnitComposite(ctx, unitName)
+	if errors.Is(err, applicationerrors.UnitNotFound) {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
+			errors.NotFoundf("unit %q", unitName),
+		)}, nil
+	} else if err != nil {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
+			internalerrors.Errorf("watching composite state for unit %q: %w", unitName, err),
+		)}, nil
+	}
+
+	id, _, err := internal.EnsureRegisterWatcher[struct{}](ctx, u.watcherRegistry, w)
+	return params.NotifyWatchResult{
+		NotifyWatcherId: id,
+		Error:           apiservererrors.ServerError(err),
+	}, nil
+}
+
 // Watch starts an NotifyWatcher for a unit or application.
 // This is being deprecated in favour of separate WatchUnit and WatchApplication
 // methods.

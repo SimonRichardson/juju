@@ -161,6 +161,10 @@ type ApplicationService interface {
 	// the unit's inherent properties, it's subordinates or it's resolved mode.
 	WatchUnitForLegacyUniter(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
 
+	// WatchUnitComposite watches all application-domain state which affects a
+	// holistic unit runtime's snapshot.
+	WatchUnitComposite(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
+
 	// GetApplicationUUIDByUnitName returns the application UUID for the named unit.
 	GetApplicationUUIDByUnitName(context.Context, coreunit.Name) (coreapplication.UUID, error)
 

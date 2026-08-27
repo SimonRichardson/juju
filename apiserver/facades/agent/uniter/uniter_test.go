@@ -159,6 +159,45 @@ func (s *uniterSuite) TestRefreshIncludesRuntimeType(c *tc.C) {
 	}}})
 }
 
+func (s *uniterSuite) TestWatchUnitComposite(c *tc.C) {
+	ctrl := s.setupMocks(c)
+	defer ctrl.Finish()
+
+	unitName := coreunit.Name("foo/0")
+	w := NewMockNotifyWatcher(ctrl)
+	w.EXPECT().Changes().Return(make(chan struct{})).AnyTimes()
+	s.applicationService.EXPECT().WatchUnitComposite(gomock.Any(), unitName).Return(w, nil)
+	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("watcher-id", nil)
+
+	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{
+		Tag: names.NewUnitTag(unitName.String()).String(),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.NotifyWatchResult{NotifyWatcherId: "watcher-id"})
+}
+
+func (s *uniterSuite) TestWatchUnitCompositeUnauthorized(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.badTag = names.NewUnitTag("foo/0")
+	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{Tag: s.badTag.String()})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result.Error, tc.Satisfies, params.IsCodeUnauthorized)
+}
+
+func (s *uniterSuite) TestWatchUnitCompositeNotFound(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("foo/0")
+	s.applicationService.EXPECT().WatchUnitComposite(gomock.Any(), unitName).Return(nil, applicationerrors.UnitNotFound)
+
+	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{
+		Tag: names.NewUnitTag(unitName.String()).String(),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result.Error, tc.Satisfies, params.IsCodeNotFound)
+}
+
 func (s *uniterSuite) TestEnsureDeadNotFound(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 

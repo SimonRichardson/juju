@@ -383,6 +383,27 @@ func (s *unitSuite) TestWatchNotImplemented(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, errors.NotImplemented)
 }
 
+func (s *unitSuite) TestWatchComposite(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		if objType == "NotifyWatcher" {
+			return nil
+		}
+		c.Check(objType, tc.Equals, "Uniter")
+		c.Check(request, tc.Equals, "WatchUnitComposite")
+		c.Check(arg, tc.DeepEquals, params.Entity{Tag: "unit-mysql-0"})
+		c.Assert(result, tc.FitsTypeOf, &params.NotifyWatchResult{})
+		*(result.(*params.NotifyWatchResult)) = params.NotifyWatchResult{NotifyWatcherId: "1"}
+		return nil
+	})
+	client := uniter.NewClient(apiCaller, names.NewUnitTag("mysql/0"))
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+
+	w, err := unit.WatchComposite(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	wc := watchertest.NewNotifyWatcherC(c, w)
+	defer wc.AssertStops()
+}
+
 func (s *unitSuite) TestWatchResolveMode(c *tc.C) {
 	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
 		if objType == "NotifyWatcher" {
