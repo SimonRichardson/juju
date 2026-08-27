@@ -693,6 +693,7 @@ type MockStatusService struct {
 type MockStatusServiceMockRecorder struct {
 	mock                                                  *MockStatusService
 	getApplicationAndUnitStatusesForUnitWithLeaderExpects []*gomock.Call2_3[context.Context, unit.Name, status.StatusInfo, map[unit.Name]status.StatusInfo, error]
+	getApplicationDisplayStatusExpects                    []*gomock.Call2_2[context.Context, string, status.StatusInfo, error]
 	getUnitWorkloadStatusExpects                          []*gomock.Call2_2[context.Context, unit.Name, status.StatusInfo, error]
 	getUnitWorkloadStatusesForApplicationExpects          []*gomock.Call2_2[context.Context, application.UUID, map[unit.Name]status.StatusInfo, error]
 	setApplicationStatusForUnitLeaderExpects              []*gomock.Call3_1[context.Context, unit.Name, status.StatusInfo, error]
@@ -730,6 +731,24 @@ func (mr *MockStatusServiceMockRecorder) GetApplicationAndUnitStatusesForUnitWit
 
 // MockStatusServiceGetApplicationAndUnitStatusesForUnitWithLeaderCall is the typed call wrapper for GetApplicationAndUnitStatusesForUnitWithLeader.
 type MockStatusServiceGetApplicationAndUnitStatusesForUnitWithLeaderCall = gomock.Call2_3[context.Context, unit.Name, status.StatusInfo, map[unit.Name]status.StatusInfo, error]
+
+// GetApplicationDisplayStatus mocks base method.
+func (m *MockStatusService) GetApplicationDisplayStatus(arg0 context.Context, arg1 string) (status.StatusInfo, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getApplicationDisplayStatusExpects, m.ctrl, m, "GetApplicationDisplayStatus", arg0, arg1)
+}
+
+// GetApplicationDisplayStatus indicates an expected call of GetApplicationDisplayStatus.
+func (mr *MockStatusServiceMockRecorder) GetApplicationDisplayStatus(arg0, arg1 any) *MockStatusServiceGetApplicationDisplayStatusCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, string, status.StatusInfo, error](mr.mock.ctrl.T, mr.mock, "GetApplicationDisplayStatus", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1))
+	mr.getApplicationDisplayStatusExpects = append(mr.getApplicationDisplayStatusExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStatusServiceGetApplicationDisplayStatusCall is the typed call wrapper for GetApplicationDisplayStatus.
+type MockStatusServiceGetApplicationDisplayStatusCall = gomock.Call2_2[context.Context, string, status.StatusInfo, error]
 
 // GetUnitWorkloadStatus mocks base method.
 func (m *MockStatusService) GetUnitWorkloadStatus(arg0 context.Context, arg1 unit.Name) (status.StatusInfo, error) {
@@ -851,6 +870,7 @@ type MockRelationServiceMockRecorder struct {
 	mock                                                   *MockRelationService
 	enterScopeExpects                                      []*gomock.Call4_1[context.Context, relation.UUID, unit.Name, map[string]string, error]
 	getGoalStateRelationDataForApplicationExpects          []*gomock.Call2_2[context.Context, application.UUID, []relation0.GoalStateRelationData, error]
+	getInScopeUnitsExpects                                 []*gomock.Call3_2[context.Context, application.UUID, relation.UUID, []unit.Name, error]
 	getRelationApplicationSettingsExpects                  []*gomock.Call3_2[context.Context, relation.UUID, application.UUID, map[string]string, error]
 	getRelationApplicationSettingsWithLeaderExpects        []*gomock.Call4_2[context.Context, unit.Name, relation.UUID, application.UUID, map[string]string, error]
 	getRelationDetailsExpects                              []*gomock.Call2_2[context.Context, relation.UUID, relation0.RelationDetails, error]
@@ -861,6 +881,7 @@ type MockRelationServiceMockRecorder struct {
 	getRelationUnitSettingsExpects                         []*gomock.Call3_2[context.Context, relation.UUID, unit.Name, map[string]string, error]
 	getRelationUnitUUIDExpects                             []*gomock.Call3_2[context.Context, relation.UUID, unit.Name, relation.UnitUUID, error]
 	getRelationsStatusForUnitExpects                       []*gomock.Call2_2[context.Context, unit.UUID, []relation0.RelationUnitStatus, error]
+	getUnitSettingsForUnitsExpects                         []*gomock.Call3_2[context.Context, relation.UUID, []unit.Name, []relation0.UnitSettings, error]
 	setRelationUnitSettingsExpects                         []*gomock.Call4_1[context.Context, unit.Name, relation.UUID, map[string]string, error]
 	watchRelatedUnitsExpects                               []*gomock.Call3_2[context.Context, unit.UUID, relation.UUID, watcher.StringsWatcher, error]
 	watchRelationUnitApplicationLifeSuspendedStatusExpects []*gomock.Call2_2[context.Context, unit.UUID, watcher.StringsWatcher, error]
@@ -913,6 +934,24 @@ func (mr *MockRelationServiceMockRecorder) GetGoalStateRelationDataForApplicatio
 
 // MockRelationServiceGetGoalStateRelationDataForApplicationCall is the typed call wrapper for GetGoalStateRelationDataForApplication.
 type MockRelationServiceGetGoalStateRelationDataForApplicationCall = gomock.Call2_2[context.Context, application.UUID, []relation0.GoalStateRelationData, error]
+
+// GetInScopeUnits mocks base method.
+func (m *MockRelationService) GetInScopeUnits(ctx context.Context, applicationUUID application.UUID, relationUUID relation.UUID) ([]unit.Name, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch3_2(&m.recorder.getInScopeUnitsExpects, m.ctrl, m, "GetInScopeUnits", ctx, applicationUUID, relationUUID)
+}
+
+// GetInScopeUnits indicates an expected call of GetInScopeUnits.
+func (mr *MockRelationServiceMockRecorder) GetInScopeUnits(ctx, applicationUUID, relationUUID any) *MockRelationServiceGetInScopeUnitsCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall3_2[context.Context, application.UUID, relation.UUID, []unit.Name, error](mr.mock.ctrl.T, mr.mock, "GetInScopeUnits", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(applicationUUID), gomock.EnsureMatcher(relationUUID))
+	mr.getInScopeUnitsExpects = append(mr.getInScopeUnitsExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockRelationServiceGetInScopeUnitsCall is the typed call wrapper for GetInScopeUnits.
+type MockRelationServiceGetInScopeUnitsCall = gomock.Call3_2[context.Context, application.UUID, relation.UUID, []unit.Name, error]
 
 // GetRelationApplicationSettings mocks base method.
 func (m *MockRelationService) GetRelationApplicationSettings(ctx context.Context, relationUUID relation.UUID, applicationID application.UUID) (map[string]string, error) {
@@ -1093,6 +1132,24 @@ func (mr *MockRelationServiceMockRecorder) GetRelationsStatusForUnit(ctx, unitUU
 
 // MockRelationServiceGetRelationsStatusForUnitCall is the typed call wrapper for GetRelationsStatusForUnit.
 type MockRelationServiceGetRelationsStatusForUnitCall = gomock.Call2_2[context.Context, unit.UUID, []relation0.RelationUnitStatus, error]
+
+// GetUnitSettingsForUnits mocks base method.
+func (m *MockRelationService) GetUnitSettingsForUnits(ctx context.Context, relationUUID relation.UUID, unitNames []unit.Name) ([]relation0.UnitSettings, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch3_2(&m.recorder.getUnitSettingsForUnitsExpects, m.ctrl, m, "GetUnitSettingsForUnits", ctx, relationUUID, unitNames)
+}
+
+// GetUnitSettingsForUnits indicates an expected call of GetUnitSettingsForUnits.
+func (mr *MockRelationServiceMockRecorder) GetUnitSettingsForUnits(ctx, relationUUID, unitNames any) *MockRelationServiceGetUnitSettingsForUnitsCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall3_2[context.Context, relation.UUID, []unit.Name, []relation0.UnitSettings, error](mr.mock.ctrl.T, mr.mock, "GetUnitSettingsForUnits", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(relationUUID), gomock.EnsureMatcher(unitNames))
+	mr.getUnitSettingsForUnitsExpects = append(mr.getUnitSettingsForUnitsExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockRelationServiceGetUnitSettingsForUnitsCall is the typed call wrapper for GetUnitSettingsForUnits.
+type MockRelationServiceGetUnitSettingsForUnitsCall = gomock.Call3_2[context.Context, relation.UUID, []unit.Name, []relation0.UnitSettings, error]
 
 // SetRelationUnitSettings mocks base method.
 func (m *MockRelationService) SetRelationUnitSettings(ctx context.Context, unitName unit.Name, relationUUID relation.UUID, unitSettings map[string]string) error {
