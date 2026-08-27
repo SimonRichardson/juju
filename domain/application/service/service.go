@@ -841,6 +841,50 @@ func (s *WatchableService) WatchUnitForLegacyUniter(ctx context.Context, unitNam
 	)
 }
 
+// WatchUnitComposite watches application-domain changes that affect the
+// snapshot consumed by a holistic unit runtime.
+func (s *WatchableService) WatchUnitComposite(ctx context.Context, unitName coreunit.Name) (watcher.NotifyWatcher, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	identifiers, err := s.st.GetUnitWatchIdentifiers(ctx, unitName)
+	if err != nil {
+		return nil, errors.Errorf("getting watch identifiers for unit %q: %w", unitName, err)
+	}
+
+	unitNamespace, principalNamespace, resolvedNamespace := s.st.NamespaceForWatchUnitForLegacyUniter()
+	return s.watcherFactory.NewNotifyWatcher(
+		ctx,
+		fmt.Sprintf("composite unit watcher for %q", unitName),
+		eventsource.PredicateFilter(unitNamespace, changestream.All,
+			eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter(principalNamespace, changestream.All,
+			eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter(resolvedNamespace, changestream.All,
+			eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter(s.st.NamespaceForWatchApplication(), changestream.All,
+			eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
+		eventsource.PredicateFilter(s.st.NamespaceForWatchApplicationConfig(), changestream.All,
+			eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
+		eventsource.PredicateFilter(s.st.NamespaceForWatchApplicationSetting(), changestream.All,
+			eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
+		eventsource.PredicateFilter(s.st.NamespaceForWatchApplicationScale(), changestream.All,
+			eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
+		eventsource.PredicateFilter(s.st.NamespaceForWatchCharm(), changestream.All,
+			eventsource.EqualsPredicate(identifiers.CharmUUID)),
+		eventsource.PredicateFilter(s.st.NamespaceForWatchNetNodeAddress(), changestream.All,
+			eventsource.ContainsPredicate(identifiers.NetNodeUUIDs)),
+		eventsource.PredicateFilter("relation", changestream.All,
+			eventsource.ContainsPredicate(identifiers.RelationUUIDs)),
+		eventsource.PredicateFilter("relation_unit", changestream.All,
+			eventsource.ContainsPredicate(identifiers.RelationUnitUUIDs)),
+		eventsource.PredicateFilter("relation_unit_settings_hash", changestream.All,
+			eventsource.ContainsPredicate(identifiers.RelationUnitUUIDs)),
+		eventsource.PredicateFilter("relation_application_settings_hash", changestream.All,
+			eventsource.ContainsPredicate(identifiers.RelationEndpointUUIDs)),
+	)
+}
+
 func encodeChannelAndPlatform(origin corecharm.Origin) (*deployment.Channel, deployment.Platform, error) {
 	channel, err := encodeChannel(origin.Channel)
 	if err != nil {

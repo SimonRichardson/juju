@@ -334,6 +334,177 @@ func (s *watcherSuite) TestWatchApplicationUnitLife(c *tc.C) {
 	harness.Run(c, []string{})
 }
 
+func (s *watcherSuite) TestWatchUnitComposite(c *tc.C) {
+	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, "unit")
+	svc := s.setupService(c, factory)
+	appUUID := s.createCAASApplication(c, svc, "foo", service.AddUnitArg{})
+	otherAppUUID := s.createCAASApplication(c, svc, "bar", service.AddUnitArg{})
+	unrelatedAppUUID := s.createCAASApplication(c, svc, "baz", service.AddUnitArg{})
+
+	const (
+		relationUUID              = "relation-uuid"
+		relationEndpointUUID      = "relation-endpoint-uuid"
+		otherRelationEndpointUUID = "other-relation-endpoint-uuid"
+		relationUnitUUID          = "relation-unit-uuid"
+		unrelatedRelationUUID     = "unrelated-relation-uuid"
+		unrelatedEndpointUUID     = "unrelated-endpoint-uuid"
+	)
+	var charmUUID, otherCharmUUID string
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		var unitUUID, endpointUUID, otherEndpointUUID, unrelatedAppEndpointUUID string
+		if err := tx.QueryRowContext(ctx, "SELECT uuid, charm_uuid FROM unit WHERE name = ?", "foo/0").Scan(&unitUUID, &charmUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if err := tx.QueryRowContext(ctx, "SELECT charm_uuid FROM unit WHERE name = ?", "bar/0").Scan(&otherCharmUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if err := tx.QueryRowContext(ctx, "SELECT uuid FROM application_endpoint WHERE application_uuid = ?", appUUID.String()).Scan(&endpointUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if err := tx.QueryRowContext(ctx, "SELECT uuid FROM application_endpoint WHERE application_uuid = ?", otherAppUUID.String()).Scan(&otherEndpointUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if err := tx.QueryRowContext(ctx, "SELECT uuid FROM application_endpoint WHERE application_uuid = ?", unrelatedAppUUID.String()).Scan(&unrelatedAppEndpointUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO relation (uuid, life_id, relation_id, scope_id)
+VALUES (?, 0, 0, 0)`, relationUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO relation_endpoint (uuid, relation_uuid, endpoint_uuid)
+VALUES (?, ?, ?)`, relationEndpointUUID, relationUUID, endpointUUID); err != nil {
+			return errors.Capture(err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO relation_endpoint (uuid, relation_uuid, endpoint_uuid)
+VALUES (?, ?, ?)`, otherRelationEndpointUUID, relationUUID, otherEndpointUUID); err != nil {
+			return errors.Capture(err)
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO relation_unit (uuid, relation_endpoint_uuid, unit_uuid)
+VALUES (?, ?, ?)`, relationUnitUUID, relationEndpointUUID, unitUUID)
+		if err != nil {
+			return errors.Capture(err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO relation (uuid, life_id, relation_id, scope_id)
+VALUES (?, 0, 1, 0)`, unrelatedRelationUUID); err != nil {
+			return errors.Capture(err)
+		}
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO relation_endpoint (uuid, relation_uuid, endpoint_uuid)
+VALUES (?, ?, ?)`, unrelatedEndpointUUID, unrelatedRelationUUID, unrelatedAppEndpointUUID)
+		return errors.Capture(err)
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	s.AssertChangeStreamIdle(c, "before watcher start")
+	watcher, err := svc.WatchUnitComposite(c.Context(), "foo/0")
+	c.Assert(err, tc.ErrorIsNil)
+
+	harness := watchertest.NewHarness(s, watchertest.NewWatcherC(c, watcher))
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, "UPDATE unit SET life_id = 1 WHERE name = ?", "foo/0")
+			return err
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO relation_application_settings_hash (relation_endpoint_uuid, sha256)
+VALUES (?, ?)`, unrelatedEndpointUUID, "unrelated-application-settings-hash")
+			return errors.Capture(err)
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertNoChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, "UPDATE relation SET life_id = 1 WHERE uuid = ?", relationUUID)
+			return errors.Capture(err)
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO relation_unit_settings_hash (relation_unit_uuid, sha256)
+VALUES (?, ?)`, relationUnitUUID, "unit-settings-hash")
+			return errors.Capture(err)
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO relation_application_settings_hash (relation_endpoint_uuid, sha256)
+VALUES (?, ?)`, otherRelationEndpointUUID, "application-settings-hash")
+			return errors.Capture(err)
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, "UPDATE charm SET version = ? WHERE uuid = ?", "2.0", charmUUID)
+			return errors.Capture(err)
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, "UPDATE charm SET version = ? WHERE uuid = ?", "2.0", otherCharmUUID)
+			return errors.Capture(err)
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertNoChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := svc.UpdateApplicationConfig(c.Context(), appUUID, map[string]string{
+			"foo": "changed",
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := svc.UpdateApplicationConfig(c.Context(), appUUID, map[string]string{
+			"trust": "true",
+		})
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := svc.SetApplicationScale(c.Context(), "foo", 2)
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertChange()
+	})
+	harness.AddTest(c, func(c *tc.C) {
+		err := svc.SetApplicationScale(c.Context(), "bar", 2)
+		c.Assert(err, tc.ErrorIsNil)
+	}, func(w watchertest.WatcherC[struct{}]) {
+		w.AssertNoChange()
+	})
+	harness.Run(c, struct{}{})
+}
+
 func (s *watcherSuite) TestWatchApplicationUnitLifeInitial(c *tc.C) {
 	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, "unit")
 
