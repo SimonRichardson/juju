@@ -225,6 +225,10 @@ type UnitState interface {
 	// - [uniterrors.UnitNotFound] if the unit does not exist
 	GetUnitNetNodesByName(ctx context.Context, name coreunit.Name) ([]string, error)
 
+	// GetUnitWatchIdentifiers returns the stable identifiers required to create
+	// a composite watcher for the named unit.
+	GetUnitWatchIdentifiers(ctx context.Context, name coreunit.Name) (application.UnitWatchIdentifiers, error)
+
 	// GetAllUnitK8sPodIDsForApplication returns a map of the unit names
 	// and their k8s pod provider IDs for the given application.
 	//   - If the application is dead, [applicationerrors.ApplicationIsDead] is returned.
@@ -336,6 +340,15 @@ type UnitState interface {
 		unitUUID coreunit.UUID,
 		storageArg domainstorage.AttachStorageInstanceToUnitArg,
 	) error
+}
+
+// GetUnitWatchIdentifiers returns the stable identifiers required to create a
+// composite watcher for the named unit.
+func (s *Service) GetUnitWatchIdentifiers(ctx context.Context, unitName coreunit.Name) (application.UnitWatchIdentifiers, error) {
+	if err := unitName.Validate(); err != nil {
+		return application.UnitWatchIdentifiers{}, errors.Capture(err)
+	}
+	return s.st.GetUnitWatchIdentifiers(ctx, unitName)
 }
 
 // AttachStorageInstanceToUnit ensures the specified storage instance can be

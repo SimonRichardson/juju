@@ -242,6 +242,18 @@ func (r UnitRuntimeType) String() string {
 	}
 }
 
+// UnitWatchIdentifiers contains the stable identifiers required to create a
+// composite watcher for a unit.
+type UnitWatchIdentifiers struct {
+	UnitUUID              string
+	ApplicationUUID       string
+	CharmUUID             string
+	NetNodeUUIDs          []string
+	RelationUUIDs         []string
+	RelationUnitUUIDs     []string
+	RelationEndpointUUIDs []string
+}
+
 // AddIAASUnitArg contains parameters for adding a IAAS unit to state.
 type AddIAASUnitArg struct {
 	domainstorage.CreateIAASUnitStorageArg

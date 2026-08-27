@@ -1886,6 +1886,34 @@ func (s *unitStateSuite) TestGetUnitNetNodesNotFound(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotFound)
 }
 
+func (s *unitStateSuite) TestGetUnitWatchIdentifiers(c *tc.C) {
+	appUUID, unitUUIDs := s.createIAASApplicationWithNUnits(c, "foo", life.Alive, 1)
+	unitName, err := s.state.GetUnitNameForUUID(c.Context(), unitUUIDs[0])
+	c.Assert(err, tc.ErrorIsNil)
+	netNodeUUIDs, err := s.state.GetUnitNetNodesByName(c.Context(), unitName)
+	c.Assert(err, tc.ErrorIsNil)
+	var charmUUID string
+	err = s.DB().QueryRowContext(c.Context(), "SELECT charm_uuid FROM unit WHERE uuid = ?", unitUUIDs[0].String()).Scan(&charmUUID)
+	c.Assert(err, tc.ErrorIsNil)
+
+	identifiers, err := s.state.GetUnitWatchIdentifiers(c.Context(), unitName)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(identifiers, tc.DeepEquals, application.UnitWatchIdentifiers{
+		UnitUUID:              unitUUIDs[0].String(),
+		ApplicationUUID:       appUUID.String(),
+		CharmUUID:             charmUUID,
+		NetNodeUUIDs:          netNodeUUIDs,
+		RelationUUIDs:         []string{},
+		RelationUnitUUIDs:     []string{},
+		RelationEndpointUUIDs: []string{},
+	})
+}
+
+func (s *unitStateSuite) TestGetUnitWatchIdentifiersNotFound(c *tc.C) {
+	_, err := s.state.GetUnitWatchIdentifiers(c.Context(), "unknown-unit")
+	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotFound)
+}
+
 func (s *unitStateSuite) TestGetUnitNetNodesK8s(c *tc.C) {
 	appUUID, unitUUIDS := s.createIAASApplicationWithNUnits(c, "foo", life.Alive, 1)
 	unitName, err := s.state.GetUnitNameForUUID(c.Context(), unitUUIDS[0])

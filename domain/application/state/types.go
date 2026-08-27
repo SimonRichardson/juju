@@ -142,6 +142,17 @@ type unitDetails struct {
 	Name      string `db:"name"`
 }
 
+type unitWatchIdentifier struct {
+	UnitUUID        string `db:"unit_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+	CharmUUID       string `db:"charm_uuid"`
+}
+
+type relationWatchIdentifier struct {
+	RelationUUID     string `db:"relation_uuid"`
+	RelationUnitUUID string `db:"relation_unit_uuid"`
+}
+
 type unitAttributes struct {
 	UnitUUID      coreunit.UUID               `db:"uuid"`
 	Name          coreunit.Name               `db:"name"`
