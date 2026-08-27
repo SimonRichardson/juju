@@ -67,6 +67,7 @@ type uniterSuite struct {
 	authTag names.Tag
 
 	applicationService    *MockApplicationService
+	relationService       *MockRelationService
 	machineService        *MockMachineService
 	operationService      *MockOperationService
 	networkService        *MockNetworkService
@@ -216,6 +217,7 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 	)
 	s.applicationService.EXPECT().GetCharmModifiedVersion(gomock.Any(), appUUID).Return(3, nil)
 	s.applicationService.EXPECT().GetUnitWorkloadVersion(gomock.Any(), unitName).Return("8.0", nil)
+	s.relationService.EXPECT().GetRelationUUIDsByUnitName(gomock.Any(), unitName).Return(nil, nil)
 
 	result, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{
 		Tag: names.NewUnitTag(unitName.String()).String(),
@@ -226,10 +228,11 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		ApplicationName:      "mysql",
 		Life:                 life.Alive,
 		ResolvedMode:         params.ResolvedNone,
-		CharmURL:             "ch:mysql-42",
+		CharmURL:             "ch:amd64/mysql-42",
 		CharmModifiedVersion: 3,
 		Config:               map[string]any{"max-connections": 100},
 		Trust:                true,
+		Relations:            []params.RelationSnapshot{},
 		WorkloadVersion:      "8.0",
 	})
 }
@@ -240,6 +243,39 @@ func (s *uniterSuite) TestGetUnitSnapshotUnauthorized(c *tc.C) {
 	s.badTag = names.NewUnitTag("mysql/0")
 	_, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{Tag: s.badTag.String()})
 	c.Check(err, tc.Satisfies, params.IsCodeUnauthorized)
+}
+
+func (s *uniterSuite) TestGetRelationSnapshots(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("mysql/0")
+	relationUUID := tc.Must(c, corerelation.NewUUID)
+	s.relationService.EXPECT().GetRelationUUIDsByUnitName(gomock.Any(), unitName).Return([]corerelation.UUID{relationUUID}, nil)
+	s.relationService.EXPECT().GetRelationDetails(gomock.Any(), relationUUID).Return(relation.RelationDetails{
+		ID:        7,
+		UUID:      relationUUID,
+		Life:      life.Alive,
+		Suspended: true,
+		Endpoints: []relation.Endpoint{
+			{ApplicationName: "mysql", Relation: charm.Relation{Name: "database"}},
+			{ApplicationName: "wordpress", Relation: charm.Relation{Name: "db"}},
+		},
+	}, nil)
+	s.relationService.EXPECT().GetRelationUnitSettings(gomock.Any(), relationUUID, unitName).Return(
+		map[string]string{"host": "10.0.0.1"}, nil,
+	)
+
+	result, err := s.uniter.getRelationSnapshots(c.Context(), unitName)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, []params.RelationSnapshot{{
+		ID:                7,
+		Name:              "database",
+		Endpoint:          "database",
+		Life:              life.Alive,
+		Suspended:         true,
+		RemoteApplication: "wordpress",
+		MySettings:        map[string]string{"host": "10.0.0.1"},
+	}})
 }
 
 func (s *uniterSuite) TestEnsureDeadNotFound(c *tc.C) {
@@ -1888,6 +1924,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	}
 
 	s.applicationService = NewMockApplicationService(ctrl)
+	s.relationService = NewMockRelationService(ctrl)
 	s.machineService = NewMockMachineService(ctrl)
 	s.networkService = NewMockNetworkService(ctrl)
 	s.operationService = NewMockOperationService(ctrl)
@@ -1906,6 +1943,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 
 	s.uniter = &UniterAPI{
 		applicationService:    s.applicationService,
+		relationService:       s.relationService,
 		machineService:        s.machineService,
 		networkService:        s.networkService,
 		operationService:      s.operationService,
@@ -1925,6 +1963,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	c.Cleanup(func() {
 		s.uniter = nil
 		s.applicationService = nil
+		s.relationService = nil
 		s.machineService = nil
 		s.networkService = nil
 		s.operationService = nil

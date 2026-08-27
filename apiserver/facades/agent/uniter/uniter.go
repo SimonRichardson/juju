@@ -3450,6 +3450,10 @@ func (u *UniterAPI) getUnitSnapshot(
 	if err != nil {
 		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
+	relations, err := u.getRelationSnapshots(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
 
 	return params.UnitSnapshot{
 		UnitName:             unitName.String(),
@@ -3461,7 +3465,54 @@ func (u *UniterAPI) getUnitSnapshot(
 		Config:               map[string]any(config),
 		Trust:                trust,
 		WorkloadVersion:      workloadVersion,
+		Relations:            relations,
 	}, nil
+}
+
+func (u *UniterAPI) getRelationSnapshots(ctx context.Context, unitName coreunit.Name) ([]params.RelationSnapshot, error) {
+	relationUUIDs, err := u.relationService.GetRelationUUIDsByUnitName(ctx, unitName)
+	if err != nil {
+		return nil, internalerrors.Capture(err)
+	}
+
+	result := make([]params.RelationSnapshot, 0, len(relationUUIDs))
+	for _, relationUUID := range relationUUIDs {
+		details, err := u.relationService.GetRelationDetails(ctx, relationUUID)
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+
+		var local, remote *relation.Endpoint
+		for i := range details.Endpoints {
+			endpoint := &details.Endpoints[i]
+			if endpoint.ApplicationName == unitName.Application() {
+				local = endpoint
+			} else {
+				remote = endpoint
+			}
+		}
+		if local == nil {
+			return nil, errors.NotFoundf("local endpoint for relation %q", relationUUID)
+		}
+
+		mySettings, err := u.relationService.GetRelationUnitSettings(ctx, relationUUID, unitName)
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+		snapshot := params.RelationSnapshot{
+			ID:         details.ID,
+			Name:       local.Name,
+			Endpoint:   local.Name,
+			Life:       details.Life,
+			Suspended:  details.Suspended,
+			MySettings: mySettings,
+		}
+		if remote != nil {
+			snapshot.RemoteApplication = remote.ApplicationName
+		}
+		result = append(result, snapshot)
+	}
+	return result, nil
 }
 
 func (u *UniterAPI) getUnitContext(ctx context.Context, unitName coreunit.Name) (params.UnitContext, error) {
