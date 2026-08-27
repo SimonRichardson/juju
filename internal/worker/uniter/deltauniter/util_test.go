@@ -1,7 +1,7 @@
 // Copyright 2012-2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package uniter_test
+package deltauniter_test
 
 import (
 	"bytes"
@@ -48,7 +48,7 @@ import (
 	"github.com/juju/juju/internal/testhelpers/filetesting"
 	coretesting "github.com/juju/juju/internal/testing"
 	jworker "github.com/juju/juju/internal/worker"
-	"github.com/juju/juju/internal/worker/uniter"
+	uniter "github.com/juju/juju/internal/worker/uniter/deltauniter"
 	uniterapi "github.com/juju/juju/internal/worker/uniter/shared/api"
 	apimocks "github.com/juju/juju/internal/worker/uniter/shared/api/mocks"
 	"github.com/juju/juju/internal/worker/uniter/shared/charm"
