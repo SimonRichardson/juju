@@ -24,11 +24,12 @@ import (
 
 // Unit represents a juju unit as seen by a uniter worker.
 type Unit struct {
-	client     *Client
-	tag        names.UnitTag
-	life       life.Value
-	providerID string
-	resolved   params.ResolvedMode
+	client      *Client
+	tag         names.UnitTag
+	life        life.Value
+	providerID  string
+	resolved    params.ResolvedMode
+	runtimeType string
 }
 
 // Tag returns the unit's tag.
@@ -91,7 +92,14 @@ func (u *Unit) Refresh(ctx context.Context) error {
 	u.life = result.Life
 	u.providerID = result.ProviderID
 	u.resolved = result.Resolved
+	u.runtimeType = result.RuntimeType
 	return nil
+}
+
+// RuntimeType returns the persisted execution environment selected for the
+// unit.
+func (u *Unit) RuntimeType() string {
+	return u.runtimeType
 }
 
 // SetUnitStatus sets the status of the unit.

@@ -1546,6 +1546,7 @@ func (u *UniterAPI) Refresh(ctx context.Context, args params.Entities) (params.U
 		result.Results[i].Life = life
 		result.Results[i].Resolved = resolveMode
 		result.Results[i].ProviderID = attr.ProviderID
+		result.Results[i].RuntimeType = attr.RuntimeType.String()
 	}
 	return result, nil
 }
