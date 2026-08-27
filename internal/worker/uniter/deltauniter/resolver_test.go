@@ -1,7 +1,7 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package uniter_test
+package deltauniter_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/juju/juju/domain/deployment/charm/hooks"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	"github.com/juju/juju/internal/testhelpers"
-	"github.com/juju/juju/internal/worker/uniter"
+	uniter "github.com/juju/juju/internal/worker/uniter/deltauniter"
 	uniteractions "github.com/juju/juju/internal/worker/uniter/shared/actions"
 	unitercharm "github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/internal/worker/uniter/shared/container"

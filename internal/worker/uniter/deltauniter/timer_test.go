@@ -1,7 +1,7 @@
 // Copyright 2017 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package uniter_test
+package deltauniter_test
 
 import (
 	"reflect"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/juju/tc"
 
-	"github.com/juju/juju/internal/worker/uniter"
+	uniter "github.com/juju/juju/internal/worker/uniter/deltauniter"
 )
 
 type timerSuite struct{}

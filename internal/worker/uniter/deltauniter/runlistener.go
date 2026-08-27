@@ -4,7 +4,7 @@
 // The run listener is a worker go-routine that listens on either a unix
 // socket or a tcp connection for juju-exec commands.
 
-package uniter
+package deltauniter
 
 import (
 	"context"

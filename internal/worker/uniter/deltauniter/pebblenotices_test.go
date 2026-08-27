@@ -1,7 +1,7 @@
 // Copyright 2023 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package uniter_test
+package deltauniter_test
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	"github.com/juju/juju/internal/testing"
-	"github.com/juju/juju/internal/worker/uniter"
+	uniter "github.com/juju/juju/internal/worker/uniter/deltauniter"
 	"github.com/juju/juju/internal/worker/uniter/shared/container"
 )
 
