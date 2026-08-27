@@ -16,7 +16,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/juju/juju/core/logger"
-	"github.com/juju/juju/internal/worker/uniter/container"
+	"github.com/juju/juju/internal/worker/uniter/shared/container"
 )
 
 // PebbleClient describes the subset of github.com/canonical/pebble/client.Client that we

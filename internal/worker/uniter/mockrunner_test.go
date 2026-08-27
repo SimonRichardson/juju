@@ -14,8 +14,8 @@ import (
 
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
-	"github.com/juju/juju/internal/worker/uniter/runner"
-	"github.com/juju/juju/internal/worker/uniter/runner/context"
+	"github.com/juju/juju/internal/worker/uniter/shared/context"
+	"github.com/juju/juju/internal/worker/uniter/shared/runner"
 )
 
 // mockRunner implements Runner.

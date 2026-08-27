@@ -1,0 +1,7 @@
+// Copyright 2021 Canonical Ltd.
+// Licensed under the AGPLv3, see LICENCE file for details.
+
+package secrets_test
+
+//go:generate go run github.com/canonical/gomock/mockgen -package mocks -destination mocks/tracker_mock.go github.com/juju/juju/internal/worker/uniter/shared/secrets SecretStateTracker
+//go:generate go run github.com/canonical/gomock/mockgen -package mocks -destination mocks/client_mock.go github.com/juju/juju/internal/worker/uniter/shared/secrets SecretsClient

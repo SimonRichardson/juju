@@ -31,11 +31,11 @@ import (
 	"github.com/juju/juju/internal/worker/secretexpire"
 	"github.com/juju/juju/internal/worker/secretrotate"
 	"github.com/juju/juju/internal/worker/trace"
-	uniterapi "github.com/juju/juju/internal/worker/uniter/api"
-	"github.com/juju/juju/internal/worker/uniter/charm"
-	"github.com/juju/juju/internal/worker/uniter/operation"
-	"github.com/juju/juju/internal/worker/uniter/resolver"
-	"github.com/juju/juju/internal/worker/uniter/runner"
+	uniterapi "github.com/juju/juju/internal/worker/uniter/shared/api"
+	"github.com/juju/juju/internal/worker/uniter/shared/charm"
+	"github.com/juju/juju/internal/worker/uniter/shared/operation"
+	"github.com/juju/juju/internal/worker/uniter/shared/resolver"
+	"github.com/juju/juju/internal/worker/uniter/shared/runner"
 	"github.com/juju/juju/rpc/params"
 )
 

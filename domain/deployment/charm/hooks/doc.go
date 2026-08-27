@@ -34,7 +34,7 @@
 // information or advice before signalling the error.
 
 // Every hook is run in the deployed charm directory, in an environment with the
-// following characteristics(more details can be found at internal/worker/uniter/runner/context/context.go):
+// following characteristics(more details can be found at internal/worker/uniter/shared/context/context.go):
 //   * $PATH is prefixed by a directory containing command line tools through
 //     which the hooks can interact with juju.
 //   * $CHARM_DIR holds the path to the charm directory.

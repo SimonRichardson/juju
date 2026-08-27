@@ -28,24 +28,25 @@ import (
 	coretrace "github.com/juju/juju/core/trace"
 	jworker "github.com/juju/juju/internal/worker"
 	"github.com/juju/juju/internal/worker/fortress"
-	"github.com/juju/juju/internal/worker/uniter/actions"
-	"github.com/juju/juju/internal/worker/uniter/api"
-	"github.com/juju/juju/internal/worker/uniter/charm"
-	"github.com/juju/juju/internal/worker/uniter/container"
-	"github.com/juju/juju/internal/worker/uniter/hook"
-	uniterleadership "github.com/juju/juju/internal/worker/uniter/leadership"
-	"github.com/juju/juju/internal/worker/uniter/operation"
-	"github.com/juju/juju/internal/worker/uniter/reboot"
-	"github.com/juju/juju/internal/worker/uniter/relation"
-	"github.com/juju/juju/internal/worker/uniter/remotestate"
-	"github.com/juju/juju/internal/worker/uniter/resolver"
-	"github.com/juju/juju/internal/worker/uniter/runcommands"
-	"github.com/juju/juju/internal/worker/uniter/runner"
-	"github.com/juju/juju/internal/worker/uniter/runner/context"
-	"github.com/juju/juju/internal/worker/uniter/runner/context/resources"
-	"github.com/juju/juju/internal/worker/uniter/runner/jujuc"
-	"github.com/juju/juju/internal/worker/uniter/secrets"
-	"github.com/juju/juju/internal/worker/uniter/storage"
+	"github.com/juju/juju/internal/worker/uniter/shared"
+	"github.com/juju/juju/internal/worker/uniter/shared/actions"
+	"github.com/juju/juju/internal/worker/uniter/shared/api"
+	"github.com/juju/juju/internal/worker/uniter/shared/charm"
+	"github.com/juju/juju/internal/worker/uniter/shared/container"
+	"github.com/juju/juju/internal/worker/uniter/shared/context"
+	"github.com/juju/juju/internal/worker/uniter/shared/hook"
+	"github.com/juju/juju/internal/worker/uniter/shared/jujuc"
+	uniterleadership "github.com/juju/juju/internal/worker/uniter/shared/leadership"
+	"github.com/juju/juju/internal/worker/uniter/shared/operation"
+	"github.com/juju/juju/internal/worker/uniter/shared/reboot"
+	"github.com/juju/juju/internal/worker/uniter/shared/relation"
+	"github.com/juju/juju/internal/worker/uniter/shared/remotestate"
+	"github.com/juju/juju/internal/worker/uniter/shared/resolver"
+	"github.com/juju/juju/internal/worker/uniter/shared/resources"
+	"github.com/juju/juju/internal/worker/uniter/shared/runcommands"
+	"github.com/juju/juju/internal/worker/uniter/shared/runner"
+	"github.com/juju/juju/internal/worker/uniter/shared/secrets"
+	"github.com/juju/juju/internal/worker/uniter/shared/storage"
 	"github.com/juju/juju/rpc/params"
 )
 
@@ -61,7 +62,7 @@ type Uniter struct {
 	client                       api.UniterClient
 	secretsClient                api.SecretsClient
 	secretsBackendGetter         context.SecretsBackendGetter
-	paths                        Paths
+	paths                        shared.Paths
 	unit                         api.Unit
 	resources                    resources.OpenedResourceClient
 	modelType                    model.ModelType
@@ -169,7 +170,7 @@ type UniterParams struct {
 	TranslateResolverErr    func(error) error
 	Clock                   clock.Clock
 	IsRemoteUnit            bool
-	SocketConfig            *SocketConfig
+	SocketConfig            *shared.SocketConfig
 	// TODO (mattyw, wallyworld, fwereade) Having the observer here make this approach a bit more legitimate, but it isn't.
 	// the observer is only a stop gap to be used in tests. A better approach would be to have the uniter tests start hooks
 	// that write to files, and have the tests watch the output to know that hooks have finished.
@@ -187,7 +188,7 @@ type UniterParams struct {
 type NewOperationExecutorFunc func(stdcontext.Context, string, operation.ExecutorConfig) (operation.Executor, error)
 
 // NewRunnerExecutorFunc defines the type of the NewRunnerExecutor.
-type NewRunnerExecutorFunc func(api.ProviderIDGetter, Paths) runner.ExecFunc
+type NewRunnerExecutorFunc func(api.ProviderIDGetter, shared.Paths) runner.ExecFunc
 
 // NewUniter creates a new Uniter which will install, run, and upgrade
 // a charm on behalf of the unit with the given unitTag, by executing
@@ -209,7 +210,7 @@ func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
 			resources:                    uniterParams.ResourcesClient,
 			secretsClient:                uniterParams.SecretsClient,
 			secretsBackendGetter:         uniterParams.SecretsBackendGetter,
-			paths:                        NewPaths(uniterParams.DataDir, uniterParams.UnitTag, uniterParams.SocketConfig),
+			paths:                        shared.NewPaths(uniterParams.DataDir, uniterParams.UnitTag, uniterParams.SocketConfig),
 			modelType:                    uniterParams.ModelType,
 			hookLock:                     uniterParams.MachineLock,
 			leadershipTracker:            uniterParams.LeadershipTrackerFunc(uniterParams.UnitTag),

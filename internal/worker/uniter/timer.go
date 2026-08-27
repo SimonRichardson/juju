@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/juju/juju/internal/worker/uniter/remotestate"
+	"github.com/juju/juju/internal/worker/uniter/shared/remotestate"
 )
 
 type waitDuration time.Duration

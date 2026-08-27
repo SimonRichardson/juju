@@ -18,8 +18,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/juju/juju/core/logger"
-	"github.com/juju/juju/internal/worker/uniter/operation"
-	"github.com/juju/juju/internal/worker/uniter/runcommands"
+	"github.com/juju/juju/internal/worker/uniter/shared/operation"
+	"github.com/juju/juju/internal/worker/uniter/shared/runcommands"
 	"github.com/juju/juju/juju/sockets"
 )
 

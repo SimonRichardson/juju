@@ -28,6 +28,7 @@ import (
 	"github.com/juju/juju/core/paths"
 	internallogger "github.com/juju/juju/internal/logger"
 	"github.com/juju/juju/internal/worker/uniter"
+	"github.com/juju/juju/internal/worker/uniter/shared"
 	"github.com/juju/juju/juju/sockets"
 )
 
@@ -227,7 +228,7 @@ func (c *RunCommand) Run(ctx *cmd.Context) error {
 }
 
 func (c *RunCommand) getSocket() (sockets.Socket, error) {
-	paths := uniter.NewPaths(config.DataDir, c.unit, nil)
+	paths := shared.NewPaths(config.DataDir, c.unit, nil)
 	return paths.Runtime.LocalJujuExecSocket.Client, nil
 }
 

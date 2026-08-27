@@ -12,9 +12,9 @@ import (
 
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
-	"github.com/juju/juju/internal/worker/uniter/charm"
-	"github.com/juju/juju/internal/worker/uniter/hook"
-	"github.com/juju/juju/internal/worker/uniter/runner/context"
+	"github.com/juju/juju/internal/worker/uniter/shared/charm"
+	"github.com/juju/juju/internal/worker/uniter/shared/context"
+	"github.com/juju/juju/internal/worker/uniter/shared/hook"
 	"github.com/juju/juju/rpc/params"
 )
 

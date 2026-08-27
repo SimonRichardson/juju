@@ -22,7 +22,7 @@ import (
 	"github.com/juju/juju/internal/testing"
 	"github.com/juju/juju/internal/uuid"
 	"github.com/juju/juju/internal/worker/uniter"
-	"github.com/juju/juju/internal/worker/uniter/container"
+	"github.com/juju/juju/internal/worker/uniter/shared/container"
 )
 
 type pebblePollerSuite struct{}
