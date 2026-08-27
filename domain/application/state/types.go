@@ -15,6 +15,7 @@ import (
 	corerelation "github.com/juju/juju/core/relation"
 	corestorage "github.com/juju/juju/core/storage"
 	coreunit "github.com/juju/juju/core/unit"
+	"github.com/juju/juju/domain/application"
 	"github.com/juju/juju/domain/constraints"
 	"github.com/juju/juju/domain/life"
 	domainstorage "github.com/juju/juju/domain/storage"
@@ -142,11 +143,12 @@ type unitDetails struct {
 }
 
 type unitAttributes struct {
-	UnitUUID    coreunit.UUID  `db:"uuid"`
-	Name        coreunit.Name  `db:"name"`
-	LifeID      life.Life      `db:"life_id"`
-	ResolveMode sql.NullInt16  `db:"resolve_mode_id"`
-	ProviderID  sql.NullString `db:"provider_id"`
+	UnitUUID      coreunit.UUID               `db:"uuid"`
+	Name          coreunit.Name               `db:"name"`
+	LifeID        life.Life                   `db:"life_id"`
+	ResolveMode   sql.NullInt16               `db:"resolve_mode_id"`
+	ProviderID    sql.NullString              `db:"provider_id"`
+	RuntimeTypeID application.UnitRuntimeType `db:"runtime_type_id"`
 }
 
 type unitPassword struct {

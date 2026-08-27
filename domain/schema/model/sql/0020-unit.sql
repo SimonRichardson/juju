@@ -360,6 +360,7 @@ SELECT
     u.uuid,
     u.name,
     u.life_id,
+    u.runtime_type_id,
     ur.mode_id AS resolve_mode_id,
     k.provider_id
 FROM unit AS u

@@ -277,9 +277,10 @@ func (s *unitSuite) TestRefresh(c *tc.C) {
 		c.Assert(result, tc.FitsTypeOf, &params.UnitRefreshResults{})
 		*(result.(*params.UnitRefreshResults)) = params.UnitRefreshResults{
 			Results: []params.UnitRefreshResult{{
-				Life:       life.Dying,
-				Resolved:   params.ResolvedRetryHooks,
-				ProviderID: "666",
+				Life:        life.Dying,
+				Resolved:    params.ResolvedRetryHooks,
+				ProviderID:  "666",
+				RuntimeType: "holistic",
 			}},
 		}
 		return nil
@@ -291,6 +292,7 @@ func (s *unitSuite) TestRefresh(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(unit.Life(), tc.Equals, life.Dying)
 	c.Check(unit.ProviderID(), tc.Equals, "666")
+	c.Check(unit.RuntimeType(), tc.Equals, "holistic")
 }
 
 func (s *unitSuite) TestRefreshNotImplemented(c *tc.C) {

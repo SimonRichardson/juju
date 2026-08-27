@@ -32,12 +32,14 @@ import (
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/core/watcher/watchertest"
+	domainapplication "github.com/juju/juju/domain/application"
 	"github.com/juju/juju/domain/application/architecture"
 	domaincharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	"github.com/juju/juju/domain/application/service"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
+	domainlife "github.com/juju/juju/domain/life"
 	machineerrors "github.com/juju/juju/domain/machine/errors"
 	domainnetwork "github.com/juju/juju/domain/network"
 	"github.com/juju/juju/domain/operation"
@@ -132,6 +134,29 @@ func (s *uniterSuite) TestEnsureDead(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(res.Results, tc.HasLen, 1)
 	c.Check(res.Results[0].Error, tc.IsNil)
+}
+
+func (s *uniterSuite) TestRefreshIncludesRuntimeType(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("foo/0")
+	s.applicationService.EXPECT().GetUnitRefreshAttributes(gomock.Any(), unitName).Return(
+		domainapplication.UnitAttributes{
+			Life:        domainlife.Alive,
+			ResolveMode: "none",
+			RuntimeType: domainapplication.UnitRuntimeTypeHolistic,
+		}, nil,
+	)
+
+	result, err := s.uniter.Refresh(c.Context(), params.Entities{Entities: []params.Entity{
+		{Tag: names.NewUnitTag(unitName.String()).String()},
+	}})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.UnitRefreshResults{Results: []params.UnitRefreshResult{{
+		Life:        life.Alive,
+		Resolved:    params.ResolvedNone,
+		RuntimeType: "holistic",
+	}}})
 }
 
 func (s *uniterSuite) TestEnsureDeadNotFound(c *tc.C) {

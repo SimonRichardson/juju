@@ -1416,6 +1416,24 @@ func (s *unitStateSuite) TestGetUnitRefreshAttributesNoProviderID(c *tc.C) {
 	})
 }
 
+func (s *unitStateSuite) TestGetUnitRefreshAttributesHolisticRuntime(c *tc.C) {
+	unitName, unitUUID := s.createNamedIAASUnit(c)
+
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, "UPDATE unit SET runtime_type_id = 1 WHERE uuid = ?", unitUUID.String())
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	refreshAttributes, err := s.state.GetUnitRefreshAttributes(c.Context(), unitName)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(refreshAttributes, tc.DeepEquals, application.UnitAttributes{
+		Life:        life.Alive,
+		ResolveMode: "none",
+		RuntimeType: application.UnitRuntimeTypeHolistic,
+	})
+}
+
 func (s *unitStateSuite) TestGetUnitRefreshAttributesWithResolveMode(c *tc.C) {
 	unitName, unitUUID := s.createNamedIAASUnit(c)
 

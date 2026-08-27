@@ -232,6 +232,16 @@ const (
 	UnitRuntimeTypeHolistic
 )
 
+// String returns the persisted name of the unit runtime type.
+func (r UnitRuntimeType) String() string {
+	switch r {
+	case UnitRuntimeTypeHolistic:
+		return "holistic"
+	default:
+		return "delta"
+	}
+}
+
 // AddIAASUnitArg contains parameters for adding a IAAS unit to state.
 type AddIAASUnitArg struct {
 	domainstorage.CreateIAASUnitStorageArg
@@ -457,6 +467,7 @@ type UnitAttributes struct {
 	Life        life.Life
 	ProviderID  string
 	ResolveMode string
+	RuntimeType UnitRuntimeType
 }
 
 // K8sPodInfo contains information about a unit's k8s pod.

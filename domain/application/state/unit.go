@@ -1490,6 +1490,7 @@ func (st *State) GetUnitRefreshAttributes(ctx context.Context, unitName coreunit
 		Life:        unit.LifeID,
 		ProviderID:  unit.ProviderID.String,
 		ResolveMode: resolveMode,
+		RuntimeType: unit.RuntimeTypeID,
 	}, nil
 }
 
