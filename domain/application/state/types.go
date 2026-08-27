@@ -130,6 +130,7 @@ type unitRow struct {
 	ApplicationID           string         `db:"application_uuid"`
 	NetNodeID               string         `db:"net_node_uuid"`
 	CharmUUID               string         `db:"charm_uuid"`
+	RuntimeTypeID           int            `db:"runtime_type_id"`
 	PasswordHash            sql.NullString `db:"password_hash"`
 	PasswordHashAlgorithmID sql.NullInt16  `db:"password_hash_algorithm_id"`
 }

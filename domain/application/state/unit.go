@@ -1059,6 +1059,7 @@ func (st *State) insertCAASUnitWithName(
 	err := st.insertUnit(ctx, tx, appUUID, unitUUID, args.NetNodeUUID.String(), insertUnitArg{
 		CharmUUID:     charmUUID,
 		UnitName:      unitName,
+		RuntimeType:   args.RuntimeType,
 		K8sPod:        args.K8sPod,
 		Constraints:   args.Constraints,
 		UnitStatusArg: args.UnitStatusArg,

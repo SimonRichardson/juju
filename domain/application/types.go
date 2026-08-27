@@ -212,12 +212,25 @@ type AddUnitArg struct {
 	UnitStatusArg
 	Constraints constraints.Constraints
 	Placement   deployment.Placement
+	RuntimeType UnitRuntimeType
 
 	// NetNodeUUID is the new network node uuid to assign to this unit.
 	NetNodeUUID domainnetwork.NetNodeUUID
 	// UnitUUID is the new unit uuid to assign to this unit.
 	UnitUUID coreunit.UUID
 }
+
+// UnitRuntimeType identifies the execution environment selected for a unit.
+// The value is persisted in the unit_runtime_type lookup table.
+type UnitRuntimeType int
+
+const (
+	// UnitRuntimeTypeDelta is the default runtime for units whose charm does
+	// not opt in to the holistic uniter.
+	UnitRuntimeTypeDelta UnitRuntimeType = iota
+	// UnitRuntimeTypeHolistic is the snapshot-based uniter runtime.
+	UnitRuntimeTypeHolistic
+)
 
 // AddIAASUnitArg contains parameters for adding a IAAS unit to state.
 type AddIAASUnitArg struct {

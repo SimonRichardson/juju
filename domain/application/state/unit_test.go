@@ -748,15 +748,23 @@ func (s *unitStateSuite) TestAddIAASUnits(c *tc.C) {
 	machineName := machineNames[0]
 	c.Check(machineName, tc.Equals, coremachine.Name("0"))
 
-	var unitUUID string
+	var (
+		unitUUID      string
+		runtimeTypeID int
+	)
 	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		err := tx.QueryRowContext(ctx, "SELECT uuid FROM unit WHERE name=?", unitName).Scan(&unitUUID)
+		err := tx.QueryRowContext(
+			ctx,
+			"SELECT uuid, runtime_type_id FROM unit WHERE name=?",
+			unitName,
+		).Scan(&unitUUID, &runtimeTypeID)
 		if err != nil {
 			return err
 		}
 		return nil
 	})
 	c.Assert(err, tc.ErrorIsNil)
+	c.Check(runtimeTypeID, tc.Equals, int(application.UnitRuntimeTypeDelta))
 	s.assertUnitStatus(
 		c, "unit_agent", coreunit.UUID(unitUUID),
 		int(u.AgentStatus.Status), u.AgentStatus.Message,
@@ -834,6 +842,7 @@ func (s *unitStateSuite) TestAddCAASUnits(c *tc.C) {
 	now := new(time.Now())
 	u := application.AddCAASUnitArg{
 		AddUnitArg: application.AddUnitArg{
+			RuntimeType: application.UnitRuntimeTypeHolistic,
 			NetNodeUUID: tc.Must(c, domainnetwork.NewNetNodeUUID),
 			UnitStatusArg: application.UnitStatusArg{
 				AgentStatus: &status.StatusInfo[status.UnitAgentStatusType]{
@@ -858,15 +867,23 @@ func (s *unitStateSuite) TestAddCAASUnits(c *tc.C) {
 	unitName := unitNames[0]
 	c.Check(unitName, tc.Equals, coreunit.Name("foo/0"))
 
-	var unitUUID string
+	var (
+		unitUUID      string
+		runtimeTypeID int
+	)
 	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		err := tx.QueryRowContext(ctx, "SELECT uuid FROM unit WHERE name=?", unitName).Scan(&unitUUID)
+		err := tx.QueryRowContext(
+			ctx,
+			"SELECT uuid, runtime_type_id FROM unit WHERE name=?",
+			unitName,
+		).Scan(&unitUUID, &runtimeTypeID)
 		if err != nil {
 			return err
 		}
 		return nil
 	})
 	c.Assert(err, tc.ErrorIsNil)
+	c.Check(runtimeTypeID, tc.Equals, int(application.UnitRuntimeTypeHolistic))
 	s.assertUnitStatus(
 		c, "unit_agent", coreunit.UUID(unitUUID),
 		int(u.AgentStatus.Status), u.AgentStatus.Message,
