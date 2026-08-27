@@ -68,6 +68,7 @@ type uniterSuite struct {
 
 	applicationService    *MockApplicationService
 	relationService       *MockRelationService
+	statusService         *MockStatusService
 	machineService        *MockMachineService
 	operationService      *MockOperationService
 	networkService        *MockNetworkService
@@ -204,6 +205,7 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 
 	unitName := coreunit.Name("mysql/0")
 	appUUID := coreapplication.UUID("application-uuid")
+	privateAddress := "10.0.0.1"
 	s.applicationService.EXPECT().GetUnitRefreshAttributes(gomock.Any(), unitName).Return(
 		domainapplication.UnitAttributes{Life: domainlife.Alive, ResolveMode: "none"}, nil,
 	)
@@ -217,6 +219,28 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 	)
 	s.applicationService.EXPECT().GetCharmModifiedVersion(gomock.Any(), appUUID).Return(3, nil)
 	s.applicationService.EXPECT().GetUnitWorkloadVersion(gomock.Any(), unitName).Return("8.0", nil)
+	s.statusService.EXPECT().GetUnitWorkloadStatus(gomock.Any(), unitName).Return(status.StatusInfo{
+		Status:  status.Active,
+		Message: "ready",
+		Data:    map[string]any{"connections": 10},
+	}, nil)
+	s.statusService.EXPECT().GetApplicationDisplayStatus(gomock.Any(), "mysql").Return(status.StatusInfo{
+		Status:  status.Active,
+		Message: "available",
+	}, nil)
+	s.applicationService.EXPECT().GetIAASUnitContext(gomock.Any(), unitName).Return(service.IAASUnitContext{
+		CloudAPIVersion: "v1",
+		PrivateAddress:  &privateAddress,
+		OpenedMachinePortRangesByEndpoint: map[coreunit.Name]network.GroupedPortRanges{
+			unitName: {
+				"db": []network.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
+			},
+		},
+	}, nil)
+	s.controllerNodeService.EXPECT().GetAllAPIAddressesForAgents(gomock.Any()).Return([]string{"10.0.0.2:17070"}, nil)
+	s.tracingService.EXPECT().GetCharmTracingConfig(gomock.Any()).Return(tracingservice.CharmTracingConfig{
+		HTTPEndpoint: "https://trace.example",
+	}, nil)
 	s.relationService.EXPECT().GetRelationUUIDsByUnitName(gomock.Any(), unitName).Return(nil, nil)
 
 	result, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{
@@ -234,6 +258,20 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		Trust:                true,
 		Relations:            []params.RelationSnapshot{},
 		WorkloadVersion:      "8.0",
+		UnitStatus: params.DetailedStatus{
+			Status: "active",
+			Info:   "ready",
+			Data:   map[string]any{"connections": 10},
+		},
+		ApplicationStatus: params.DetailedStatus{
+			Status: "active",
+			Info:   "available",
+		},
+		PortRanges:         []params.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
+		APIAddresses:       []string{"10.0.0.2:17070"},
+		CloudAPIVersion:    "v1",
+		PrivateAddress:     &privateAddress,
+		CharmTracingConfig: &params.CharmTracingConfig{HTTPEndpoint: "https://trace.example"},
 	})
 }
 
@@ -264,8 +302,27 @@ func (s *uniterSuite) TestGetRelationSnapshots(c *tc.C) {
 	s.relationService.EXPECT().GetRelationUnitSettings(gomock.Any(), relationUUID, unitName).Return(
 		map[string]string{"host": "10.0.0.1"}, nil,
 	)
+	remoteAppUUID := coreapplication.UUID("wordpress-uuid")
+	s.applicationService.EXPECT().GetApplicationUUIDByName(gomock.Any(), "wordpress").Return(remoteAppUUID, nil)
+	s.relationService.EXPECT().GetRelationApplicationSettings(gomock.Any(), relationUUID, remoteAppUUID).Return(
+		map[string]string{"database": "mysql"}, nil,
+	)
+	s.relationService.EXPECT().GetInScopeUnits(gomock.Any(), remoteAppUUID, relationUUID).Return(
+		[]coreunit.Name{"wordpress/0", "wordpress/1"}, nil,
+	)
+	s.relationService.EXPECT().GetUnitSettingsForUnits(gomock.Any(), relationUUID, []coreunit.Name{"wordpress/0", "wordpress/1"}).Return(
+		[]relation.UnitSettings{
+			{UnitID: 0, Settings: map[string]string{"ingress": "true"}},
+			{UnitID: 1, Settings: map[string]string{"ingress": "false"}},
+		}, nil,
+	)
 
-	result, err := s.uniter.getRelationSnapshots(c.Context(), unitName)
+	localAppUUID := coreapplication.UUID("mysql-uuid")
+	s.relationService.EXPECT().GetRelationApplicationSettingsWithLeader(gomock.Any(), unitName, relationUUID, localAppUUID).Return(
+		map[string]string{"database": "mysql"}, nil,
+	)
+
+	result, err := s.uniter.getRelationSnapshots(c.Context(), unitName, localAppUUID)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(result, tc.DeepEquals, []params.RelationSnapshot{{
 		ID:                7,
@@ -275,6 +332,16 @@ func (s *uniterSuite) TestGetRelationSnapshots(c *tc.C) {
 		Suspended:         true,
 		RemoteApplication: "wordpress",
 		MySettings:        map[string]string{"host": "10.0.0.1"},
+		MyApplicationSettings: map[string]string{
+			"database": "mysql",
+		},
+		RemoteApplicationSettings: map[string]string{
+			"database": "mysql",
+		},
+		RemoteUnits: []params.RemoteUnitSnapshot{
+			{Name: "wordpress/0", Settings: map[string]string{"ingress": "true"}},
+			{Name: "wordpress/1", Settings: map[string]string{"ingress": "false"}},
+		},
 	}})
 }
 
@@ -1925,6 +1992,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 
 	s.applicationService = NewMockApplicationService(ctrl)
 	s.relationService = NewMockRelationService(ctrl)
+	s.statusService = NewMockStatusService(ctrl)
 	s.machineService = NewMockMachineService(ctrl)
 	s.networkService = NewMockNetworkService(ctrl)
 	s.operationService = NewMockOperationService(ctrl)
@@ -1944,6 +2012,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	s.uniter = &UniterAPI{
 		applicationService:    s.applicationService,
 		relationService:       s.relationService,
+		statusService:         s.statusService,
 		machineService:        s.machineService,
 		networkService:        s.networkService,
 		operationService:      s.operationService,
@@ -1964,6 +2033,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 		s.uniter = nil
 		s.applicationService = nil
 		s.relationService = nil
+		s.statusService = nil
 		s.machineService = nil
 		s.networkService = nil
 		s.operationService = nil

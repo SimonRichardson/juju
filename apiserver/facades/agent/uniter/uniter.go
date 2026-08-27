@@ -3450,7 +3450,35 @@ func (u *UniterAPI) getUnitSnapshot(
 	if err != nil {
 		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
-	relations, err := u.getRelationSnapshots(ctx, unitName)
+	unitStatus, err := u.statusService.GetUnitWorkloadStatus(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	applicationStatus, err := u.statusService.GetApplicationDisplayStatus(ctx, unitName.Application())
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	unitContext, err := u.getUnitContext(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	apiAddresses, err := u.controllerNodeService.GetAllAPIAddressesForAgents(ctx)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	tracingConfig, err := u.tracingService.GetCharmTracingConfig(ctx)
+	if err != nil {
+		u.logger.Errorf(ctx, "getting charm tracing config failed: %v", err)
+	}
+	var snapshotTracingConfig *params.CharmTracingConfig
+	if err == nil {
+		snapshotTracingConfig = &params.CharmTracingConfig{
+			HTTPEndpoint:  tracingConfig.HTTPEndpoint,
+			GRPCEndpoint:  tracingConfig.GRPCEndpoint,
+			CACertificate: tracingConfig.CACertificate,
+		}
+	}
+	relations, err := u.getRelationSnapshots(ctx, unitName, appUUID)
 	if err != nil {
 		return params.UnitSnapshot{}, errors.Trace(err)
 	}
@@ -3465,11 +3493,45 @@ func (u *UniterAPI) getUnitSnapshot(
 		Config:               map[string]any(config),
 		Trust:                trust,
 		WorkloadVersion:      workloadVersion,
+		UnitStatus:           detailedStatusFromStatusInfo(unitStatus),
+		ApplicationStatus:    detailedStatusFromStatusInfo(applicationStatus),
 		Relations:            relations,
+		PortRanges:           portRangesForUnit(unitContext, tag),
+		APIAddresses:         apiAddresses,
+		CloudAPIVersion:      unitContext.CloudAPIVersion,
+		LegacyProxySettings:  unitContext.LegacyProxySettings,
+		JujuProxySettings:    unitContext.JujuProxySettings,
+		PrivateAddress:       unitContext.PrivateAddress,
+		CharmTracingConfig:   snapshotTracingConfig,
 	}, nil
 }
 
-func (u *UniterAPI) getRelationSnapshots(ctx context.Context, unitName coreunit.Name) ([]params.RelationSnapshot, error) {
+func detailedStatusFromStatusInfo(statusInfo status.StatusInfo) params.DetailedStatus {
+	return params.DetailedStatus{
+		Status: statusInfo.Status.String(),
+		Info:   statusInfo.Message,
+		Data:   statusInfo.Data,
+		Since:  statusInfo.Since,
+	}
+}
+
+func portRangesForUnit(unitContext params.UnitContext, unitTag names.UnitTag) []params.PortRange {
+	unitTagString := unitTag.String()
+	result := make([]params.PortRange, 0)
+	for _, portRanges := range unitContext.OpenedMachinePortRangesByEndpoint[unitTagString] {
+		result = append(result, portRanges...)
+	}
+	for _, portRanges := range unitContext.OpenedPortRangesByEndpoint[unitTagString] {
+		result = append(result, portRanges...)
+	}
+	return result
+}
+
+func (u *UniterAPI) getRelationSnapshots(
+	ctx context.Context,
+	unitName coreunit.Name,
+	applicationUUID application.UUID,
+) ([]params.RelationSnapshot, error) {
 	relationUUIDs, err := u.relationService.GetRelationUUIDsByUnitName(ctx, unitName)
 	if err != nil {
 		return nil, internalerrors.Capture(err)
@@ -3507,10 +3569,61 @@ func (u *UniterAPI) getRelationSnapshots(ctx context.Context, unitName coreunit.
 			Suspended:  details.Suspended,
 			MySettings: mySettings,
 		}
+		localApplicationSettings, err := u.relationService.GetRelationApplicationSettingsWithLeader(
+			ctx, unitName, relationUUID, applicationUUID,
+		)
+		if err == nil {
+			snapshot.MyApplicationSettings = localApplicationSettings
+		} else if !errors.Is(err, corelease.ErrNotHeld) {
+			return nil, internalerrors.Capture(err)
+		}
 		if remote != nil {
 			snapshot.RemoteApplication = remote.ApplicationName
+			remoteAppUUID, err := u.applicationService.GetApplicationUUIDByName(ctx, remote.ApplicationName)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			remoteSettings, err := u.relationService.GetRelationApplicationSettings(ctx, relationUUID, remoteAppUUID)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			snapshot.RemoteApplicationSettings = remoteSettings
+
+			remoteUnitNames, err := u.relationService.GetInScopeUnits(ctx, remoteAppUUID, relationUUID)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			remoteUnits, err := u.getRemoteUnitSnapshots(ctx, relationUUID, remoteUnitNames)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			snapshot.RemoteUnits = remoteUnits
 		}
 		result = append(result, snapshot)
+	}
+	return result, nil
+}
+
+func (u *UniterAPI) getRemoteUnitSnapshots(
+	ctx context.Context,
+	relationUUID corerelation.UUID,
+	unitNames []coreunit.Name,
+) ([]params.RemoteUnitSnapshot, error) {
+	settings, err := u.relationService.GetUnitSettingsForUnits(ctx, relationUUID, unitNames)
+	if err != nil {
+		return nil, internalerrors.Capture(err)
+	}
+	settingsByUnitID := make(map[int]map[string]string, len(settings))
+	for _, setting := range settings {
+		settingsByUnitID[setting.UnitID] = setting.Settings
+	}
+
+	result := make([]params.RemoteUnitSnapshot, len(unitNames))
+	for i, unitName := range unitNames {
+		result[i] = params.RemoteUnitSnapshot{
+			Name:     unitName.String(),
+			Settings: settingsByUnitID[unitName.Number()],
+		}
 	}
 	return result, nil
 }
