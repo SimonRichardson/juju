@@ -1,3 +1,15 @@
+CREATE TABLE unit_runtime_type (
+    id INT PRIMARY KEY,
+    type TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_unit_runtime_type_type
+ON unit_runtime_type (type);
+
+INSERT INTO unit_runtime_type VALUES
+(0, 'delta'),
+(1, 'holistic');
+
 CREATE TABLE unit (
     uuid TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -5,6 +17,7 @@ CREATE TABLE unit (
     application_uuid TEXT NOT NULL,
     net_node_uuid TEXT NOT NULL,
     charm_uuid TEXT NOT NULL,
+    runtime_type_id INT NOT NULL DEFAULT 0,
     password_hash_algorithm_id TEXT,
     password_hash TEXT,
     CONSTRAINT fk_unit_life
@@ -19,6 +32,9 @@ CREATE TABLE unit (
     CONSTRAINT fk_unit_charm
     FOREIGN KEY (charm_uuid)
     REFERENCES charm (uuid),
+    CONSTRAINT fk_unit_runtime_type
+    FOREIGN KEY (runtime_type_id)
+    REFERENCES unit_runtime_type (id),
     CONSTRAINT fk_unit_password_hash_algorithm
     FOREIGN KEY (password_hash_algorithm_id)
     REFERENCES password_hash_algorithm (id)
