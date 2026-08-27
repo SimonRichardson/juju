@@ -18,8 +18,8 @@ import (
 	corerelation "github.com/juju/juju/core/relation"
 	"github.com/juju/juju/core/status"
 	jujucharm "github.com/juju/juju/domain/deployment/charm"
-	uniterapi "github.com/juju/juju/internal/worker/uniter/api"
-	apimocks "github.com/juju/juju/internal/worker/uniter/api/mocks"
+	uniterapi "github.com/juju/juju/internal/worker/uniter/shared/api"
+	apimocks "github.com/juju/juju/internal/worker/uniter/shared/api/mocks"
 	"github.com/juju/juju/rpc/params"
 )
 

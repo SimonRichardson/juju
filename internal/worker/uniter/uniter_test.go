@@ -28,11 +28,11 @@ import (
 	coretesting "github.com/juju/juju/internal/testing"
 	"github.com/juju/juju/internal/worker"
 	"github.com/juju/juju/internal/worker/uniter"
-	apimocks "github.com/juju/juju/internal/worker/uniter/api/mocks"
-	"github.com/juju/juju/internal/worker/uniter/hook"
-	"github.com/juju/juju/internal/worker/uniter/operation"
-	"github.com/juju/juju/internal/worker/uniter/remotestate"
-	contextmocks "github.com/juju/juju/internal/worker/uniter/runner/context/mocks"
+	apimocks "github.com/juju/juju/internal/worker/uniter/shared/api/mocks"
+	contextmocks "github.com/juju/juju/internal/worker/uniter/shared/context/mocks"
+	"github.com/juju/juju/internal/worker/uniter/shared/hook"
+	"github.com/juju/juju/internal/worker/uniter/shared/operation"
+	"github.com/juju/juju/internal/worker/uniter/shared/remotestate"
 	"github.com/juju/juju/rpc/params"
 )
 

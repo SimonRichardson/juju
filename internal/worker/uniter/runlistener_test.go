@@ -13,7 +13,7 @@ import (
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	"github.com/juju/juju/internal/testing"
 	"github.com/juju/juju/internal/worker/uniter"
-	"github.com/juju/juju/internal/worker/uniter/runcommands"
+	"github.com/juju/juju/internal/worker/uniter/shared/runcommands"
 	"github.com/juju/juju/juju/sockets"
 )
 

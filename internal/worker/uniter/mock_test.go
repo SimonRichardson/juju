@@ -9,10 +9,10 @@ import (
 	"github.com/juju/names/v6"
 
 	"github.com/juju/juju/core/secrets"
-	"github.com/juju/juju/internal/worker/uniter/api"
-	"github.com/juju/juju/internal/worker/uniter/operation"
-	"github.com/juju/juju/internal/worker/uniter/remotestate"
-	"github.com/juju/juju/internal/worker/uniter/resolver"
+	"github.com/juju/juju/internal/worker/uniter/shared/api"
+	"github.com/juju/juju/internal/worker/uniter/shared/operation"
+	"github.com/juju/juju/internal/worker/uniter/shared/remotestate"
+	"github.com/juju/juju/internal/worker/uniter/shared/resolver"
 	"github.com/juju/juju/rpc/params"
 )
 

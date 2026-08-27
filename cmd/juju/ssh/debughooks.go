@@ -25,7 +25,7 @@ import (
 	"github.com/juju/juju/domain/deployment/charm"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
 	"github.com/juju/juju/internal/network/ssh"
-	unitdebug "github.com/juju/juju/internal/worker/uniter/runner/debug"
+	unitdebug "github.com/juju/juju/internal/worker/uniter/shared/debug"
 )
 
 func NewDebugHooksCommand(hostChecker ssh.ReachableChecker, retryStrategy retry.CallArgs, publicKeyRetryStrategy retry.CallArgs) cmd.Command {
