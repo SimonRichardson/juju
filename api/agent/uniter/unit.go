@@ -221,6 +221,17 @@ func (s *Unit) WatchComposite(ctx context.Context) (watcher.NotifyWatcher, error
 	return apiwatcher.NewNotifyWatcher(s.client.facade.RawAPICaller(), result), nil
 }
 
+// Snapshot returns the current state used by a holistic unit runtime to
+// reconcile its charm.
+func (s *Unit) Snapshot(ctx context.Context) (params.UnitSnapshot, error) {
+	var result params.UnitSnapshot
+	err := s.client.facade.FacadeCall(ctx, "GetUnitSnapshot", params.Entity{Tag: s.tag.String()}, &result)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(apiservererrors.RestoreError(err))
+	}
+	return result, nil
+}
+
 // WatchResolveMode returns a NotifyWatcher that will send notifications when
 // the resolve mode of the unit changes.
 func (s *Unit) WatchResolveMode(ctx context.Context) (watcher.NotifyWatcher, error) {

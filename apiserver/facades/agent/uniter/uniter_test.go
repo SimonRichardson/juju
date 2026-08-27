@@ -198,6 +198,50 @@ func (s *uniterSuite) TestWatchUnitCompositeNotFound(c *tc.C) {
 	c.Check(result.Error, tc.Satisfies, params.IsCodeNotFound)
 }
 
+func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("mysql/0")
+	appUUID := coreapplication.UUID("application-uuid")
+	s.applicationService.EXPECT().GetUnitRefreshAttributes(gomock.Any(), unitName).Return(
+		domainapplication.UnitAttributes{Life: domainlife.Alive, ResolveMode: "none"}, nil,
+	)
+	s.applicationService.EXPECT().GetApplicationUUIDByUnitName(gomock.Any(), unitName).Return(appUUID, nil)
+	s.applicationService.EXPECT().GetApplicationConfigWithDefaults(gomock.Any(), appUUID).Return(
+		charm.Config{"max-connections": 100}, nil,
+	)
+	s.applicationService.EXPECT().GetApplicationTrustSetting(gomock.Any(), "mysql").Return(true, nil)
+	s.applicationService.EXPECT().GetCharmLocatorByApplicationName(gomock.Any(), "mysql").Return(
+		domaincharm.CharmLocator{Name: "mysql", Source: domaincharm.CharmHubSource, Revision: 42}, nil,
+	)
+	s.applicationService.EXPECT().GetCharmModifiedVersion(gomock.Any(), appUUID).Return(3, nil)
+	s.applicationService.EXPECT().GetUnitWorkloadVersion(gomock.Any(), unitName).Return("8.0", nil)
+
+	result, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{
+		Tag: names.NewUnitTag(unitName.String()).String(),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.UnitSnapshot{
+		UnitName:             "mysql/0",
+		ApplicationName:      "mysql",
+		Life:                 life.Alive,
+		ResolvedMode:         params.ResolvedNone,
+		CharmURL:             "ch:mysql-42",
+		CharmModifiedVersion: 3,
+		Config:               map[string]any{"max-connections": 100},
+		Trust:                true,
+		WorkloadVersion:      "8.0",
+	})
+}
+
+func (s *uniterSuite) TestGetUnitSnapshotUnauthorized(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.badTag = names.NewUnitTag("mysql/0")
+	_, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{Tag: s.badTag.String()})
+	c.Check(err, tc.Satisfies, params.IsCodeUnauthorized)
+}
+
 func (s *uniterSuite) TestEnsureDeadNotFound(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 

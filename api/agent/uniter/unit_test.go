@@ -404,6 +404,23 @@ func (s *unitSuite) TestWatchComposite(c *tc.C) {
 	defer wc.AssertStops()
 }
 
+func (s *unitSuite) TestSnapshot(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		c.Check(objType, tc.Equals, "Uniter")
+		c.Check(request, tc.Equals, "GetUnitSnapshot")
+		c.Check(arg, tc.DeepEquals, params.Entity{Tag: "unit-mysql-0"})
+		c.Assert(result, tc.FitsTypeOf, &params.UnitSnapshot{})
+		*(result.(*params.UnitSnapshot)) = params.UnitSnapshot{UnitName: "mysql/0"}
+		return nil
+	})
+	client := uniter.NewClient(apiCaller, names.NewUnitTag("mysql/0"))
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+
+	snapshot, err := unit.Snapshot(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(snapshot, tc.DeepEquals, params.UnitSnapshot{UnitName: "mysql/0"})
+}
+
 func (s *unitSuite) TestWatchResolveMode(c *tc.C) {
 	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
 		if objType == "NotifyWatcher" {

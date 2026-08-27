@@ -3382,6 +3382,88 @@ func (u *UniterAPI) GetUnitContext(ctx context.Context, args params.Entity) (par
 	return unitContext, nil
 }
 
+// GetUnitSnapshot returns the current state needed by a holistic unit runtime
+// to reconcile its charm.
+func (u *UniterAPI) GetUnitSnapshot(ctx context.Context, args params.Entity) (params.UnitSnapshot, error) {
+	canAccess, err := u.accessUnit(ctx)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+
+	tag, err := names.ParseUnitTag(args.Tag)
+	if err != nil || !canAccess(tag) {
+		return params.UnitSnapshot{}, apiservererrors.ServerError(apiservererrors.ErrPerm)
+	}
+	unitName, err := coreunit.NewName(tag.Id())
+	if err != nil {
+		return params.UnitSnapshot{}, apiservererrors.ServerError(
+			errors.BadRequestf("parsing unit name: %s", tag.Id()),
+		)
+	}
+
+	snapshot, err := u.getUnitSnapshot(ctx, tag, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, apiservererrors.ServerError(err)
+	}
+	return snapshot, nil
+}
+
+func (u *UniterAPI) getUnitSnapshot(
+	ctx context.Context,
+	tag names.UnitTag,
+	unitName coreunit.Name,
+) (params.UnitSnapshot, error) {
+	attributes, err := u.getRefresh(ctx, tag)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	lifeValue, err := encodeLife(attributes.Life)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	resolvedMode, err := encodeResolveMode(attributes.ResolveMode)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+
+	appUUID, err := u.applicationService.GetApplicationUUIDByUnitName(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	config, err := u.applicationService.GetApplicationConfigWithDefaults(ctx, appUUID)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	trust, err := u.applicationService.GetApplicationTrustSetting(ctx, unitName.Application())
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	charmURL, _, err := u.charmURLForUnit(ctx, tag)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	charmModifiedVersion, err := u.applicationService.GetCharmModifiedVersion(ctx, appUUID)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	workloadVersion, err := u.applicationService.GetUnitWorkloadVersion(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+
+	return params.UnitSnapshot{
+		UnitName:             unitName.String(),
+		ApplicationName:      unitName.Application(),
+		Life:                 lifeValue,
+		ResolvedMode:         resolvedMode,
+		CharmURL:             charmURL,
+		CharmModifiedVersion: charmModifiedVersion,
+		Config:               map[string]any(config),
+		Trust:                trust,
+		WorkloadVersion:      workloadVersion,
+	}, nil
+}
+
 func (u *UniterAPI) getUnitContext(ctx context.Context, unitName coreunit.Name) (params.UnitContext, error) {
 	if u.modelType == model.CAAS {
 		return u.getCAASUnitContext(ctx, unitName)
