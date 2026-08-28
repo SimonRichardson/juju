@@ -81,7 +81,6 @@ type MockApplicationServiceMockRecorder struct {
 	watchApplicationExpects                 []*gomock.Call2_2[context.Context, string, watcher.NotifyWatcher, error]
 	watchApplicationConfigHashExpects       []*gomock.Call2_2[context.Context, string, watcher.StringsWatcher, error]
 	watchUnitAddressesHashExpects           []*gomock.Call2_2[context.Context, unit.Name, watcher.StringsWatcher, error]
-	watchUnitCompositeExpects               []*gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 	watchUnitForLegacyUniterExpects         []*gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 }
 
@@ -564,24 +563,6 @@ func (mr *MockApplicationServiceMockRecorder) WatchUnitAddressesHash(arg0, arg1 
 
 // MockApplicationServiceWatchUnitAddressesHashCall is the typed call wrapper for WatchUnitAddressesHash.
 type MockApplicationServiceWatchUnitAddressesHashCall = gomock.Call2_2[context.Context, unit.Name, watcher.StringsWatcher, error]
-
-// WatchUnitComposite mocks base method.
-func (m *MockApplicationService) WatchUnitComposite(arg0 context.Context, arg1 unit.Name) (watcher.NotifyWatcher, error) {
-	m.ctrl.T.Helper()
-	return gomock.Dispatch2_2(&m.recorder.watchUnitCompositeExpects, m.ctrl, m, "WatchUnitComposite", arg0, arg1)
-}
-
-// WatchUnitComposite indicates an expected call of WatchUnitComposite.
-func (mr *MockApplicationServiceMockRecorder) WatchUnitComposite(arg0, arg1 any) *MockApplicationServiceWatchUnitCompositeCall {
-	mr.mock.ctrl.T.Helper()
-	call := gomock.NewCall2_2[context.Context, unit.Name, watcher.NotifyWatcher, error](mr.mock.ctrl.T, mr.mock, "WatchUnitComposite", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1))
-	mr.watchUnitCompositeExpects = append(mr.watchUnitCompositeExpects, call)
-	mr.mock.ctrl.Track(call.Call)
-	return call
-}
-
-// MockApplicationServiceWatchUnitCompositeCall is the typed call wrapper for WatchUnitComposite.
-type MockApplicationServiceWatchUnitCompositeCall = gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 
 // WatchUnitForLegacyUniter mocks base method.
 func (m *MockApplicationService) WatchUnitForLegacyUniter(arg0 context.Context, arg1 unit.Name) (watcher.NotifyWatcher, error) {
@@ -2195,6 +2176,7 @@ type MockUnitStateServiceMockRecorder struct {
 	getStateExpects                 []*gomock.Call2_2[context.Context, unit.Name, unitstate.RetrievedUnitState, error]
 	resolveSecretGrantOwnersExpects []*gomock.Call4_2[context.Context, unit.Name, []unitstate.CreateSecretArg, []*secrets.URI, map[string]secret.CharmSecretOwnerKind, error]
 	setStateExpects                 []*gomock.Call2_1[context.Context, unitstate.UnitState, error]
+	watchUnitSnapshotExpects        []*gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 }
 
 // NewMockUnitStateService creates a new mock instance.
@@ -2208,6 +2190,24 @@ func NewMockUnitStateService(ctrl *gomock.Controller) *MockUnitStateService {
 func (m *MockUnitStateService) EXPECT() *MockUnitStateServiceMockRecorder {
 	return m.recorder
 }
+
+// WatchUnitSnapshot mocks base method.
+func (m *MockUnitStateService) WatchUnitSnapshot(ctx context.Context, unitName unit.Name) (watcher.NotifyWatcher, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.watchUnitSnapshotExpects, m.ctrl, m, "WatchUnitSnapshot", ctx, unitName)
+}
+
+// WatchUnitSnapshot indicates an expected call of WatchUnitSnapshot.
+func (mr *MockUnitStateServiceMockRecorder) WatchUnitSnapshot(ctx, unitName any) *MockUnitStateServiceWatchUnitSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.Name, watcher.NotifyWatcher, error](mr.mock.ctrl.T, mr.mock, "WatchUnitSnapshot", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitName))
+	mr.watchUnitSnapshotExpects = append(mr.watchUnitSnapshotExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockUnitStateServiceWatchUnitSnapshotCall is the typed call wrapper for WatchUnitSnapshot.
+type MockUnitStateServiceWatchUnitSnapshotCall = gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 
 // CommitHookChanges mocks base method.
 func (m *MockUnitStateService) CommitHookChanges(ctx context.Context, arg unitstate.CommitHookChangesArg) error {

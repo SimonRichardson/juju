@@ -456,7 +456,6 @@ type MockStateMockRecorder struct {
 	getUnitSubordinatesExpects                                []*gomock.Call2_2[context.Context, unit.Name, []unit.Name, error]
 	getUnitUUIDAndNetNodeForNameExpects                       []*gomock.Call2_3[context.Context, unit.Name, unit.UUID, network0.NetNodeUUID, error]
 	getUnitUUIDByNameExpects                                  []*gomock.Call2_2[context.Context, unit.Name, unit.UUID, error]
-	getUnitWatchIdentifiersExpects                            []*gomock.Call2_2[context.Context, unit.Name, application0.UnitWatchIdentifiers, error]
 	getUnitWorkloadVersionExpects                             []*gomock.Call2_2[context.Context, unit.Name, string, error]
 	getUnitsK8sPodInfoExpects                                 []*gomock.Call1_2[context.Context, map[unit.Name]application0.K8sPodInfo, error]
 	initialWatchStatementApplicationConfigHashExpects         []*gomock.Call1_2[string, string, eventsource.NamespaceQuery]
@@ -2162,24 +2161,6 @@ func (mr *MockStateMockRecorder) GetUnitUUIDByName(arg0, arg1 any) *MockStateGet
 
 // MockStateGetUnitUUIDByNameCall is the typed call wrapper for GetUnitUUIDByName.
 type MockStateGetUnitUUIDByNameCall = gomock.Call2_2[context.Context, unit.Name, unit.UUID, error]
-
-// GetUnitWatchIdentifiers mocks base method.
-func (m *MockState) GetUnitWatchIdentifiers(ctx context.Context, name unit.Name) (application0.UnitWatchIdentifiers, error) {
-	m.ctrl.T.Helper()
-	return gomock.Dispatch2_2(&m.recorder.getUnitWatchIdentifiersExpects, m.ctrl, m, "GetUnitWatchIdentifiers", ctx, name)
-}
-
-// GetUnitWatchIdentifiers indicates an expected call of GetUnitWatchIdentifiers.
-func (mr *MockStateMockRecorder) GetUnitWatchIdentifiers(ctx, name any) *MockStateGetUnitWatchIdentifiersCall {
-	mr.mock.ctrl.T.Helper()
-	call := gomock.NewCall2_2[context.Context, unit.Name, application0.UnitWatchIdentifiers, error](mr.mock.ctrl.T, mr.mock, "GetUnitWatchIdentifiers", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(name))
-	mr.getUnitWatchIdentifiersExpects = append(mr.getUnitWatchIdentifiersExpects, call)
-	mr.mock.ctrl.Track(call.Call)
-	return call
-}
-
-// MockStateGetUnitWatchIdentifiersCall is the typed call wrapper for GetUnitWatchIdentifiers.
-type MockStateGetUnitWatchIdentifiersCall = gomock.Call2_2[context.Context, unit.Name, application0.UnitWatchIdentifiers, error]
 
 // GetUnitWorkloadVersion mocks base method.
 func (m *MockState) GetUnitWorkloadVersion(ctx context.Context, unitName unit.Name) (string, error) {

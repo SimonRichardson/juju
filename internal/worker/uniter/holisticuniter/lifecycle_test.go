@@ -26,15 +26,14 @@ func (s *LifecycleSuite) TestInitialSetupIsDistinctAndOrdered(c *tc.C) {
 	snapshot := params.UnitSnapshot{CharmURL: "charmhub/example"}
 
 	c.Check(planner.Plan(snapshot), tc.DeepEquals, []hooks.Kind{
-		hooks.Install, hooks.ConfigChanged, hooks.Start,
+		hooks.Install, hooks.Start,
 	})
 	c.Assert(planner.Complete(c.Context(), hooks.Install, snapshot), tc.ErrorIsNil)
-	c.Assert(planner.Complete(c.Context(), hooks.ConfigChanged, snapshot), tc.ErrorIsNil)
 	c.Assert(planner.Complete(c.Context(), hooks.Start, snapshot), tc.ErrorIsNil)
 	c.Check(planner.Plan(snapshot), tc.IsNil)
 }
 
-func (s *LifecycleSuite) TestUpgradeIsFollowedByConfigChanged(c *tc.C) {
+func (s *LifecycleSuite) TestCharmChangeDispatchesReconcile(c *tc.C) {
 	planner := NewLifecyclePlanner()
 	initial := params.UnitSnapshot{CharmURL: "charmhub/example"}
 	for _, event := range planner.Plan(initial) {
@@ -42,12 +41,21 @@ func (s *LifecycleSuite) TestUpgradeIsFollowedByConfigChanged(c *tc.C) {
 	}
 
 	upgrade := params.UnitSnapshot{CharmURL: "charmhub/example-revision-2"}
-	c.Check(planner.Plan(upgrade), tc.DeepEquals, []hooks.Kind{
-		hooks.UpgradeCharm, hooks.ConfigChanged,
-	})
-	c.Assert(planner.Complete(c.Context(), hooks.UpgradeCharm, upgrade), tc.ErrorIsNil)
-	c.Assert(planner.Complete(c.Context(), hooks.ConfigChanged, upgrade), tc.ErrorIsNil)
+	c.Check(planner.Plan(upgrade), tc.DeepEquals, []hooks.Kind{hooks.Reconcile})
+	c.Assert(planner.Complete(c.Context(), hooks.Reconcile, upgrade), tc.ErrorIsNil)
 	c.Check(planner.Plan(upgrade), tc.IsNil)
+}
+
+func (s *LifecycleSuite) TestCharmModifiedVersionDispatchesReconcile(c *tc.C) {
+	planner := NewLifecyclePlanner()
+	initial := params.UnitSnapshot{CharmURL: "charmhub/example", CharmModifiedVersion: 1}
+	for _, event := range planner.Plan(initial) {
+		c.Assert(planner.Complete(c.Context(), event, initial), tc.ErrorIsNil)
+	}
+
+	upgrade := initial
+	upgrade.CharmModifiedVersion = 2
+	c.Check(planner.Plan(upgrade), tc.DeepEquals, []hooks.Kind{hooks.Reconcile})
 }
 
 func (s *LifecycleSuite) TestFailedEventDoesNotAdvanceState(c *tc.C) {
@@ -55,7 +63,7 @@ func (s *LifecycleSuite) TestFailedEventDoesNotAdvanceState(c *tc.C) {
 	snapshot := params.UnitSnapshot{CharmURL: "charmhub/example"}
 
 	c.Check(planner.Plan(snapshot), tc.DeepEquals, []hooks.Kind{
-		hooks.Install, hooks.ConfigChanged, hooks.Start,
+		hooks.Install, hooks.Start,
 	})
 }
 
@@ -71,7 +79,7 @@ func (s *LifecycleSuite) TestPersistentPlannerResumesCompletedSetup(c *tc.C) {
 	restarted, err := NewPersistentLifecyclePlanner(c.Context(), store)
 	c.Assert(err, tc.ErrorIsNil)
 
-	c.Check(store.saves, tc.Equals, 3)
+	c.Check(store.saves, tc.Equals, 2)
 	c.Check(restarted.Plan(snapshot), tc.IsNil)
 }
 
@@ -118,7 +126,7 @@ func (s *LifecycleSuite) TestDyingUnitStopsThenRemovesBeforeTermination(c *tc.C)
 
 func (s *LifecycleSuite) TestHandleStagesBeforeDistinctDispatches(c *tc.C) {
 	deployer := &testDeployer{done: make(chan struct{})}
-	events := make(chan hooks.Kind, 3)
+	events := make(chan hooks.Kind, 2)
 	strategy, err := NewLifecycleStrategy(StrategyConfig{
 		Planner: NewLifecyclePlanner(),
 		Charm: func(context.Context, params.UnitSnapshot) (charm.BundleInfo, error) {
@@ -137,7 +145,6 @@ func (s *LifecycleSuite) TestHandleStagesBeforeDistinctDispatches(c *tc.C) {
 	c.Check(deployer.staged, tc.Equals, 1)
 	c.Check(deployer.deployed, tc.IsTrue)
 	c.Check(<-events, tc.Equals, hooks.Install)
-	c.Check(<-events, tc.Equals, hooks.ConfigChanged)
 	c.Check(<-events, tc.Equals, hooks.Start)
 }
 
@@ -159,6 +166,25 @@ func (s *LifecycleSuite) TestHandleDoesNotRedeployUnchangedCharm(c *tc.C) {
 	err = strategy.Handle(c.Context(), snapshot)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(deployer.staged, tc.Equals, 1)
+}
+
+func (s *LifecycleSuite) TestHandleRedeploysModifiedCharm(c *tc.C) {
+	deployer := &testDeployer{done: make(chan struct{})}
+	strategy, err := NewLifecycleStrategy(StrategyConfig{
+		Planner: NewLifecyclePlanner(),
+		Charm: func(context.Context, params.UnitSnapshot) (charm.BundleInfo, error) {
+			return testBundleInfo{url: "charmhub/example"}, nil
+		},
+		Deployer: deployer,
+		Dispatch: func(context.Context, hooks.Kind, params.UnitSnapshot) error { return nil },
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	snapshot := params.UnitSnapshot{CharmURL: "charmhub/example", CharmModifiedVersion: 1}
+	c.Assert(strategy.Handle(c.Context(), snapshot), tc.ErrorIsNil)
+	snapshot.CharmModifiedVersion = 2
+	c.Assert(strategy.Handle(c.Context(), snapshot), tc.ErrorIsNil)
+	c.Check(deployer.staged, tc.Equals, 2)
 }
 
 type testLifecycleStore struct {

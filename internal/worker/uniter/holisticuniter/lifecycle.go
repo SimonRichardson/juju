@@ -49,17 +49,18 @@ type LifecycleStore interface {
 // It records only the completed lifecycle work and compact comparison values
 // needed to select the next event after a restart.
 type LifecycleState struct {
-	Installed    bool       `yaml:"installed"`
-	Started      bool       `yaml:"started"`
-	Stopped      bool       `yaml:"stopped"`
-	Removed      bool       `yaml:"removed"`
-	CharmURL     string     `yaml:"charm-url,omitempty"`
-	SnapshotHash string     `yaml:"snapshot-hash,omitempty"`
-	Pending      hooks.Kind `yaml:"pending,omitempty"`
+	Installed            bool       `yaml:"installed"`
+	Started              bool       `yaml:"started"`
+	Stopped              bool       `yaml:"stopped"`
+	Removed              bool       `yaml:"removed"`
+	CharmURL             string     `yaml:"charm-url,omitempty"`
+	CharmModifiedVersion int        `yaml:"charm-modified-version,omitempty"`
+	SnapshotHash         string     `yaml:"snapshot-hash,omitempty"`
+	Pending              hooks.Kind `yaml:"pending,omitempty"`
 }
 
-// LifecyclePlanner preserves the setup and upgrade event sequence used by the
-// delta uniter while allowing each event to use the same holistic snapshot.
+// LifecyclePlanner preserves distinct setup and teardown events while using
+// reconcile for snapshot-derived steady-state changes.
 type LifecyclePlanner struct {
 	state LifecycleState
 	store LifecycleStore
@@ -100,13 +101,14 @@ func (p *LifecyclePlanner) Plan(snapshot params.UnitSnapshot) []hooks.Kind {
 		return events
 	}
 	if !p.state.Installed {
-		return []hooks.Kind{hooks.Install, hooks.ConfigChanged, hooks.Start}
+		return []hooks.Kind{hooks.Install, hooks.Start}
 	}
-	if snapshot.CharmURL != "" && snapshot.CharmURL != p.state.CharmURL {
-		return []hooks.Kind{hooks.UpgradeCharm, hooks.ConfigChanged}
+	if snapshot.CharmURL != "" && (snapshot.CharmURL != p.state.CharmURL ||
+		snapshot.CharmModifiedVersion != p.state.CharmModifiedVersion) {
+		return []hooks.Kind{hooks.Reconcile}
 	}
 	if !p.state.Started {
-		return []hooks.Kind{hooks.ConfigChanged, hooks.Start}
+		return []hooks.Kind{hooks.Start}
 	}
 	if p.state.SnapshotHash != snapshotReconcileHash(snapshot) {
 		return []hooks.Kind{hooks.Reconcile}
@@ -156,21 +158,20 @@ func (p *LifecyclePlanner) Complete(ctx context.Context, event hooks.Kind, snaps
 	case hooks.Install:
 		p.state.Installed = true
 		p.state.Removed = false
-	case hooks.ConfigChanged, hooks.Reconcile:
+	case hooks.Reconcile:
 		p.state.SnapshotHash = snapshotReconcileHash(snapshot)
 	case hooks.Start:
 		p.state.Started = true
 		p.state.Stopped = false
-	case hooks.UpgradeCharm:
-		p.state.CharmURL = snapshot.CharmURL
-		p.state.SnapshotHash = ""
+		p.state.SnapshotHash = snapshotReconcileHash(snapshot)
 	case hooks.Stop:
 		p.state.Stopped = true
 	case hooks.Remove:
 		p.state.Removed = true
 	}
-	if snapshot.CharmURL != "" && event != hooks.UpgradeCharm {
+	if snapshot.CharmURL != "" {
 		p.state.CharmURL = snapshot.CharmURL
+		p.state.CharmModifiedVersion = snapshot.CharmModifiedVersion
 	}
 	if p.store == nil {
 		return nil
@@ -238,11 +239,12 @@ func (c StrategyConfig) Validate() error {
 	return nil
 }
 
-// LifecycleStrategy preserves delta-uniter charm preparation and event
+// LifecycleStrategy preserves delta-uniter charm preparation and lifecycle
 // ordering while supplying each event with the holistic snapshot.
 type LifecycleStrategy struct {
-	config           StrategyConfig
-	deployedCharmURL string
+	config                       StrategyConfig
+	deployedCharmURL             string
+	deployedCharmModifiedVersion int
 }
 
 // PendingEvent returns the event awaiting retry or explicit resolution.
@@ -284,7 +286,8 @@ func (s *LifecycleStrategy) Handle(ctx context.Context, snapshot params.UnitSnap
 		if err != nil {
 			return errors.Annotate(err, "getting charm bundle information")
 		}
-		if info.URL() != s.deployedCharmURL {
+		if info.URL() != s.deployedCharmURL ||
+			snapshot.CharmModifiedVersion != s.deployedCharmModifiedVersion {
 			if s.config.CharmDirGuard != nil {
 				if err := s.config.CharmDirGuard.Lockdown(ctx); err != nil {
 					return errors.Annotate(err, "locking down charm directory")
@@ -297,6 +300,7 @@ func (s *LifecycleStrategy) Handle(ctx context.Context, snapshot params.UnitSnap
 				return errors.Annotate(err, "deploying charm")
 			}
 			s.deployedCharmURL = info.URL()
+			s.deployedCharmModifiedVersion = snapshot.CharmModifiedVersion
 		}
 	}
 	for _, event := range s.config.Planner.Plan(snapshot) {
@@ -309,7 +313,7 @@ func (s *LifecycleStrategy) Handle(ctx context.Context, snapshot params.UnitSnap
 		if err := s.config.Planner.Complete(ctx, event, snapshot); err != nil {
 			return errors.Annotatef(err, "recording completed holistic %s event", event)
 		}
-		if s.config.CharmDirGuard != nil && (event == hooks.Start || event == hooks.UpgradeCharm) {
+		if s.config.CharmDirGuard != nil && (event == hooks.Start || event == hooks.Reconcile) {
 			if err := s.config.CharmDirGuard.Unlock(ctx); err != nil {
 				return errors.Annotate(err, "unlocking charm directory")
 			}

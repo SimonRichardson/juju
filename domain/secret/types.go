@@ -17,6 +17,14 @@ type (
 	UnitOwners        []string
 )
 
+// UnitSecretMetadata identifies a secret revision available to a unit. It
+// intentionally contains no secret content or backend reference.
+type UnitSecretMetadata struct {
+	URI      *secrets.URI
+	Label    string
+	Revision int
+}
+
 // These consts are used to specify nil filter terms.
 var (
 	NilLabels            = Labels(nil)

@@ -5,6 +5,7 @@ package holisticuniter
 
 import (
 	"context"
+	"sync"
 	stdtesting "testing"
 	"time"
 
@@ -32,8 +33,8 @@ func TestWorkerSuite(t *stdtesting.T) {
 func (s *WorkerSuite) TestDispatchesSnapshotForEachNotification(c *tc.C) {
 	watch := newTestWatcher()
 	client := &testSnapshotClient{snapshot: params.UnitSnapshot{UnitName: "app/0"}}
-	dispatched := make(chan params.UnitSnapshot, 3)
-	events := make(chan hooks.Kind, 3)
+	dispatched := make(chan params.UnitSnapshot, 2)
+	events := make(chan hooks.Kind, 2)
 	strategy, err := NewLifecycleStrategy(StrategyConfig{
 		Planner: NewLifecyclePlanner(),
 		Dispatch: func(_ context.Context, event hooks.Kind, snapshot params.UnitSnapshot) error {
@@ -61,7 +62,6 @@ func (s *WorkerSuite) TestDispatchesSnapshotForEachNotification(c *tc.C) {
 		c.Fatalf("timed out waiting for dispatch")
 	}
 	c.Check(<-events, tc.Equals, hooks.Install)
-	c.Check(<-events, tc.Equals, hooks.ConfigChanged)
 	c.Check(<-events, tc.Equals, hooks.Start)
 	c.Check(client.calls, tc.Equals, 1)
 }
@@ -241,7 +241,6 @@ func (s *WorkerSuite) TestRuntimeStagesAndDispatchesWithStandardRunner(c *tc.C) 
 		c.Fatalf("timed out waiting for charm deployment")
 	}
 	c.Check(<-testRunner.events, tc.Equals, "install")
-	c.Check(<-testRunner.events, tc.Equals, "config-changed")
 	c.Check(<-testRunner.events, tc.Equals, "start")
 	<-guard.unlocked
 	c.Check(guard.lockdowns, tc.Equals, 1)
@@ -317,6 +316,7 @@ type testDeployer struct {
 	staged   int
 	deployed bool
 	done     chan struct{}
+	doneOnce sync.Once
 }
 
 type testRunner struct {
@@ -355,7 +355,7 @@ func (d *testDeployer) Stage(context.Context, charm.BundleInfo) error {
 
 func (d *testDeployer) Deploy() error {
 	d.deployed = true
-	close(d.done)
+	d.doneOnce.Do(func() { close(d.done) })
 	return nil
 }
 

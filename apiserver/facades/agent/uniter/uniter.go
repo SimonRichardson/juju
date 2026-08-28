@@ -3205,7 +3205,7 @@ func (u *UniterAPI) WatchUnitComposite(ctx context.Context, entity params.Entity
 			errors.BadRequestf("parsing unit name: %s", tag.Id()),
 		)}, nil
 	}
-	w, err := u.applicationService.WatchUnitComposite(ctx, unitName)
+	w, err := u.unitStateService.WatchUnitSnapshot(ctx, unitName)
 	if errors.Is(err, applicationerrors.UnitNotFound) {
 		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
 			errors.NotFoundf("unit %q", unitName),
@@ -3488,6 +3488,18 @@ func (u *UniterAPI) getUnitSnapshot(
 	if err != nil {
 		return params.UnitSnapshot{}, errors.Trace(err)
 	}
+	secrets, err := u.secretService.ListUnitSecretMetadata(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	secretSnapshots := make([]params.SecretSnapshot, len(secrets))
+	for i, secret := range secrets {
+		secretSnapshots[i] = params.SecretSnapshot{
+			URI:      secret.URI.String(),
+			Label:    secret.Label,
+			Revision: secret.Revision,
+		}
+	}
 
 	return params.UnitSnapshot{
 		UnitName:             unitName.String(),
@@ -3502,6 +3514,7 @@ func (u *UniterAPI) getUnitSnapshot(
 		UnitStatus:           detailedStatusFromStatusInfo(unitStatus),
 		ApplicationStatus:    detailedStatusFromStatusInfo(applicationStatus),
 		Relations:            relations,
+		Secrets:              secretSnapshots,
 		Storage:              storage,
 		PortRanges:           portRangesForUnit(unitContext, tag),
 		APIAddresses:         apiAddresses,

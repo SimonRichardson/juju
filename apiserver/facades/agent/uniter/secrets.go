@@ -22,6 +22,10 @@ import (
 
 // SecretService provides core secrets operations.
 type SecretService interface {
+	// ListUnitSecretMetadata returns metadata for secret revisions visible to a
+	// unit. It does not return secret content.
+	ListUnitSecretMetadata(context.Context, coreunit.Name) ([]secret.UnitSecretMetadata, error)
+
 	// GetSecretValue retrieves the value and reference of a secret for a
 	// specified URI and revision, using a secret accessor.
 	GetSecretValue(context.Context, *coresecrets.URI, int, secret.SecretAccessor) (coresecrets.SecretValue, *coresecrets.ValueRef, error)

@@ -11,6 +11,7 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/juju/tc"
 
+	coreunit "github.com/juju/juju/core/unit"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	"github.com/juju/juju/domain/unitstate"
 )
@@ -65,6 +66,62 @@ func (s *stateSuite) TestSetUnitStateJustUniterState(c *tc.C) {
 
 func (s *stateSuite) TestGetUnitStateUnitNotFound(c *tc.C) {
 	_, err := s.state.GetUnitState(c.Context(), "bad-uuid")
+	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotFound)
+}
+
+func (s *stateSuite) TestGetUnitSnapshotWatchIdentifiers(c *tc.C) {
+	var applicationUUID, charmUUID, netNodeUUID string
+	err := s.DB().QueryRowContext(c.Context(), `
+SELECT application_uuid, charm_uuid, net_node_uuid
+FROM unit
+WHERE uuid = ?`, s.unitUUID).Scan(&applicationUUID, &charmUUID, &netNodeUUID)
+	c.Assert(err, tc.ErrorIsNil)
+
+	identifiers, err := s.state.GetUnitSnapshotWatchIdentifiers(c.Context(), coreunit.Name(s.unitName))
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(identifiers, tc.DeepEquals, unitstate.SnapshotWatchIdentifiers{
+		UnitUUID:              s.unitUUID,
+		ApplicationUUID:       applicationUUID,
+		CharmUUID:             charmUUID,
+		NetNodeUUIDs:          []string{netNodeUUID},
+		RelationUUIDs:         []string{},
+		RelationUnitUUIDs:     []string{},
+		RelationEndpointUUIDs: []string{},
+	})
+}
+
+func (s *stateSuite) TestGetUnitSnapshotWatchIdentifiersUnitNotFound(c *tc.C) {
+	_, err := s.state.GetUnitSnapshotWatchIdentifiers(c.Context(), "unknown-unit")
+	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotFound)
+}
+
+func (s *stateSuite) TestGetUnitSnapshot(c *tc.C) {
+	s.addUnitStateCharm(c, "snapshot-key", "snapshot-value")
+	var applicationUUID, charmUUID, charmName string
+	err := s.DB().QueryRowContext(c.Context(), `
+SELECT u.application_uuid, u.charm_uuid, c.reference_name
+FROM unit AS u
+JOIN charm AS c ON c.uuid = u.charm_uuid
+WHERE u.uuid = ?`, s.unitUUID).Scan(&applicationUUID, &charmUUID, &charmName)
+	c.Assert(err, tc.ErrorIsNil)
+
+	snapshot, err := s.state.GetUnitSnapshot(c.Context(), coreunit.Name(s.unitName))
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(snapshot, tc.DeepEquals, unitstate.UnitSnapshot{
+		UnitName:        s.unitName,
+		ApplicationName: "app",
+		ApplicationUUID: applicationUUID,
+		UnitUUID:        s.unitUUID,
+		CharmUUID:       charmUUID,
+		CharmURL:        charmName,
+		CharmState: map[string]string{
+			"snapshot-key": "snapshot-value",
+		},
+	})
+}
+
+func (s *stateSuite) TestGetUnitSnapshotUnitNotFound(c *tc.C) {
+	_, err := s.state.GetUnitSnapshot(c.Context(), "unknown-unit")
 	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotFound)
 }
 

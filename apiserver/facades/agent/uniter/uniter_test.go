@@ -82,6 +82,8 @@ type uniterSuite struct {
 	resolveService             *MockResolveService
 	removalService             *MockRemovalService
 	tracingService             *MockTracingService
+	secretService              *MockSecretService
+	unitStateService           *MockUnitStateService
 
 	watcherRegistry *MockWatcherRegistry
 
@@ -173,7 +175,7 @@ func (s *uniterSuite) TestWatchUnitComposite(c *tc.C) {
 	unitName := coreunit.Name("foo/0")
 	w := NewMockNotifyWatcher(ctrl)
 	w.EXPECT().Changes().Return(make(chan struct{})).AnyTimes()
-	s.applicationService.EXPECT().WatchUnitComposite(gomock.Any(), unitName).Return(w, nil)
+	s.unitStateService.EXPECT().WatchUnitSnapshot(gomock.Any(), unitName).Return(w, nil)
 	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("watcher-id", nil)
 
 	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{
@@ -196,7 +198,7 @@ func (s *uniterSuite) TestWatchUnitCompositeNotFound(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 
 	unitName := coreunit.Name("foo/0")
-	s.applicationService.EXPECT().WatchUnitComposite(gomock.Any(), unitName).Return(nil, applicationerrors.UnitNotFound)
+	s.unitStateService.EXPECT().WatchUnitSnapshot(gomock.Any(), unitName).Return(nil, applicationerrors.UnitNotFound)
 
 	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{
 		Tag: names.NewUnitTag(unitName.String()).String(),
@@ -276,6 +278,11 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		HTTPEndpoint: "https://trace.example",
 	}, nil)
 	s.relationService.EXPECT().GetRelationUUIDsByUnitName(gomock.Any(), unitName).Return(nil, nil)
+	s.secretService.EXPECT().ListUnitSecretMetadata(gomock.Any(), unitName).Return([]domainsecret.UnitSecretMetadata{{
+		URI:      &coresecrets.URI{ID: "secret-id"},
+		Label:    "database-password",
+		Revision: 2,
+	}}, nil)
 
 	result, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{
 		Tag: names.NewUnitTag(unitName.String()).String(),
@@ -291,7 +298,12 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		Config:               map[string]any{"max-connections": 100},
 		Trust:                true,
 		Relations:            []params.RelationSnapshot{},
-		WorkloadVersion:      "8.0",
+		Secrets: []params.SecretSnapshot{{
+			URI:      "secret:secret-id",
+			Label:    "database-password",
+			Revision: 2,
+		}},
+		WorkloadVersion: "8.0",
 		UnitStatus: params.DetailedStatus{
 			Status: "active",
 			Info:   "ready",
@@ -2041,6 +2053,8 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	s.resolveService = NewMockResolveService(ctrl)
 	s.removalService = NewMockRemovalService(ctrl)
 	s.tracingService = NewMockTracingService(ctrl)
+	s.secretService = NewMockSecretService(ctrl)
+	s.unitStateService = NewMockUnitStateService(ctrl)
 	s.watcherRegistry = NewMockWatcherRegistry(ctrl)
 
 	authFunc := func(ctx context.Context) (common.AuthFunc, error) {
@@ -2066,6 +2080,8 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 		resolveService:        s.resolveService,
 		removalService:        s.removalService,
 		tracingService:        s.tracingService,
+		secretService:         s.secretService,
+		unitStateService:      s.unitStateService,
 		auth:                  authorizer,
 		accessApplication:     authFunc,
 		accessMachine:         authFunc,
@@ -2089,6 +2105,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 		s.resolveService = nil
 		s.removalService = nil
 		s.tracingService = nil
+		s.secretService = nil
 		s.watcherRegistry = nil
 	})
 

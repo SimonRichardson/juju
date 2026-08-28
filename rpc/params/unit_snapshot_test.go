@@ -52,7 +52,6 @@ func (s *unitSnapshotSuite) TestJSONRoundTrip(c *tc.C) {
 			URI:      "secret:abc",
 			Label:    "database-password",
 			Revision: 2,
-			Value:    "secret-value",
 		}},
 		Addresses:         []string{"10.0.0.1"},
 		PortRanges:        []params.PortRange{{FromPort: 5432, ToPort: 5432, Protocol: "tcp"}},
