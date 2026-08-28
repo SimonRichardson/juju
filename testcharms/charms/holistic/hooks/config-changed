@@ -1,3 +1,0 @@
-#!/bin/sh
-set -eu
-HOLISTIC_EVENT=config-changed "$(dirname "$0")/holistic-reconcile"

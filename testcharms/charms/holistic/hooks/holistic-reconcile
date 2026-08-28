@@ -8,6 +8,6 @@ status-set maintenance "holistic reconcile: ${event}" || true
 juju-log "holistic reconcile event=${event} message=${message}" || true
 
 # A charm selected for the holistic runtime always receives this command.
-unit-snapshot >/dev/null
+unit-snapshot
 
 status-set active "holistic: ${event}" || true
