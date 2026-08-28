@@ -7,10 +7,7 @@ message=$(config-get message 2>/dev/null || printf '%s' holistic)
 status-set maintenance "holistic reconcile: ${event}" || true
 juju-log "holistic reconcile event=${event} message=${message}" || true
 
-# The command is supplied by the holistic runtime. Keep this charm runnable
-# with the legacy test harness while making the snapshot handoff observable.
-if command -v unit-snapshot >/dev/null 2>&1; then
-	unit-snapshot >/dev/null
-fi
+# A charm selected for the holistic runtime always receives this command.
+unit-snapshot >/dev/null
 
 status-set active "holistic: ${event}" || true
