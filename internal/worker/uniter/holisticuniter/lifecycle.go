@@ -22,15 +22,24 @@ import (
 // snapshot. Implementations must persist their state using the same durability
 // guarantees as deltauniter's local operation state.
 type EventPlanner interface {
+	// Plan returns the next ordered lifecycle events for a snapshot.
 	Plan(params.UnitSnapshot) []hooks.Kind
+	// Pending returns an event recorded before dispatch, if any.
+	Pending() hooks.Kind
+	// Begin records an event before it is dispatched.
 	Begin(context.Context, hooks.Kind, params.UnitSnapshot) error
+	// Retry clears the pending marker without marking the event complete.
+	Retry(context.Context) error
+	// Complete records a successfully handled lifecycle event.
 	Complete(context.Context, hooks.Kind, params.UnitSnapshot) error
 }
 
 // LifecycleStore persists lifecycle progress in the controller-backed unit
 // state. It deliberately contains execution progress, not a unit snapshot.
 type LifecycleStore interface {
+	// Load returns durable lifecycle progress for the unit.
 	Load(context.Context) (LifecycleState, error)
+	// Save records durable lifecycle progress for the unit.
 	Save(context.Context, LifecycleState) error
 }
 
@@ -99,6 +108,11 @@ func (p *LifecyclePlanner) Plan(snapshot params.UnitSnapshot) []hooks.Kind {
 	return nil
 }
 
+// Pending returns the event recorded before dispatch, if any.
+func (p *LifecyclePlanner) Pending() hooks.Kind {
+	return p.state.Pending
+}
+
 // Begin records a hook before it is dispatched. If the agent stops before the
 // hook completes, the next worker resumes this exact event.
 func (p *LifecyclePlanner) Begin(ctx context.Context, event hooks.Kind, _ params.UnitSnapshot) error {
@@ -108,6 +122,18 @@ func (p *LifecyclePlanner) Begin(ctx context.Context, event hooks.Kind, _ params
 	}
 	if err := p.store.Save(ctx, p.state); err != nil {
 		return errors.Annotatef(err, "recording pending holistic %s event", event)
+	}
+	return nil
+}
+
+// Retry clears the pending marker without recording successful completion.
+func (p *LifecyclePlanner) Retry(ctx context.Context) error {
+	p.state.Pending = ""
+	if p.store == nil {
+		return nil
+	}
+	if err := p.store.Save(ctx, p.state); err != nil {
+		return errors.Annotate(err, "recording holistic hook retry")
 	}
 	return nil
 }
@@ -155,8 +181,19 @@ func snapshotReconcileHash(snapshot params.UnitSnapshot) string {
 
 var _ EventPlanner = (*LifecyclePlanner)(nil)
 
+// PendingEventResolver manages the persisted failed event for a strategy.
+type PendingEventResolver interface {
+	// PendingEvent returns the event awaiting retry or explicit resolution.
+	PendingEvent() hooks.Kind
+	// RetryPending makes the failed event eligible for another dispatch.
+	RetryPending(context.Context) error
+	// SkipPending records the failed event as resolved without dispatching it.
+	SkipPending(context.Context, params.UnitSnapshot) error
+}
+
 // Strategy handles a snapshot after the worker has received a notification.
 type Strategy interface {
+	// Handle converges the unit for the supplied current snapshot.
 	Handle(context.Context, params.UnitSnapshot) error
 }
 
@@ -188,6 +225,25 @@ func (c StrategyConfig) Validate() error {
 type LifecycleStrategy struct {
 	config           StrategyConfig
 	deployedCharmURL string
+}
+
+// PendingEvent returns the event awaiting retry or explicit resolution.
+func (s *LifecycleStrategy) PendingEvent() hooks.Kind {
+	return s.config.Planner.Pending()
+}
+
+// RetryPending makes the failed event eligible for another dispatch.
+func (s *LifecycleStrategy) RetryPending(ctx context.Context) error {
+	return s.config.Planner.Retry(ctx)
+}
+
+// SkipPending records the pending event as resolved without dispatching it.
+func (s *LifecycleStrategy) SkipPending(ctx context.Context, snapshot params.UnitSnapshot) error {
+	event := s.config.Planner.Pending()
+	if event == "" {
+		return errors.NotFoundf("pending holistic event")
+	}
+	return s.config.Planner.Complete(ctx, event, snapshot)
 }
 
 // NewLifecycleStrategy constructs a lifecycle strategy.

@@ -43,9 +43,10 @@ func (s *WorkerSuite) TestDispatchesSnapshotForEachNotification(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 
 	w, err := New(Config{
-		Watcher:  watch,
-		Snapshot: client,
-		Strategy: strategy,
+		Watcher:       watch,
+		Snapshot:      client,
+		Strategy:      strategy,
+		ClearResolved: clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	defer worker.Stop(w)
@@ -72,9 +73,10 @@ func (s *WorkerSuite) TestSnapshotErrorStopsWorker(c *tc.C) {
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	w, err := New(Config{
-		Watcher:  watch,
-		Snapshot: client,
-		Strategy: strategy,
+		Watcher:       watch,
+		Snapshot:      client,
+		Strategy:      strategy,
+		ClearResolved: clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	watch.changes <- struct{}{}
@@ -88,11 +90,9 @@ func (s *WorkerSuite) TestFailedDispatchRetriesWithFreshSnapshot(c *tc.C) {
 	clock := testclock.NewClock(time.Now())
 	strategy := &retryStrategy{failed: make(chan struct{}), done: make(chan struct{})}
 	w, err := New(Config{
-		Watcher:    watch,
-		Snapshot:   client,
-		Strategy:   strategy,
-		RetryDelay: time.Second,
-		Clock:      clock,
+		Watcher: watch, Snapshot: client, Strategy: strategy, ClearResolved: clearResolved,
+		RetryStrategy: params.RetryStrategy{ShouldRetry: true, MinRetryTime: time.Second, MaxRetryTime: time.Second, RetryTimeFactor: 1},
+		Clock:         clock,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	defer worker.Stop(w)
@@ -140,9 +140,10 @@ func (s *WorkerSuite) TestStagesAndDeploysCharmBeforeDispatch(c *tc.C) {
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	w, err := New(Config{
-		Watcher:  watch,
-		Snapshot: &testSnapshotClient{snapshot: params.UnitSnapshot{CharmURL: "charmhub/ubuntu-0"}},
-		Strategy: strategy,
+		Watcher:       watch,
+		Snapshot:      &testSnapshotClient{snapshot: params.UnitSnapshot{CharmURL: "charmhub/ubuntu-0"}},
+		Strategy:      strategy,
+		ClearResolved: clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	defer worker.Stop(w)
@@ -293,6 +294,10 @@ func (d *testDeployer) Deploy() error {
 func (u *testUnit) WatchComposite(context.Context) (corewatcher.NotifyWatcher, error) {
 	return u.watcher, nil
 }
+
+func (*testUnit) ClearResolved(context.Context) error { return nil }
+
+func clearResolved(context.Context) error { return nil }
 
 func (c *testSnapshotClient) Snapshot(context.Context) (params.UnitSnapshot, error) {
 	c.calls++

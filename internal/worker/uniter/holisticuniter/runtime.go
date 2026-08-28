@@ -5,7 +5,6 @@ package holisticuniter
 
 import (
 	"context"
-	"time"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
@@ -38,7 +37,7 @@ type RuntimeConfig struct {
 	NewHookRunner HookRunnerFactory
 	Lock          LockFunc
 	CharmDirGuard fortress.Guard
-	RetryDelay    time.Duration
+	RetryStrategy params.RetryStrategy
 	Clock         clock.Clock
 }
 
@@ -65,7 +64,7 @@ func (c RuntimeConfig) Validate() error {
 	if c.CharmDirGuard == nil {
 		return errors.NotValidf("missing charm directory guard")
 	}
-	if c.RetryDelay > 0 && c.Clock == nil {
+	if c.RetryStrategy.ShouldRetry && c.Clock == nil {
 		return errors.NotValidf("missing clock for retry")
 	}
 	return nil
@@ -100,5 +99,5 @@ func NewRuntime(ctx context.Context, config RuntimeConfig) (*HolisticUniter, err
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return newForUnit(ctx, config.Unit, strategy, config.RetryDelay, config.Clock)
+	return newForUnit(ctx, config.Unit, strategy, config.RetryStrategy, config.Clock)
 }
