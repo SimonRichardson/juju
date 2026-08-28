@@ -15,6 +15,7 @@ import (
 	gomock "github.com/canonical/gomock/gomock"
 	relation "github.com/juju/juju/core/relation"
 	secrets "github.com/juju/juju/core/secrets"
+	unit "github.com/juju/juju/core/unit"
 	unitstate "github.com/juju/juju/domain/unitstate"
 	internal "github.com/juju/juju/domain/unitstate/internal"
 )
@@ -37,6 +38,8 @@ type MockStateMockRecorder struct {
 	getSecretRotatePolicyExpects                       []*gomock.Call2_2[context.Context, string, secrets.RotatePolicy, error]
 	getUnitStateExpects                                []*gomock.Call2_2[context.Context, string, unitstate.RetrievedUnitState, error]
 	setUnitStateExpects                                []*gomock.Call2_1[context.Context, unitstate.UnitState, error]
+	getUnitSnapshotWatchIdentifiersExpects             []*gomock.Call2_2[context.Context, unit.Name, unitstate.SnapshotWatchIdentifiers, error]
+	getUnitSnapshotExpects                             []*gomock.Call2_2[context.Context, unit.Name, unitstate.UnitSnapshot, error]
 }
 
 // NewMockState creates a new mock instance.
@@ -50,6 +53,42 @@ func NewMockState(ctrl *gomock.Controller) *MockState {
 func (m *MockState) EXPECT() *MockStateMockRecorder {
 	return m.recorder
 }
+
+// GetUnitSnapshot mocks base method.
+func (m *MockState) GetUnitSnapshot(ctx context.Context, unitName unit.Name) (unitstate.UnitSnapshot, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getUnitSnapshotExpects, m.ctrl, m, "GetUnitSnapshot", ctx, unitName)
+}
+
+// GetUnitSnapshot indicates an expected call of GetUnitSnapshot.
+func (mr *MockStateMockRecorder) GetUnitSnapshot(ctx, unitName any) *MockStateGetUnitSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.Name, unitstate.UnitSnapshot, error](mr.mock.ctrl.T, mr.mock, "GetUnitSnapshot", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitName))
+	mr.getUnitSnapshotExpects = append(mr.getUnitSnapshotExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetUnitSnapshotCall is the typed call wrapper for GetUnitSnapshot.
+type MockStateGetUnitSnapshotCall = gomock.Call2_2[context.Context, unit.Name, unitstate.UnitSnapshot, error]
+
+// GetUnitSnapshotWatchIdentifiers mocks base method.
+func (m *MockState) GetUnitSnapshotWatchIdentifiers(ctx context.Context, unitName unit.Name) (unitstate.SnapshotWatchIdentifiers, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getUnitSnapshotWatchIdentifiersExpects, m.ctrl, m, "GetUnitSnapshotWatchIdentifiers", ctx, unitName)
+}
+
+// GetUnitSnapshotWatchIdentifiers indicates an expected call of GetUnitSnapshotWatchIdentifiers.
+func (mr *MockStateMockRecorder) GetUnitSnapshotWatchIdentifiers(ctx, unitName any) *MockStateGetUnitSnapshotWatchIdentifiersCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.Name, unitstate.SnapshotWatchIdentifiers, error](mr.mock.ctrl.T, mr.mock, "GetUnitSnapshotWatchIdentifiers", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitName))
+	mr.getUnitSnapshotWatchIdentifiersExpects = append(mr.getUnitSnapshotWatchIdentifiersExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetUnitSnapshotWatchIdentifiersCall is the typed call wrapper for GetUnitSnapshotWatchIdentifiers.
+type MockStateGetUnitSnapshotWatchIdentifiersCall = gomock.Call2_2[context.Context, unit.Name, unitstate.SnapshotWatchIdentifiers, error]
 
 // CommitHookChanges mocks base method.
 func (m *MockState) CommitHookChanges(ctx context.Context, arg internal.CommitHookChangesArg) error {

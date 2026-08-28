@@ -79,6 +79,42 @@ type unitName struct {
 	Name string `db:"name"`
 }
 
+type unitSnapshotWatchIdentifier struct {
+	UnitUUID        string `db:"unit_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+	CharmUUID       string `db:"charm_uuid"`
+}
+
+type unitSnapshotRow struct {
+	UnitUUID             string         `db:"unit_uuid"`
+	UnitName             string         `db:"unit_name"`
+	ApplicationUUID      string         `db:"application_uuid"`
+	ApplicationName      string         `db:"application_name"`
+	CharmUUID            string         `db:"charm_uuid"`
+	CharmURL             string         `db:"charm_url"`
+	LifeID               int            `db:"life_id"`
+	ResolvedMode         sql.NullString `db:"resolved_mode"`
+	CharmModifiedVersion int            `db:"charm_modified_version"`
+	Trust                bool           `db:"trust"`
+	WorkloadVersion      sql.NullString `db:"workload_version"`
+}
+
+type unitSnapshotStorageRow struct {
+	ID       string         `db:"storage_id"`
+	KindID   int            `db:"storage_kind_id"`
+	LifeID   int            `db:"life_id"`
+	Location sql.NullString `db:"location"`
+}
+
+type relationSnapshotWatchIdentifier struct {
+	RelationUUID     string `db:"relation_uuid"`
+	RelationUnitUUID string `db:"relation_unit_uuid"`
+}
+
+type unitNetNodeUUID struct {
+	NetNodeUUID string `db:"net_node_uuid"`
+}
+
 // portRange represents a range of ports for a given protocol.
 type portRange struct {
 	Protocol string `db:"protocol"`

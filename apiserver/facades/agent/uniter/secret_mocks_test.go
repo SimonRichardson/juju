@@ -31,6 +31,7 @@ type MockSecretServiceMockRecorder struct {
 	checkSecretManageAccessExpects []*gomock.Call3_1[context.Context, *secrets.URI, unit.Name, error]
 	getSecretOwnerKindsExpects     []*gomock.Call2_2[context.Context, []*secrets.URI, []secret.SecretOwnerInfo, error]
 	getSecretValueExpects          []*gomock.Call4_3[context.Context, *secrets.URI, int, secret.SecretAccessor, secrets.SecretValue, *secrets.ValueRef, error]
+	listUnitSecretMetadataExpects  []*gomock.Call2_2[context.Context, unit.Name, []secret.UnitSecretMetadata, error]
 	resolveGrantParamsExpects      []*gomock.Call2_1[context.Context, []secret.SecretAccessParams, []secret.GrantResult]
 	resolveRevokeParamsExpects     []*gomock.Call2_1[context.Context, []secret.SecretAccessParams, []secret.RevokeResult]
 }
@@ -100,6 +101,24 @@ func (mr *MockSecretServiceMockRecorder) GetSecretValue(arg0, arg1, arg2, arg3 a
 
 // MockSecretServiceGetSecretValueCall is the typed call wrapper for GetSecretValue.
 type MockSecretServiceGetSecretValueCall = gomock.Call4_3[context.Context, *secrets.URI, int, secret.SecretAccessor, secrets.SecretValue, *secrets.ValueRef, error]
+
+// ListUnitSecretMetadata mocks base method.
+func (m *MockSecretService) ListUnitSecretMetadata(arg0 context.Context, arg1 unit.Name) ([]secret.UnitSecretMetadata, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.listUnitSecretMetadataExpects, m.ctrl, m, "ListUnitSecretMetadata", arg0, arg1)
+}
+
+// ListUnitSecretMetadata indicates an expected call of ListUnitSecretMetadata.
+func (mr *MockSecretServiceMockRecorder) ListUnitSecretMetadata(arg0, arg1 any) *MockSecretServiceListUnitSecretMetadataCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.Name, []secret.UnitSecretMetadata, error](mr.mock.ctrl.T, mr.mock, "ListUnitSecretMetadata", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1))
+	mr.listUnitSecretMetadataExpects = append(mr.listUnitSecretMetadataExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockSecretServiceListUnitSecretMetadataCall is the typed call wrapper for ListUnitSecretMetadata.
+type MockSecretServiceListUnitSecretMetadataCall = gomock.Call2_2[context.Context, unit.Name, []secret.UnitSecretMetadata, error]
 
 // ResolveGrantParams mocks base method.
 func (m *MockSecretService) ResolveGrantParams(ctx context.Context, params []secret.SecretAccessParams) []secret.GrantResult {

@@ -75,10 +75,12 @@ type StorageSnapshot struct {
 	Life     life.Value `json:"life"`
 }
 
-// SecretSnapshot is the current revision of a secret visible to the unit.
+// SecretSnapshot identifies the revision of a secret visible to the unit.
+//
+// It deliberately excludes secret content and backend references. A charm
+// retrieves secret content through the regular secret API after reconciling.
 type SecretSnapshot struct {
 	URI      string `json:"uri"`
 	Label    string `json:"label,omitempty"`
 	Revision int    `json:"revision"`
-	Value    string `json:"value,omitempty"`
 }

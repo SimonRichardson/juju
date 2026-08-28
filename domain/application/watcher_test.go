@@ -44,6 +44,8 @@ import (
 	"github.com/juju/juju/domain/status"
 	statusstate "github.com/juju/juju/domain/status/state/model"
 	domaintesting "github.com/juju/juju/domain/testing"
+	unitstateservice "github.com/juju/juju/domain/unitstate/service"
+	unitstatestate "github.com/juju/juju/domain/unitstate/state"
 	changestreamtesting "github.com/juju/juju/internal/changestream/testing"
 	"github.com/juju/juju/internal/errors"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
@@ -334,9 +336,21 @@ func (s *watcherSuite) TestWatchApplicationUnitLife(c *tc.C) {
 	harness.Run(c, []string{})
 }
 
-func (s *watcherSuite) TestWatchUnitComposite(c *tc.C) {
+func (s *watcherSuite) TestWatchUnitSnapshot(c *tc.C) {
 	factory := changestream.NewWatchableDBFactoryForNamespace(s.GetWatchableDB, "unit")
 	svc := s.setupService(c, factory)
+	modelDB := func(context.Context) (database.TxnRunner, error) {
+		return s.ModelTxnRunner(), nil
+	}
+	snapshotSvc := unitstateservice.NewLeadershipService(
+		unitstatestate.NewState(modelDB, clock.WallClock, loggertesting.WrapCheckLog(c)),
+		nil,
+		nil,
+		nil,
+		clock.WallClock,
+		loggertesting.WrapCheckLog(c),
+		domain.NewWatcherFactory(factory, loggertesting.WrapCheckLog(c)),
+	)
 	appUUID := s.createCAASApplication(c, svc, "foo", service.AddUnitArg{})
 	otherAppUUID := s.createCAASApplication(c, svc, "bar", service.AddUnitArg{})
 	unrelatedAppUUID := s.createCAASApplication(c, svc, "baz", service.AddUnitArg{})
@@ -401,7 +415,7 @@ VALUES (?, ?, ?)`, unrelatedEndpointUUID, unrelatedRelationUUID, unrelatedAppEnd
 	c.Assert(err, tc.ErrorIsNil)
 
 	s.AssertChangeStreamIdle(c, "before watcher start")
-	watcher, err := svc.WatchUnitComposite(c.Context(), "foo/0")
+	watcher, err := snapshotSvc.WatchUnitSnapshot(c.Context(), "foo/0")
 	c.Assert(err, tc.ErrorIsNil)
 
 	harness := watchertest.NewHarness(s, watchertest.NewWatcherC(c, watcher))

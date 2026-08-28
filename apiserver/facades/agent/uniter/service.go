@@ -161,10 +161,6 @@ type ApplicationService interface {
 	// the unit's inherent properties, it's subordinates or it's resolved mode.
 	WatchUnitForLegacyUniter(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
 
-	// WatchUnitComposite watches all application-domain state which affects a
-	// holistic unit runtime's snapshot.
-	WatchUnitComposite(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
-
 	// GetApplicationUUIDByUnitName returns the application UUID for the named unit.
 	GetApplicationUUIDByUnitName(context.Context, coreunit.Name) (coreapplication.UUID, error)
 
@@ -356,6 +352,8 @@ type StatusService interface {
 // UnitStateService describes the ability to retrieve and persist
 // unit agent state for informing hook reconciliation.
 type UnitStateService interface {
+	// WatchUnitSnapshot watches all state represented in a unit snapshot.
+	WatchUnitSnapshot(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
 	// CommitHookChanges persists a set of changes after a hook successfully
 	// completes and executes them in a single transaction.
 	CommitHookChanges(ctx context.Context, arg unitstate.CommitHookChangesArg) error
