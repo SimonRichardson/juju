@@ -765,6 +765,16 @@ func (s *HookContextSuite) TestDeleteCharmStateValue(c *tc.C) {
 	c.Assert(obtainedCache, tc.DeepEquals, s.mockCache.CharmState)
 }
 
+func (s *HookContextSuite) TestUnitSnapshot(c *tc.C) {
+	hookContext := context.NewMockUnitHookContext(c, s.mockUnit, model.IAAS, s.mockLeadership)
+	snapshot := params.UnitSnapshot{UnitName: "gitlab/0"}
+	hookContext.SetUnitSnapshot(snapshot)
+
+	obtained, err := hookContext.UnitSnapshot()
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(obtained, tc.DeepEquals, snapshot)
+}
+
 func (s *HookContextSuite) TestDeleteCacheStateErr(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 	s.mockUnit.EXPECT().State(gomock.Any()).Return(params.UnitStateResult{}, errors.Errorf("testing an error"))

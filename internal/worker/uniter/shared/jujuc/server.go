@@ -48,6 +48,7 @@ var baseCommands = map[string]creator{
 	"relation-model-get":      NewRelationModelGetCommand,
 	"relation-set":            NewRelationSetCommand,
 	"unit-get":                NewUnitGetCommand,
+	"unit-snapshot":           NewUnitSnapshotCommand,
 	"juju-reboot":             NewJujuRebootCommand,
 	"status-get":              NewStatusGetCommand,
 	"status-set":              NewStatusSetCommand,
