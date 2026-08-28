@@ -62,6 +62,56 @@ type applicationAndCharmUUID struct {
 	CharmUUID       string `db:"charm_uuid"`
 }
 
+// generationApplicationCharm is the branch charm override for an application.
+type generationApplicationCharm struct {
+	ApplicationUUID string `db:"application_uuid"`
+	CharmUUID       string `db:"charm_uuid"`
+}
+
+// generationName identifies a generation by its branch name.
+type generationName struct {
+	Name string `db:"name"`
+}
+
+type applicationGeneration struct {
+	UUID string `db:"uuid"`
+	Name string `db:"name"`
+}
+
+// generationApplicationIdent identifies an application in a generation.
+type generationApplicationIdent struct {
+	GenerationUUID  string `db:"generation_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+}
+
+// generationApplicationConfig is a branch application config delta.
+type generationApplicationConfig struct {
+	GenerationUUID  string `db:"generation_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+	Key             string `db:"key"`
+	TypeID          int    `db:"type_id"`
+	Value           any    `db:"value"`
+}
+
+// generationApplicationResource is a branch application resource selection.
+type generationApplicationResource struct {
+	GenerationUUID  string `db:"generation_uuid"`
+	ApplicationUUID string `db:"application_uuid"`
+	ResourceName    string `db:"charm_resource_name"`
+	ResourceUUID    string `db:"resource_uuid"`
+}
+
+// configKeyType identifies a charm config key and its persisted type.
+type configKeyType struct {
+	Key    string `db:"key"`
+	TypeID int    `db:"type_id"`
+}
+
+// resourceName identifies a charm resource by name.
+type resourceName struct {
+	Name string `db:"charm_resource_name"`
+}
+
 type applicationChannel struct {
 	ApplicationID string `db:"application_uuid"`
 	Track         string `db:"track"`

@@ -1646,6 +1646,52 @@ func (s *modelStateSuite) TestGetApplicationAndUnitStatusesNoAppStatuses(c *tc.C
 	})
 }
 
+func (s *modelStateSuite) TestGetApplicationAndUnitStatusesUsesInstalledUnitCharm(c *tc.C) {
+	newCharm := charm.Charm{
+		Metadata:      charm.Metadata{Name: "foo"},
+		Manifest:      s.minimalManifest(c),
+		ReferenceName: "foo",
+		Source:        charm.CharmHubSource,
+		Revision:      23,
+		Hash:          "hash-23",
+		Architecture:  architecture.ARM64,
+	}
+	appUUID, _ := s.createIAASApplicationWithCharm(
+		c, "foo", life.Alive, newCharm, nil,
+		s.createIAASUnitArg(c), s.createIAASUnitArg(c),
+	)
+	oldCharm := newCharm
+	oldCharm.Revision = 21
+	oldCharm.Hash = "hash-21"
+	donorAppUUID, _ := s.createIAASApplicationWithCharm(
+		c, "donor", life.Alive, oldCharm, nil,
+	)
+
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+UPDATE unit
+SET charm_uuid = (
+    SELECT charm_uuid FROM application WHERE uuid = ?
+)
+WHERE name = 'foo/1'`, donorAppUUID)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	statuses, err := s.state.GetApplicationAndUnitStatuses(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	foo := statuses["foo"]
+	c.Check(foo.ID, tc.Equals, appUUID)
+	c.Check(foo.CharmLocator.Revision, tc.Equals, 23)
+	c.Check(foo.Units["foo/0"].CharmLocator.Revision, tc.Equals, 23)
+	c.Check(foo.Units["foo/1"].CharmLocator, tc.DeepEquals, charm.CharmLocator{
+		Name:         "foo",
+		Revision:     21,
+		Source:       charm.CharmHubSource,
+		Architecture: architecture.ARM64,
+	})
+}
+
 func (s *modelStateSuite) TestGetApplicationAndUnitStatuses(c *tc.C) {
 	now := time.Now()
 

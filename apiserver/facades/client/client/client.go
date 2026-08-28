@@ -34,6 +34,7 @@ type Client struct {
 	applicationService        ApplicationService
 	blockDeviceService        BlockDeviceService
 	crossModelRelationService CrossModelRelationService
+	generationService         GenerationService
 	machineService            MachineService
 	modelInfoService          ModelInfoService
 	networkService            NetworkService

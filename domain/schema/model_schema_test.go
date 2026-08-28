@@ -392,6 +392,17 @@ func (s *modelSchemaSuite) TestModelTables(c *tc.C) {
 		"operation_task_status_value",
 		"operation_unit_task",
 		"operation_parameter",
+
+		// Generation
+		"generation",
+		"generation_state",
+		"generation_unit",
+		"generation_application",
+		"generation_application_charm",
+		"generation_application_config",
+		"generation_application_resource",
+		"generation_commit",
+		"generation_commit_config",
 	)
 	got := readEntityNames(c, s.DB(), "table")
 	wanted := expected.Union(internalTableNames)
@@ -775,6 +786,31 @@ func (s *modelSchemaSuite) TestModelTriggers(c *tc.C) {
 		"trg_log_relation_network_egress_delete",
 		"trg_log_relation_network_egress_insert",
 		"trg_log_relation_network_egress_update",
+
+		"trg_log_generation_delete",
+		"trg_log_generation_insert",
+		"trg_log_generation_update",
+
+		"trg_log_generation_application_charm_delete",
+		"trg_log_generation_application_charm_insert",
+		"trg_log_generation_application_charm_update",
+		"trg_log_generation_application_delete",
+		"trg_log_generation_application_insert",
+		"trg_log_generation_application_update",
+
+		"trg_log_generation_application_config_delete",
+		"trg_log_generation_application_config_insert",
+		"trg_log_generation_application_config_update",
+
+		"trg_log_generation_application_resource_delete",
+		"trg_log_generation_application_resource_insert",
+		"trg_log_generation_application_resource_update",
+
+		"trg_log_generation_unit_delete",
+		"trg_log_generation_unit_insert",
+		"trg_log_generation_unit_update",
+		"trg_log_generation_unit_application_delete",
+		"trg_log_generation_unit_application_insert",
 	)
 
 	// These are additional triggers that are not change log triggers, but

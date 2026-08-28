@@ -87,6 +87,9 @@ func FormatTabular(writer io.Writer, forceColor bool, value any) error {
 	}
 
 	w.Println(values[versionPos:]...)
+	if len(fs.Branches) > 0 {
+		printBranches(tw, fs.Branches)
+	}
 
 	if len(fs.RemoteApplications) > 0 {
 		printRemoteApplications(tw, fs.RemoteApplications)
@@ -138,6 +141,7 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 	truncatedWidth := maxVersionWidth - len(ellipsis)
 
 	units := make(map[string]unitStatus)
+	showUnitCharm := len(fs.Branches) > 0
 	var w *output.Wrapper
 	if fs.Model.Type == caasModelType {
 		w = startSection(tw, false, "App", "Version", "Status", "Scale", "Charm", "Channel", "Rev", "Address", "Exposed", "Message")
@@ -244,7 +248,13 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 		if u.Leader {
 			name += "*"
 		}
+		if u.Branch != "" {
+			name += " " + u.Branch
+		}
 		w.Print(indent("", level*2, name))
+		if showUnitCharm {
+			w.Print(unitCharmRevision(u))
+		}
 		w.PrintStatus(u.WorkloadStatusInfo.Current)
 		w.PrintStatus(u.JujuStatusInfo.Current)
 
@@ -263,11 +273,16 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 	}
 
 	if len(units) > 0 {
-		if fs.Model.Type == caasModelType {
-			startSection(tw, false, "Unit", "Workload", "Agent", "Address", "Ports", "Message")
-		} else {
-			startSection(tw, false, "Unit", "Workload", "Agent", "Machine", "Public address", "Ports", "Message")
+		headers := []any{"Unit"}
+		if showUnitCharm {
+			headers = append(headers, "Charm")
 		}
+		if fs.Model.Type == caasModelType {
+			headers = append(headers, "Workload", "Agent", "Address", "Ports", "Message")
+		} else {
+			headers = append(headers, "Workload", "Agent", "Machine", "Public address", "Ports", "Message")
+		}
+		startSection(tw, false, headers...)
 		for _, name := range naturalsort.Sort(stringKeysFromMap(units)) {
 			u := units[name]
 			pUnit(name, u, 0)
@@ -278,6 +293,28 @@ func printApplications(tw *ansiterm.TabWriter, fs formattedStatus) {
 	}
 
 	endSection(tw)
+}
+
+func printBranches(tw *ansiterm.TabWriter, branches map[string]branchStatus) {
+	w := startSection(tw, false, "Branch", "Ref", "Created", "Created By")
+	for _, branchName := range naturalsort.Sort(stringKeysFromMap(branches)) {
+		branch := branches[branchName]
+		if branch.Active {
+			branchName += "*"
+		}
+		w.Println(branchName, branch.Ref, branch.Created, branch.CreatedBy)
+	}
+	endSection(tw)
+}
+
+func unitCharmRevision(unit unitStatus) string {
+	if unit.CharmRev != nil {
+		return strconv.Itoa(*unit.CharmRev)
+	}
+	if unit.Charm == "" {
+		return "-"
+	}
+	return "unknown"
 }
 
 type protocol struct {

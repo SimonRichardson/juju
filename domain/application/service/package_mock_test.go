@@ -26,6 +26,7 @@ import (
 	model "github.com/juju/juju/core/model"
 	network "github.com/juju/juju/core/network"
 	objectstore "github.com/juju/juju/core/objectstore"
+	resource "github.com/juju/juju/core/resource"
 	semversion "github.com/juju/juju/core/semversion"
 	status "github.com/juju/juju/core/status"
 	storage "github.com/juju/juju/core/storage"
@@ -414,6 +415,7 @@ type MockStateMockRecorder struct {
 	getCharmByApplicationUUIDExpects                          []*gomock.Call2_2[context.Context, application.UUID, charm0.Charm, error]
 	getCharmConfigExpects                                     []*gomock.Call2_2[context.Context, charm.ID, charm0.Config, error]
 	getCharmConfigByApplicationUUIDExpects                    []*gomock.Call2_3[context.Context, application.UUID, charm.ID, charm0.Config, error]
+	getCharmConfigForApplicationUpdateExpects                 []*gomock.Call2_3[context.Context, application.UUID, charm.ID, charm0.Config, error]
 	getCharmDownloadInfoExpects                               []*gomock.Call2_2[context.Context, charm.ID, *charm0.DownloadInfo, error]
 	getCharmIDExpects                                         []*gomock.Call4_2[context.Context, string, int, charm0.CharmSource, charm.ID, error]
 	getCharmIDByApplicationNameExpects                        []*gomock.Call2_2[context.Context, string, charm.ID, error]
@@ -436,10 +438,14 @@ type MockStateMockRecorder struct {
 	getModelStoragePoolsExpects                               []*gomock.Call1_2[context.Context, internal.ModelStoragePools, error]
 	getModelTypeExpects                                       []*gomock.Call1_2[context.Context, model.ModelType, error]
 	getNetNodeUUIDByUnitNameExpects                           []*gomock.Call2_2[context.Context, unit.Name, string, error]
+	getResolvedUnitApplicationConfigWithDefaultsExpects       []*gomock.Call2_2[context.Context, unit.UUID, map[string]application0.ApplicationConfig, error]
+	getResolvedUnitCharmExpects                               []*gomock.Call2_2[context.Context, unit.UUID, charm.ID, error]
+	getResolvedUnitResourceExpects                            []*gomock.Call3_2[context.Context, unit.UUID, string, resource.UUID, error]
 	getSpaceUUIDByNameExpects                                 []*gomock.Call2_2[context.Context, string, network.SpaceUUID, error]
 	getStorageAddInfoByUnitUUIDExpects                        []*gomock.Call3_2[context.Context, unit.UUID, storage.Name, internal.StorageInfoForAdd, error]
 	getStorageAttachInfoByUnitUUIDAndStorageUUIDExpects       []*gomock.Call3_2[context.Context, unit.UUID, storage0.StorageInstanceUUID, storage0.StorageInstanceInfoForUnitAttach, error]
 	getStorageAttachInfoForStorageInstancesExpects            []*gomock.Call2_2[context.Context, []storage0.StorageInstanceUUID, []storage0.StorageInstanceInfoForAttach, error]
+	getUnitApplicationConfigHashExpects                       []*gomock.Call2_2[context.Context, unit.UUID, string, error]
 	getUnitK8sPodInfoExpects                                  []*gomock.Call2_2[context.Context, unit.Name, application0.K8sPodInfo, error]
 	getUnitLifeExpects                                        []*gomock.Call2_2[context.Context, unit.Name, life.Life, error]
 	getUnitMachineNameExpects                                 []*gomock.Call2_2[context.Context, string, string, error]
@@ -462,6 +468,7 @@ type MockStateMockRecorder struct {
 	initialWatchStatementApplicationsExpects                  []*gomock.Call0_2[string, eventsource.NamespaceQuery]
 	initialWatchStatementApplicationsWithPendingCharmsExpects []*gomock.Call0_2[string, eventsource.NamespaceQuery]
 	initialWatchStatementUnitAddressesHashExpects             []*gomock.Call2_3[application.UUID, string, string, string, eventsource.NamespaceQuery]
+	initialWatchStatementUnitApplicationConfigHashExpects     []*gomock.Call1_2[unit.UUID, string, eventsource.NamespaceQuery]
 	initialWatchStatementUnitInsertDeleteOnNetNodeExpects     []*gomock.Call1_2[string, string, eventsource.NamespaceQuery]
 	initialWatchStatementUnitLifeExpects                      []*gomock.Call1_2[string, string, eventsource.NamespaceQuery]
 	insertMigratingApplicationExpects                         []*gomock.Call3_1[context.Context, string, application0.InsertApplicationArgs, error]
@@ -485,6 +492,10 @@ type MockStateMockRecorder struct {
 	namespaceForWatchApplicationScaleExpects                  []*gomock.Call0_1[string]
 	namespaceForWatchApplicationSettingExpects                []*gomock.Call0_1[string]
 	namespaceForWatchCharmExpects                             []*gomock.Call0_1[string]
+	namespaceForWatchGenerationApplicationCharmExpects        []*gomock.Call0_1[string]
+	namespaceForWatchGenerationApplicationConfigExpects       []*gomock.Call0_1[string]
+	namespaceForWatchGenerationApplicationResourceExpects     []*gomock.Call0_1[string]
+	namespaceForWatchGenerationUnitExpects                    []*gomock.Call0_1[string]
 	namespaceForWatchNetNodeAddressExpects                    []*gomock.Call0_1[string]
 	namespaceForWatchUnitForLegacyUniterExpects               []*gomock.Call0_3[string, string, string]
 	registerCAASUnitExpects                                   []*gomock.Call3_1[context.Context, string, application0.RegisterCAASUnitArg, error]
@@ -1406,6 +1417,24 @@ func (mr *MockStateMockRecorder) GetCharmConfigByApplicationUUID(ctx, appUUID an
 // MockStateGetCharmConfigByApplicationUUIDCall is the typed call wrapper for GetCharmConfigByApplicationUUID.
 type MockStateGetCharmConfigByApplicationUUIDCall = gomock.Call2_3[context.Context, application.UUID, charm.ID, charm0.Config, error]
 
+// GetCharmConfigForApplicationUpdate mocks base method.
+func (m *MockState) GetCharmConfigForApplicationUpdate(ctx context.Context, appUUID application.UUID) (charm.ID, charm0.Config, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_3(&m.recorder.getCharmConfigForApplicationUpdateExpects, m.ctrl, m, "GetCharmConfigForApplicationUpdate", ctx, appUUID)
+}
+
+// GetCharmConfigForApplicationUpdate indicates an expected call of GetCharmConfigForApplicationUpdate.
+func (mr *MockStateMockRecorder) GetCharmConfigForApplicationUpdate(ctx, appUUID any) *MockStateGetCharmConfigForApplicationUpdateCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_3[context.Context, application.UUID, charm.ID, charm0.Config, error](mr.mock.ctrl.T, mr.mock, "GetCharmConfigForApplicationUpdate", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(appUUID))
+	mr.getCharmConfigForApplicationUpdateExpects = append(mr.getCharmConfigForApplicationUpdateExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetCharmConfigForApplicationUpdateCall is the typed call wrapper for GetCharmConfigForApplicationUpdate.
+type MockStateGetCharmConfigForApplicationUpdateCall = gomock.Call2_3[context.Context, application.UUID, charm.ID, charm0.Config, error]
+
 // GetCharmDownloadInfo mocks base method.
 func (m *MockState) GetCharmDownloadInfo(ctx context.Context, id charm.ID) (*charm0.DownloadInfo, error) {
 	m.ctrl.T.Helper()
@@ -1802,6 +1831,60 @@ func (mr *MockStateMockRecorder) GetNetNodeUUIDByUnitName(ctx, name any) *MockSt
 // MockStateGetNetNodeUUIDByUnitNameCall is the typed call wrapper for GetNetNodeUUIDByUnitName.
 type MockStateGetNetNodeUUIDByUnitNameCall = gomock.Call2_2[context.Context, unit.Name, string, error]
 
+// GetResolvedUnitApplicationConfigWithDefaults mocks base method.
+func (m *MockState) GetResolvedUnitApplicationConfigWithDefaults(ctx context.Context, unitUUID unit.UUID) (map[string]application0.ApplicationConfig, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getResolvedUnitApplicationConfigWithDefaultsExpects, m.ctrl, m, "GetResolvedUnitApplicationConfigWithDefaults", ctx, unitUUID)
+}
+
+// GetResolvedUnitApplicationConfigWithDefaults indicates an expected call of GetResolvedUnitApplicationConfigWithDefaults.
+func (mr *MockStateMockRecorder) GetResolvedUnitApplicationConfigWithDefaults(ctx, unitUUID any) *MockStateGetResolvedUnitApplicationConfigWithDefaultsCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.UUID, map[string]application0.ApplicationConfig, error](mr.mock.ctrl.T, mr.mock, "GetResolvedUnitApplicationConfigWithDefaults", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitUUID))
+	mr.getResolvedUnitApplicationConfigWithDefaultsExpects = append(mr.getResolvedUnitApplicationConfigWithDefaultsExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetResolvedUnitApplicationConfigWithDefaultsCall is the typed call wrapper for GetResolvedUnitApplicationConfigWithDefaults.
+type MockStateGetResolvedUnitApplicationConfigWithDefaultsCall = gomock.Call2_2[context.Context, unit.UUID, map[string]application0.ApplicationConfig, error]
+
+// GetResolvedUnitCharm mocks base method.
+func (m *MockState) GetResolvedUnitCharm(ctx context.Context, unitUUID unit.UUID) (charm.ID, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getResolvedUnitCharmExpects, m.ctrl, m, "GetResolvedUnitCharm", ctx, unitUUID)
+}
+
+// GetResolvedUnitCharm indicates an expected call of GetResolvedUnitCharm.
+func (mr *MockStateMockRecorder) GetResolvedUnitCharm(ctx, unitUUID any) *MockStateGetResolvedUnitCharmCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.UUID, charm.ID, error](mr.mock.ctrl.T, mr.mock, "GetResolvedUnitCharm", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitUUID))
+	mr.getResolvedUnitCharmExpects = append(mr.getResolvedUnitCharmExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetResolvedUnitCharmCall is the typed call wrapper for GetResolvedUnitCharm.
+type MockStateGetResolvedUnitCharmCall = gomock.Call2_2[context.Context, unit.UUID, charm.ID, error]
+
+// GetResolvedUnitResource mocks base method.
+func (m *MockState) GetResolvedUnitResource(ctx context.Context, unitUUID unit.UUID, name string) (resource.UUID, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch3_2(&m.recorder.getResolvedUnitResourceExpects, m.ctrl, m, "GetResolvedUnitResource", ctx, unitUUID, name)
+}
+
+// GetResolvedUnitResource indicates an expected call of GetResolvedUnitResource.
+func (mr *MockStateMockRecorder) GetResolvedUnitResource(ctx, unitUUID, name any) *MockStateGetResolvedUnitResourceCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall3_2[context.Context, unit.UUID, string, resource.UUID, error](mr.mock.ctrl.T, mr.mock, "GetResolvedUnitResource", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitUUID), gomock.EnsureMatcher(name))
+	mr.getResolvedUnitResourceExpects = append(mr.getResolvedUnitResourceExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetResolvedUnitResourceCall is the typed call wrapper for GetResolvedUnitResource.
+type MockStateGetResolvedUnitResourceCall = gomock.Call3_2[context.Context, unit.UUID, string, resource.UUID, error]
+
 // GetSpaceUUIDByName mocks base method.
 func (m *MockState) GetSpaceUUIDByName(ctx context.Context, name string) (network.SpaceUUID, error) {
 	m.ctrl.T.Helper()
@@ -1873,6 +1956,24 @@ func (mr *MockStateMockRecorder) GetStorageAttachInfoForStorageInstances(ctx, st
 
 // MockStateGetStorageAttachInfoForStorageInstancesCall is the typed call wrapper for GetStorageAttachInfoForStorageInstances.
 type MockStateGetStorageAttachInfoForStorageInstancesCall = gomock.Call2_2[context.Context, []storage0.StorageInstanceUUID, []storage0.StorageInstanceInfoForAttach, error]
+
+// GetUnitApplicationConfigHash mocks base method.
+func (m *MockState) GetUnitApplicationConfigHash(ctx context.Context, unitUUID unit.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.getUnitApplicationConfigHashExpects, m.ctrl, m, "GetUnitApplicationConfigHash", ctx, unitUUID)
+}
+
+// GetUnitApplicationConfigHash indicates an expected call of GetUnitApplicationConfigHash.
+func (mr *MockStateMockRecorder) GetUnitApplicationConfigHash(ctx, unitUUID any) *MockStateGetUnitApplicationConfigHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.UUID, string, error](mr.mock.ctrl.T, mr.mock, "GetUnitApplicationConfigHash", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitUUID))
+	mr.getUnitApplicationConfigHashExpects = append(mr.getUnitApplicationConfigHashExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateGetUnitApplicationConfigHashCall is the typed call wrapper for GetUnitApplicationConfigHash.
+type MockStateGetUnitApplicationConfigHashCall = gomock.Call2_2[context.Context, unit.UUID, string, error]
 
 // GetUnitK8sPodInfo mocks base method.
 func (m *MockState) GetUnitK8sPodInfo(arg0 context.Context, arg1 unit.Name) (application0.K8sPodInfo, error) {
@@ -2269,6 +2370,24 @@ func (mr *MockStateMockRecorder) InitialWatchStatementUnitAddressesHash(appUUID,
 
 // MockStateInitialWatchStatementUnitAddressesHashCall is the typed call wrapper for InitialWatchStatementUnitAddressesHash.
 type MockStateInitialWatchStatementUnitAddressesHashCall = gomock.Call2_3[application.UUID, string, string, string, eventsource.NamespaceQuery]
+
+// InitialWatchStatementUnitApplicationConfigHash mocks base method.
+func (m *MockState) InitialWatchStatementUnitApplicationConfigHash(unitUUID unit.UUID) (string, eventsource.NamespaceQuery) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch1_2(&m.recorder.initialWatchStatementUnitApplicationConfigHashExpects, m.ctrl, m, "InitialWatchStatementUnitApplicationConfigHash", unitUUID)
+}
+
+// InitialWatchStatementUnitApplicationConfigHash indicates an expected call of InitialWatchStatementUnitApplicationConfigHash.
+func (mr *MockStateMockRecorder) InitialWatchStatementUnitApplicationConfigHash(unitUUID any) *MockStateInitialWatchStatementUnitApplicationConfigHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall1_2[unit.UUID, string, eventsource.NamespaceQuery](mr.mock.ctrl.T, mr.mock, "InitialWatchStatementUnitApplicationConfigHash", gomock.EnsureMatcher(unitUUID))
+	mr.initialWatchStatementUnitApplicationConfigHashExpects = append(mr.initialWatchStatementUnitApplicationConfigHashExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateInitialWatchStatementUnitApplicationConfigHashCall is the typed call wrapper for InitialWatchStatementUnitApplicationConfigHash.
+type MockStateInitialWatchStatementUnitApplicationConfigHashCall = gomock.Call1_2[unit.UUID, string, eventsource.NamespaceQuery]
 
 // InitialWatchStatementUnitInsertDeleteOnNetNode mocks base method.
 func (m *MockState) InitialWatchStatementUnitInsertDeleteOnNetNode(netNodeUUID string) (string, eventsource.NamespaceQuery) {
@@ -2685,6 +2804,78 @@ func (mr *MockStateMockRecorder) NamespaceForWatchCharm() *MockStateNamespaceFor
 
 // MockStateNamespaceForWatchCharmCall is the typed call wrapper for NamespaceForWatchCharm.
 type MockStateNamespaceForWatchCharmCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationApplicationCharm mocks base method.
+func (m *MockState) NamespaceForWatchGenerationApplicationCharm() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationApplicationCharmExpects, m.ctrl, m, "NamespaceForWatchGenerationApplicationCharm")
+}
+
+// NamespaceForWatchGenerationApplicationCharm indicates an expected call of NamespaceForWatchGenerationApplicationCharm.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationCharm() *MockStateNamespaceForWatchGenerationApplicationCharmCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationApplicationCharm")
+	mr.namespaceForWatchGenerationApplicationCharmExpects = append(mr.namespaceForWatchGenerationApplicationCharmExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationApplicationCharmCall is the typed call wrapper for NamespaceForWatchGenerationApplicationCharm.
+type MockStateNamespaceForWatchGenerationApplicationCharmCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationApplicationConfig mocks base method.
+func (m *MockState) NamespaceForWatchGenerationApplicationConfig() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationApplicationConfigExpects, m.ctrl, m, "NamespaceForWatchGenerationApplicationConfig")
+}
+
+// NamespaceForWatchGenerationApplicationConfig indicates an expected call of NamespaceForWatchGenerationApplicationConfig.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationConfig() *MockStateNamespaceForWatchGenerationApplicationConfigCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationApplicationConfig")
+	mr.namespaceForWatchGenerationApplicationConfigExpects = append(mr.namespaceForWatchGenerationApplicationConfigExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationApplicationConfigCall is the typed call wrapper for NamespaceForWatchGenerationApplicationConfig.
+type MockStateNamespaceForWatchGenerationApplicationConfigCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationApplicationResource mocks base method.
+func (m *MockState) NamespaceForWatchGenerationApplicationResource() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationApplicationResourceExpects, m.ctrl, m, "NamespaceForWatchGenerationApplicationResource")
+}
+
+// NamespaceForWatchGenerationApplicationResource indicates an expected call of NamespaceForWatchGenerationApplicationResource.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationApplicationResource() *MockStateNamespaceForWatchGenerationApplicationResourceCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationApplicationResource")
+	mr.namespaceForWatchGenerationApplicationResourceExpects = append(mr.namespaceForWatchGenerationApplicationResourceExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationApplicationResourceCall is the typed call wrapper for NamespaceForWatchGenerationApplicationResource.
+type MockStateNamespaceForWatchGenerationApplicationResourceCall = gomock.Call0_1[string]
+
+// NamespaceForWatchGenerationUnit mocks base method.
+func (m *MockState) NamespaceForWatchGenerationUnit() string {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch0_1(&m.recorder.namespaceForWatchGenerationUnitExpects, m.ctrl, m, "NamespaceForWatchGenerationUnit")
+}
+
+// NamespaceForWatchGenerationUnit indicates an expected call of NamespaceForWatchGenerationUnit.
+func (mr *MockStateMockRecorder) NamespaceForWatchGenerationUnit() *MockStateNamespaceForWatchGenerationUnitCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall0_1[string](mr.mock.ctrl.T, mr.mock, "NamespaceForWatchGenerationUnit")
+	mr.namespaceForWatchGenerationUnitExpects = append(mr.namespaceForWatchGenerationUnitExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockStateNamespaceForWatchGenerationUnitCall is the typed call wrapper for NamespaceForWatchGenerationUnit.
+type MockStateNamespaceForWatchGenerationUnitCall = gomock.Call0_1[string]
 
 // NamespaceForWatchNetNodeAddress mocks base method.
 func (m *MockState) NamespaceForWatchNetNodeAddress() string {

@@ -18,6 +18,7 @@ import (
 	"github.com/juju/tc"
 
 	coreapplication "github.com/juju/juju/core/application"
+	corecharm "github.com/juju/juju/core/charm"
 	charmtesting "github.com/juju/juju/core/charm/testing"
 	"github.com/juju/juju/core/devices"
 	coreerrors "github.com/juju/juju/core/errors"
@@ -2069,6 +2070,60 @@ func (s *applicationStateSuite) TestInitialWatchStatementApplicationsWithPending
 	c.Check(result, tc.SameContents, []string{id.String()})
 }
 
+func (s *applicationStateSuite) stagePendingGenerationCharm(
+	c *tc.C, appUUID coreapplication.UUID,
+) corecharm.ID {
+	mainCharmUUID, err := s.state.GetCharmIDByApplicationName(c.Context(), "foo")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(s.state.SetCharmAvailable(c.Context(), mainCharmUUID), tc.ErrorIsNil)
+
+	branchCharmUUID, _, err := s.state.AddCharm(c.Context(), charm.Charm{
+		Metadata:      charm.Metadata{Name: "foo"},
+		Manifest:      s.minimalManifest(c),
+		Source:        charm.CharmHubSource,
+		ReferenceName: "foo",
+		Revision:      23,
+		Hash:          "branch-hash",
+		Architecture:  architecture.AMD64,
+	}, &charm.DownloadInfo{
+		Provenance:         charm.ProvenanceDownload,
+		CharmhubIdentifier: "branch-ident",
+		DownloadURL:        "https://example.com/foo-23.charm",
+		DownloadSize:       23,
+	}, false)
+	c.Assert(err, tc.ErrorIsNil)
+
+	generationUUID := uuid.MustNewUUID().String()
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation (uuid, generation_id, name, state_id, created_by, created_at)
+VALUES (?, 42, 'test', 0, 'admin', DATETIME('now', 'utc'))`, generationUUID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application (generation_uuid, application_uuid)
+VALUES (?, ?)`, generationUUID, appUUID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO generation_application_charm (generation_uuid, application_uuid, charm_uuid)
+VALUES (?, ?, ?)`, generationUUID, appUUID, branchCharmUUID)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	return branchCharmUUID
+}
+
+func (s *applicationStateSuite) TestInitialWatchStatementApplicationsWithPendingGenerationCharm(c *tc.C) {
+	_, query := s.state.InitialWatchStatementApplicationsWithPendingCharms()
+	appUUID := s.createIAASApplication(c, "foo", life.Alive)
+	s.stagePendingGenerationCharm(c, appUUID)
+
+	result, err := query(c.Context(), s.TxnRunner())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, []string{appUUID.String()})
+}
+
 func (s *applicationStateSuite) TestInitialWatchStatementApplicationsWithPendingCharmsIfAvailable(c *tc.C) {
 	// These use the same charm, so once you set one applications charm, you
 	// set both.
@@ -2111,6 +2166,17 @@ func (s *applicationStateSuite) TestGetApplicationsWithPendingCharmsFromUUIDsIfP
 	expected, err := s.state.GetApplicationsWithPendingCharmsFromUUIDs(c.Context(), []coreapplication.UUID{id})
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(expected, tc.DeepEquals, []coreapplication.UUID{id})
+}
+
+func (s *applicationStateSuite) TestGetApplicationsWithPendingCharmsFromUUIDsGenerationCharm(c *tc.C) {
+	appUUID := s.createIAASApplication(c, "foo", life.Alive)
+	s.stagePendingGenerationCharm(c, appUUID)
+
+	result, err := s.state.GetApplicationsWithPendingCharmsFromUUIDs(
+		c.Context(), []coreapplication.UUID{appUUID},
+	)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, []coreapplication.UUID{appUUID})
 }
 
 func (s *applicationStateSuite) TestGetApplicationsWithPendingCharmsFromUUIDsIfAvailable(c *tc.C) {
@@ -2201,6 +2267,25 @@ func (s *applicationStateSuite) TestGetAsyncCharmDownloadInfo(c *tc.C) {
 			CharmhubIdentifier: "ident",
 			DownloadURL:        "https://example.com",
 			DownloadSize:       42,
+		},
+	})
+}
+
+func (s *applicationStateSuite) TestGetAsyncCharmDownloadInfoGenerationCharm(c *tc.C) {
+	appUUID := s.createIAASApplication(c, "foo", life.Alive)
+	branchCharmUUID := s.stagePendingGenerationCharm(c, appUUID)
+
+	info, err := s.state.GetAsyncCharmDownloadInfo(c.Context(), appUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(info, tc.DeepEquals, application.CharmDownloadInfo{
+		CharmUUID: branchCharmUUID,
+		Name:      "foo",
+		SHA256:    "branch-hash",
+		DownloadInfo: charm.DownloadInfo{
+			Provenance:         charm.ProvenanceDownload,
+			CharmhubIdentifier: "branch-ident",
+			DownloadURL:        "https://example.com/foo-23.charm",
+			DownloadSize:       23,
 		},
 	})
 }
