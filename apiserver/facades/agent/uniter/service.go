@@ -352,6 +352,8 @@ type StatusService interface {
 // UnitStateService describes the ability to retrieve and persist
 // unit agent state for informing hook reconciliation.
 type UnitStateService interface {
+	// UnitSnapshot returns the model-state projection for a unit snapshot.
+	UnitSnapshot(context.Context, coreunit.Name) (unitstate.UnitSnapshot, error)
 	// WatchUnitSnapshot watches all state represented in a unit snapshot.
 	WatchUnitSnapshot(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
 	// CommitHookChanges persists a set of changes after a hook successfully

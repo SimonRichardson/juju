@@ -41,7 +41,6 @@ import (
 	"github.com/juju/juju/core/watcher"
 	domainapplication "github.com/juju/juju/domain/application"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
-	"github.com/juju/juju/domain/blockdevice"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
 	domainlife "github.com/juju/juju/domain/life"
@@ -3415,40 +3414,21 @@ func (u *UniterAPI) getUnitSnapshot(
 	tag names.UnitTag,
 	unitName coreunit.Name,
 ) (params.UnitSnapshot, error) {
-	attributes, err := u.getRefresh(ctx, tag)
+	snapshot, err := u.unitStateService.UnitSnapshot(ctx, unitName)
 	if err != nil {
-		return params.UnitSnapshot{}, errors.Trace(err)
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
-	lifeValue, err := encodeLife(attributes.Life)
+	lifeValue, err := domainlife.Life(snapshot.LifeID).Value()
 	if err != nil {
-		return params.UnitSnapshot{}, errors.Trace(err)
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
-	resolvedMode, err := encodeResolveMode(attributes.ResolveMode)
+	resolvedMode, err := encodeResolveMode(snapshot.ResolvedMode)
 	if err != nil {
-		return params.UnitSnapshot{}, errors.Trace(err)
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
 
-	appUUID, err := u.applicationService.GetApplicationUUIDByUnitName(ctx, unitName)
-	if err != nil {
-		return params.UnitSnapshot{}, internalerrors.Capture(err)
-	}
+	appUUID := application.UUID(snapshot.ApplicationUUID)
 	config, err := u.applicationService.GetApplicationConfigWithDefaults(ctx, appUUID)
-	if err != nil {
-		return params.UnitSnapshot{}, internalerrors.Capture(err)
-	}
-	trust, err := u.applicationService.GetApplicationTrustSetting(ctx, unitName.Application())
-	if err != nil {
-		return params.UnitSnapshot{}, internalerrors.Capture(err)
-	}
-	charmURL, _, err := u.charmURLForUnit(ctx, tag)
-	if err != nil {
-		return params.UnitSnapshot{}, errors.Trace(err)
-	}
-	charmModifiedVersion, err := u.applicationService.GetCharmModifiedVersion(ctx, appUUID)
-	if err != nil {
-		return params.UnitSnapshot{}, internalerrors.Capture(err)
-	}
-	workloadVersion, err := u.applicationService.GetUnitWorkloadVersion(ctx, unitName)
 	if err != nil {
 		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
@@ -3459,10 +3439,6 @@ func (u *UniterAPI) getUnitSnapshot(
 	applicationStatus, err := u.statusService.GetApplicationDisplayStatus(ctx, unitName.Application())
 	if err != nil {
 		return params.UnitSnapshot{}, internalerrors.Capture(err)
-	}
-	storage, err := u.getStorageSnapshots(ctx, tag)
-	if err != nil {
-		return params.UnitSnapshot{}, errors.Trace(err)
 	}
 	unitContext, err := u.getUnitContext(ctx, unitName)
 	if err != nil {
@@ -3501,21 +3477,36 @@ func (u *UniterAPI) getUnitSnapshot(
 		}
 	}
 
+	storageSnapshots := make([]params.StorageSnapshot, len(snapshot.Storage))
+	for i, item := range snapshot.Storage {
+		storageLife, err := domainlife.Life(item.LifeID).Value()
+		if err != nil {
+			return params.UnitSnapshot{}, internalerrors.Capture(err)
+		}
+		storageSnapshots[i] = params.StorageSnapshot{
+			ID:       item.ID,
+			Kind:     storage.StorageKind(item.KindID).String(),
+			Location: item.Location,
+			Life:     storageLife,
+		}
+	}
+
 	return params.UnitSnapshot{
-		UnitName:             unitName.String(),
-		ApplicationName:      unitName.Application(),
+		UnitName:             snapshot.UnitName,
+		ApplicationName:      snapshot.ApplicationName,
 		Life:                 lifeValue,
 		ResolvedMode:         resolvedMode,
-		CharmURL:             charmURL,
-		CharmModifiedVersion: charmModifiedVersion,
+		CharmURL:             snapshot.CharmURL,
+		CharmModifiedVersion: snapshot.CharmModifiedVersion,
 		Config:               map[string]any(config),
-		Trust:                trust,
-		WorkloadVersion:      workloadVersion,
+		Trust:                snapshot.Trust,
+		WorkloadVersion:      snapshot.WorkloadVersion,
+		CharmState:           snapshot.CharmState,
 		UnitStatus:           detailedStatusFromStatusInfo(unitStatus),
 		ApplicationStatus:    detailedStatusFromStatusInfo(applicationStatus),
 		Relations:            relations,
 		Secrets:              secretSnapshots,
-		Storage:              storage,
+		Storage:              storageSnapshots,
 		PortRanges:           portRangesForUnit(unitContext, tag),
 		APIAddresses:         apiAddresses,
 		CloudAPIVersion:      unitContext.CloudAPIVersion,
@@ -3524,47 +3515,6 @@ func (u *UniterAPI) getUnitSnapshot(
 		PrivateAddress:       unitContext.PrivateAddress,
 		CharmTracingConfig:   snapshotTracingConfig,
 	}, nil
-}
-
-func (u *UniterAPI) getStorageSnapshots(ctx context.Context, unitTag names.UnitTag) ([]params.StorageSnapshot, error) {
-	unitUUID, err := u.StorageAPI.getUnitUUID(ctx, unitTag)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	storageIDs, err := u.storageProvisioningService.GetStorageAttachmentIDsForUnit(ctx, unitUUID)
-	if err != nil {
-		return nil, internalerrors.Capture(err)
-	}
-
-	result := make([]params.StorageSnapshot, 0, len(storageIDs))
-	for _, storageID := range storageIDs {
-		attachmentUUID, err := u.storageProvisioningService.GetStorageAttachmentUUIDForUnit(ctx, storageID, unitUUID)
-		if err != nil {
-			return nil, internalerrors.Capture(err)
-		}
-		info, err := u.storageProvisioningService.GetUnitStorageAttachmentInfo(ctx, attachmentUUID)
-		if err != nil {
-			return nil, internalerrors.Capture(err)
-		}
-		lifeValue, err := info.Life.Value()
-		if err != nil {
-			return nil, internalerrors.Capture(err)
-		}
-
-		snapshot := params.StorageSnapshot{ID: storageID, Kind: info.Kind.String(), Life: lifeValue}
-		switch info.Kind {
-		case storage.StorageKindFilesystem:
-			snapshot.Location = info.FilesystemMountPoint
-		case storage.StorageKindBlock:
-			device, err := u.blockDeviceService.GetBlockDevice(ctx, info.BlockDeviceUUID)
-			if err != nil {
-				return nil, internalerrors.Capture(err)
-			}
-			snapshot.Location = blockdevice.IDLink(device.DeviceLinks)
-		}
-		result = append(result, snapshot)
-	}
-	return result, nil
 }
 
 func detailedStatusFromStatusInfo(statusInfo status.StatusInfo) params.DetailedStatus {

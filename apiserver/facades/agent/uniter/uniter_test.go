@@ -20,7 +20,6 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	apiservertesting "github.com/juju/juju/apiserver/testing"
 	coreapplication "github.com/juju/juju/core/application"
-	coreblockdevice "github.com/juju/juju/core/blockdevice"
 	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/life"
 	coremachine "github.com/juju/juju/core/machine"
@@ -38,7 +37,6 @@ import (
 	domaincharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	"github.com/juju/juju/domain/application/service"
-	domainblockdevice "github.com/juju/juju/domain/blockdevice"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
 	domainlife "github.com/juju/juju/domain/life"
@@ -53,7 +51,6 @@ import (
 	resolveerrors "github.com/juju/juju/domain/resolve/errors"
 	domainsecret "github.com/juju/juju/domain/secret"
 	domainstorage "github.com/juju/juju/domain/storage"
-	"github.com/juju/juju/domain/storageprovisioning"
 	tracingservice "github.com/juju/juju/domain/tracing/service"
 	"github.com/juju/juju/domain/unitstate"
 	internalerrors "github.com/juju/juju/internal/errors"
@@ -213,19 +210,25 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 	unitName := coreunit.Name("mysql/0")
 	appUUID := coreapplication.UUID("application-uuid")
 	privateAddress := "10.0.0.1"
-	s.applicationService.EXPECT().GetUnitRefreshAttributes(gomock.Any(), unitName).Return(
-		domainapplication.UnitAttributes{Life: domainlife.Alive, ResolveMode: "none"}, nil,
-	)
-	s.applicationService.EXPECT().GetApplicationUUIDByUnitName(gomock.Any(), unitName).Return(appUUID, nil)
+	s.unitStateService.EXPECT().UnitSnapshot(gomock.Any(), unitName).Return(unitstate.UnitSnapshot{
+		UnitName:             "mysql/0",
+		ApplicationName:      "mysql",
+		ApplicationUUID:      appUUID.String(),
+		CharmURL:             "ch:amd64/mysql-42",
+		LifeID:               int(domainlife.Alive),
+		ResolvedMode:         "none",
+		CharmModifiedVersion: 3,
+		Trust:                true,
+		WorkloadVersion:      "8.0",
+		CharmState:           map[string]string{"foo": "bar"},
+		Storage: []unitstate.StorageSnapshot{
+			{ID: "data/0", KindID: int(domainstorage.StorageKindFilesystem), LifeID: int(domainlife.Alive), Location: "/var/lib/mysql"},
+			{ID: "disk/0", KindID: int(domainstorage.StorageKindBlock), LifeID: int(domainlife.Dying), Location: "/dev/disk/by-id/short"},
+		},
+	}, nil)
 	s.applicationService.EXPECT().GetApplicationConfigWithDefaults(gomock.Any(), appUUID).Return(
 		charm.Config{"max-connections": 100}, nil,
 	)
-	s.applicationService.EXPECT().GetApplicationTrustSetting(gomock.Any(), "mysql").Return(true, nil)
-	s.applicationService.EXPECT().GetCharmLocatorByApplicationName(gomock.Any(), "mysql").Return(
-		domaincharm.CharmLocator{Name: "mysql", Source: domaincharm.CharmHubSource, Revision: 42}, nil,
-	)
-	s.applicationService.EXPECT().GetCharmModifiedVersion(gomock.Any(), appUUID).Return(3, nil)
-	s.applicationService.EXPECT().GetUnitWorkloadVersion(gomock.Any(), unitName).Return("8.0", nil)
 	s.statusService.EXPECT().GetUnitWorkloadStatus(gomock.Any(), unitName).Return(status.StatusInfo{
 		Status:  status.Active,
 		Message: "ready",
@@ -235,35 +238,6 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		Status:  status.Active,
 		Message: "available",
 	}, nil)
-	unitUUID := coreunit.UUID("unit-uuid")
-	s.applicationService.EXPECT().GetUnitUUID(gomock.Any(), unitName).Return(unitUUID, nil)
-	s.storageProvisioningService.EXPECT().GetStorageAttachmentIDsForUnit(gomock.Any(), unitUUID).Return([]string{"data/0", "disk/0"}, nil)
-	attachmentUUID := domainstorage.StorageAttachmentUUID("attachment-uuid")
-	s.storageProvisioningService.EXPECT().GetStorageAttachmentUUIDForUnit(gomock.Any(), "data/0", unitUUID).Return(attachmentUUID, nil)
-	s.storageProvisioningService.EXPECT().GetUnitStorageAttachmentInfo(gomock.Any(), attachmentUUID).Return(
-		storageprovisioning.StorageAttachmentInfo{
-			Kind:                 domainstorage.StorageKindFilesystem,
-			Life:                 domainlife.Alive,
-			FilesystemMountPoint: "/var/lib/mysql",
-		}, nil,
-	)
-	blockAttachmentUUID := domainstorage.StorageAttachmentUUID("block-attachment-uuid")
-	s.storageProvisioningService.EXPECT().GetStorageAttachmentUUIDForUnit(gomock.Any(), "disk/0", unitUUID).Return(blockAttachmentUUID, nil)
-	blockDeviceUUID := domainblockdevice.BlockDeviceUUID("block-device-uuid")
-	s.storageProvisioningService.EXPECT().GetUnitStorageAttachmentInfo(gomock.Any(), blockAttachmentUUID).Return(
-		storageprovisioning.StorageAttachmentInfo{
-			Kind:            domainstorage.StorageKindBlock,
-			Life:            domainlife.Dying,
-			BlockDeviceUUID: blockDeviceUUID,
-		}, nil,
-	)
-	s.blockDeviceService.EXPECT().GetBlockDevice(gomock.Any(), blockDeviceUUID).Return(
-		coreblockdevice.BlockDevice{DeviceLinks: []string{
-			"/dev/sdb",
-			"/dev/disk/by-id/long-device-link",
-			"/dev/disk/by-id/short",
-		}}, nil,
-	)
 	s.applicationService.EXPECT().GetIAASUnitContext(gomock.Any(), unitName).Return(service.IAASUnitContext{
 		CloudAPIVersion: "v1",
 		PrivateAddress:  &privateAddress,
@@ -297,6 +271,7 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		CharmModifiedVersion: 3,
 		Config:               map[string]any{"max-connections": 100},
 		Trust:                true,
+		CharmState:           map[string]string{"foo": "bar"},
 		Relations:            []params.RelationSnapshot{},
 		Secrets: []params.SecretSnapshot{{
 			URI:      "secret:secret-id",
