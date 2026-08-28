@@ -12,8 +12,10 @@ import (
 	"github.com/juju/worker/v5"
 	"github.com/juju/worker/v5/catacomb"
 
+	"github.com/juju/juju/core/life"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
+	internalworker "github.com/juju/juju/internal/worker"
 	charm "github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/rpc/params"
 )
@@ -227,6 +229,12 @@ func (w *HolisticUniter) loop() error {
 		if err == nil {
 			retryTimer.Reset()
 			retryStarted = false
+			if snapshot.Life == life.Dead {
+				return internalworker.ErrTerminateAgent
+			}
+			if terminating, ok := w.config.Strategy.(TerminationStrategy); ok && terminating.Terminated() {
+				return internalworker.ErrTerminateAgent
+			}
 		}
 		return err
 	}
@@ -244,8 +252,13 @@ func (w *HolisticUniter) loop() error {
 		}
 
 		if err := reconcile(retryDue); err != nil {
-			if _, ok := w.config.Strategy.(PendingEventResolver); !ok {
+			resolver, ok := w.config.Strategy.(PendingEventResolver)
+			if !ok || resolver.PendingEvent() == "" {
 				return errors.Trace(err)
+			}
+			if !retryStarted && w.config.RetryStrategy.ShouldRetry {
+				retryTimer.Start()
+				retryStarted = true
 			}
 		}
 	}

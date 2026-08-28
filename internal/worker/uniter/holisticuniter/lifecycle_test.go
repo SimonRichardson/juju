@@ -9,6 +9,7 @@ import (
 
 	"github.com/juju/tc"
 
+	"github.com/juju/juju/core/life"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
 	charm "github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/rpc/params"
@@ -100,6 +101,19 @@ func (s *LifecycleSuite) TestPlannerDispatchesReconcileWhenSnapshotChanges(c *tc
 	c.Check(planner.Plan(snapshot), tc.IsNil)
 	snapshot.Config["message"] = "two"
 	c.Check(planner.Plan(snapshot), tc.DeepEquals, []hooks.Kind{hooks.Reconcile})
+}
+
+func (s *LifecycleSuite) TestDyingUnitStopsThenRemovesBeforeTermination(c *tc.C) {
+	store := &testLifecycleStore{state: LifecycleState{Installed: true, Started: true}}
+	planner, err := NewPersistentLifecyclePlanner(c.Context(), store)
+	c.Assert(err, tc.ErrorIsNil)
+	snapshot := params.UnitSnapshot{Life: life.Dying}
+
+	c.Check(planner.Plan(snapshot), tc.DeepEquals, []hooks.Kind{hooks.Stop, hooks.Remove})
+	c.Assert(planner.Complete(c.Context(), hooks.Stop, snapshot), tc.ErrorIsNil)
+	c.Assert(planner.Complete(c.Context(), hooks.Remove, snapshot), tc.ErrorIsNil)
+
+	c.Check(planner.Terminated(), tc.IsTrue)
 }
 
 func (s *LifecycleSuite) TestHandleStagesBeforeDistinctDispatches(c *tc.C) {

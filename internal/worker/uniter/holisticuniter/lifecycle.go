@@ -32,6 +32,8 @@ type EventPlanner interface {
 	Retry(context.Context) error
 	// Complete records a successfully handled lifecycle event.
 	Complete(context.Context, hooks.Kind, params.UnitSnapshot) error
+	// Terminated reports whether teardown has completed.
+	Terminated() bool
 }
 
 // LifecycleStore persists lifecycle progress in the controller-backed unit
@@ -84,14 +86,18 @@ func (p *LifecyclePlanner) Plan(snapshot params.UnitSnapshot) []hooks.Kind {
 	if p.state.Pending != "" {
 		return []hooks.Kind{p.state.Pending}
 	}
-	if snapshot.Life == life.Dying || snapshot.Life == life.Dead {
-		if p.state.Started && !p.state.Stopped {
-			return []hooks.Kind{hooks.Stop}
-		}
-		if !p.state.Removed {
-			return []hooks.Kind{hooks.Remove}
-		}
+	if snapshot.Life == life.Dead {
 		return nil
+	}
+	if snapshot.Life == life.Dying {
+		events := make([]hooks.Kind, 0, 2)
+		if p.state.Started && !p.state.Stopped {
+			events = append(events, hooks.Stop)
+		}
+		if p.state.Installed && !p.state.Removed {
+			events = append(events, hooks.Remove)
+		}
+		return events
 	}
 	if !p.state.Installed {
 		return []hooks.Kind{hooks.Install, hooks.ConfigChanged, hooks.Start}
@@ -111,6 +117,11 @@ func (p *LifecyclePlanner) Plan(snapshot params.UnitSnapshot) []hooks.Kind {
 // Pending returns the event recorded before dispatch, if any.
 func (p *LifecyclePlanner) Pending() hooks.Kind {
 	return p.state.Pending
+}
+
+// Terminated reports whether the remove event completed.
+func (p *LifecyclePlanner) Terminated() bool {
+	return p.state.Removed
 }
 
 // Begin records a hook before it is dispatched. If the agent stops before the
@@ -191,6 +202,13 @@ type PendingEventResolver interface {
 	SkipPending(context.Context, params.UnitSnapshot) error
 }
 
+// TerminationStrategy reports that teardown events completed and the worker
+// may terminate its unit agent.
+type TerminationStrategy interface {
+	// Terminated reports whether teardown has completed.
+	Terminated() bool
+}
+
 // Strategy handles a snapshot after the worker has received a notification.
 type Strategy interface {
 	// Handle converges the unit for the supplied current snapshot.
@@ -230,6 +248,11 @@ type LifecycleStrategy struct {
 // PendingEvent returns the event awaiting retry or explicit resolution.
 func (s *LifecycleStrategy) PendingEvent() hooks.Kind {
 	return s.config.Planner.Pending()
+}
+
+// Terminated reports whether the planner completed the remove event.
+func (s *LifecycleStrategy) Terminated() bool {
+	return s.config.Planner.Terminated()
 }
 
 // RetryPending makes the failed event eligible for another dispatch.
