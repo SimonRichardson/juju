@@ -2176,6 +2176,7 @@ type MockUnitStateServiceMockRecorder struct {
 	getStateExpects                 []*gomock.Call2_2[context.Context, unit.Name, unitstate.RetrievedUnitState, error]
 	resolveSecretGrantOwnersExpects []*gomock.Call4_2[context.Context, unit.Name, []unitstate.CreateSecretArg, []*secrets.URI, map[string]secret.CharmSecretOwnerKind, error]
 	setStateExpects                 []*gomock.Call2_1[context.Context, unitstate.UnitState, error]
+	unitSnapshotExpects             []*gomock.Call2_2[context.Context, unit.Name, unitstate.UnitSnapshot, error]
 	watchUnitSnapshotExpects        []*gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 }
 
@@ -2190,24 +2191,6 @@ func NewMockUnitStateService(ctrl *gomock.Controller) *MockUnitStateService {
 func (m *MockUnitStateService) EXPECT() *MockUnitStateServiceMockRecorder {
 	return m.recorder
 }
-
-// WatchUnitSnapshot mocks base method.
-func (m *MockUnitStateService) WatchUnitSnapshot(ctx context.Context, unitName unit.Name) (watcher.NotifyWatcher, error) {
-	m.ctrl.T.Helper()
-	return gomock.Dispatch2_2(&m.recorder.watchUnitSnapshotExpects, m.ctrl, m, "WatchUnitSnapshot", ctx, unitName)
-}
-
-// WatchUnitSnapshot indicates an expected call of WatchUnitSnapshot.
-func (mr *MockUnitStateServiceMockRecorder) WatchUnitSnapshot(ctx, unitName any) *MockUnitStateServiceWatchUnitSnapshotCall {
-	mr.mock.ctrl.T.Helper()
-	call := gomock.NewCall2_2[context.Context, unit.Name, watcher.NotifyWatcher, error](mr.mock.ctrl.T, mr.mock, "WatchUnitSnapshot", gomock.EnsureMatcher(ctx), gomock.EnsureMatcher(unitName))
-	mr.watchUnitSnapshotExpects = append(mr.watchUnitSnapshotExpects, call)
-	mr.mock.ctrl.Track(call.Call)
-	return call
-}
-
-// MockUnitStateServiceWatchUnitSnapshotCall is the typed call wrapper for WatchUnitSnapshot.
-type MockUnitStateServiceWatchUnitSnapshotCall = gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 
 // CommitHookChanges mocks base method.
 func (m *MockUnitStateService) CommitHookChanges(ctx context.Context, arg unitstate.CommitHookChangesArg) error {
@@ -2280,6 +2263,42 @@ func (mr *MockUnitStateServiceMockRecorder) SetState(arg0, arg1 any) *MockUnitSt
 
 // MockUnitStateServiceSetStateCall is the typed call wrapper for SetState.
 type MockUnitStateServiceSetStateCall = gomock.Call2_1[context.Context, unitstate.UnitState, error]
+
+// UnitSnapshot mocks base method.
+func (m *MockUnitStateService) UnitSnapshot(arg0 context.Context, arg1 unit.Name) (unitstate.UnitSnapshot, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.unitSnapshotExpects, m.ctrl, m, "UnitSnapshot", arg0, arg1)
+}
+
+// UnitSnapshot indicates an expected call of UnitSnapshot.
+func (mr *MockUnitStateServiceMockRecorder) UnitSnapshot(arg0, arg1 any) *MockUnitStateServiceUnitSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.Name, unitstate.UnitSnapshot, error](mr.mock.ctrl.T, mr.mock, "UnitSnapshot", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1))
+	mr.unitSnapshotExpects = append(mr.unitSnapshotExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockUnitStateServiceUnitSnapshotCall is the typed call wrapper for UnitSnapshot.
+type MockUnitStateServiceUnitSnapshotCall = gomock.Call2_2[context.Context, unit.Name, unitstate.UnitSnapshot, error]
+
+// WatchUnitSnapshot mocks base method.
+func (m *MockUnitStateService) WatchUnitSnapshot(arg0 context.Context, arg1 unit.Name) (watcher.NotifyWatcher, error) {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch2_2(&m.recorder.watchUnitSnapshotExpects, m.ctrl, m, "WatchUnitSnapshot", arg0, arg1)
+}
+
+// WatchUnitSnapshot indicates an expected call of WatchUnitSnapshot.
+func (mr *MockUnitStateServiceMockRecorder) WatchUnitSnapshot(arg0, arg1 any) *MockUnitStateServiceWatchUnitSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall2_2[context.Context, unit.Name, watcher.NotifyWatcher, error](mr.mock.ctrl.T, mr.mock, "WatchUnitSnapshot", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1))
+	mr.watchUnitSnapshotExpects = append(mr.watchUnitSnapshotExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockUnitStateServiceWatchUnitSnapshotCall is the typed call wrapper for WatchUnitSnapshot.
+type MockUnitStateServiceWatchUnitSnapshotCall = gomock.Call2_2[context.Context, unit.Name, watcher.NotifyWatcher, error]
 
 // MockControllerNodeService is a mock of ControllerNodeService interface.
 type MockControllerNodeService struct {
