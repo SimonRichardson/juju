@@ -13,8 +13,10 @@ import (
 	"github.com/juju/tc"
 	"github.com/juju/worker/v5"
 
+	"github.com/juju/juju/core/life"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
+	internalworker "github.com/juju/juju/internal/worker"
 	"github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/internal/worker/uniter/shared/hook"
 	"github.com/juju/juju/internal/worker/uniter/shared/runner"
@@ -107,6 +109,53 @@ func (s *WorkerSuite) TestFailedDispatchRetriesWithFreshSnapshot(c *tc.C) {
 	}
 
 	c.Check(client.calls, tc.Equals, 2)
+}
+
+func (s *WorkerSuite) TestDyingUnitRunsStopAndRemoveBeforeTermination(c *tc.C) {
+	watch := newTestWatcher()
+	store := &testLifecycleStore{state: LifecycleState{Installed: true, Started: true}}
+	planner, err := NewPersistentLifecyclePlanner(c.Context(), store)
+	c.Assert(err, tc.ErrorIsNil)
+	events := make(chan hooks.Kind, 2)
+	strategy, err := NewLifecycleStrategy(StrategyConfig{
+		Planner: planner,
+		Dispatch: func(_ context.Context, event hooks.Kind, _ params.UnitSnapshot) error {
+			events <- event
+			return nil
+		},
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	w, err := New(Config{
+		Watcher:       watch,
+		Snapshot:      &testSnapshotClient{snapshot: params.UnitSnapshot{Life: life.Dying}},
+		Strategy:      strategy,
+		ClearResolved: clearResolved,
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	watch.changes <- struct{}{}
+	c.Check(<-events, tc.Equals, hooks.Stop)
+	c.Check(<-events, tc.Equals, hooks.Remove)
+	c.Check(w.Wait(), tc.ErrorIs, internalworker.ErrTerminateAgent)
+}
+
+func (s *WorkerSuite) TestDeadUnitTerminatesImmediately(c *tc.C) {
+	watch := newTestWatcher()
+	strategy, err := NewLifecycleStrategy(StrategyConfig{
+		Planner:  NewLifecyclePlanner(),
+		Dispatch: func(context.Context, hooks.Kind, params.UnitSnapshot) error { return nil },
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	w, err := New(Config{
+		Watcher:       watch,
+		Snapshot:      &testSnapshotClient{snapshot: params.UnitSnapshot{Life: life.Dead}},
+		Strategy:      strategy,
+		ClearResolved: clearResolved,
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	watch.changes <- struct{}{}
+	c.Check(w.Wait(), tc.ErrorIs, internalworker.ErrTerminateAgent)
 }
 
 func (s *WorkerSuite) TestNewForUnitUsesUnitAPIs(c *tc.C) {
@@ -219,18 +268,37 @@ type testSnapshotClient struct {
 }
 
 type retryStrategy struct {
-	failed chan struct{}
-	done   chan struct{}
-	calls  int
+	failed  chan struct{}
+	done    chan struct{}
+	calls   int
+	pending bool
 }
 
 func (s *retryStrategy) Handle(context.Context, params.UnitSnapshot) error {
 	s.calls++
 	if s.calls == 1 {
+		s.pending = true
 		close(s.failed)
 		return errors.New("hook failed")
 	}
 	close(s.done)
+	return nil
+}
+
+func (s *retryStrategy) PendingEvent() hooks.Kind {
+	if s.pending {
+		return hooks.Reconcile
+	}
+	return ""
+}
+
+func (s *retryStrategy) RetryPending(context.Context) error {
+	s.pending = false
+	return nil
+}
+
+func (s *retryStrategy) SkipPending(context.Context, params.UnitSnapshot) error {
+	s.pending = false
 	return nil
 }
 
