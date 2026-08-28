@@ -5,7 +5,6 @@ package uniter
 
 import (
 	stdcontext "context"
-	"time"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
@@ -433,7 +432,7 @@ func newHolisticUniter(ctx stdcontext.Context, config holisticUniterFactoryConfi
 		Planner:       planner,
 		Deployer:      deployer,
 		CharmDirGuard: config.charmDirGuard,
-		RetryDelay:    holisticRetryDelay(config.hookRetryStrategy),
+		RetryStrategy: config.hookRetryStrategy,
 		Clock:         config.manifoldConfig.Clock,
 		Charm: func(_ stdcontext.Context, snapshot params.UnitSnapshot) (charm.BundleInfo, error) {
 			return config.unitClient.Charm(snapshot.CharmURL)
@@ -454,13 +453,6 @@ func newHolisticUniter(ctx stdcontext.Context, config holisticUniterFactoryConfi
 			})
 		},
 	})
-}
-
-func holisticRetryDelay(strategy params.RetryStrategy) time.Duration {
-	if !strategy.ShouldRetry {
-		return 0
-	}
-	return strategy.MinRetryTime
 }
 
 func output(in worker.Worker, out any) error {

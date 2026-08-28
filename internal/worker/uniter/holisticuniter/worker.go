@@ -5,10 +5,10 @@ package holisticuniter
 
 import (
 	"context"
-	"time"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
+	"github.com/juju/utils/v4"
 	"github.com/juju/worker/v5"
 	"github.com/juju/worker/v5/catacomb"
 
@@ -20,13 +20,17 @@ import (
 
 // SnapshotClient obtains the complete state for a holistic unit.
 type SnapshotClient interface {
+	// Snapshot returns the complete current state for the unit.
 	Snapshot(context.Context) (params.UnitSnapshot, error)
 }
 
 // Unit is the portion of the unit API needed to run a holistic worker.
 type Unit interface {
 	SnapshotClient
+	// WatchComposite notifies when any snapshot input changes.
 	WatchComposite(context.Context) (corewatcher.NotifyWatcher, error)
+	// ClearResolved clears the unit's explicit hook-resolution mode.
+	ClearResolved(context.Context) error
 }
 
 // DispatchFunc runs one named charm event with the snapshot available through
@@ -44,7 +48,7 @@ func NewForUnit(ctx context.Context, unit Unit, planner EventPlanner, dispatch D
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return newForUnit(ctx, unit, strategy, 0, nil)
+	return newForUnit(ctx, unit, strategy, params.RetryStrategy{}, nil)
 }
 
 // NewForUnitWithCharm is NewForUnit with charm staging and deployment enabled.
@@ -60,10 +64,10 @@ func NewForUnitWithCharm(ctx context.Context, unit Unit, planner EventPlanner, c
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return newForUnit(ctx, unit, strategy, 0, nil)
+	return newForUnit(ctx, unit, strategy, params.RetryStrategy{}, nil)
 }
 
-func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryDelay time.Duration, clock clock.Clock) (*HolisticUniter, error) {
+func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryStrategy params.RetryStrategy, clock clock.Clock) (*HolisticUniter, error) {
 	if unit == nil {
 		return nil, errors.NotValidf("missing unit")
 	}
@@ -75,11 +79,12 @@ func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryDelay ti
 		return nil, errors.Annotate(err, "watching unit snapshot")
 	}
 	config := Config{
-		Watcher:    watcher,
-		Snapshot:   unit,
-		Strategy:   strategy,
-		RetryDelay: retryDelay,
-		Clock:      clock,
+		Watcher:       watcher,
+		Snapshot:      unit,
+		Strategy:      strategy,
+		RetryStrategy: retryStrategy,
+		ClearResolved: unit.ClearResolved,
+		Clock:         clock,
 	}
 	if err := config.Validate(); err != nil {
 		watcher.Kill()
@@ -95,11 +100,12 @@ func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryDelay ti
 
 // Config contains the dependencies of a holistic unit worker.
 type Config struct {
-	Watcher    corewatcher.NotifyWatcher
-	Snapshot   SnapshotClient
-	Strategy   Strategy
-	RetryDelay time.Duration
-	Clock      clock.Clock
+	Watcher       corewatcher.NotifyWatcher
+	Snapshot      SnapshotClient
+	Strategy      Strategy
+	RetryStrategy params.RetryStrategy
+	ClearResolved func(context.Context) error
+	Clock         clock.Clock
 }
 
 // Validate checks that all worker dependencies are present and consistent.
@@ -113,8 +119,11 @@ func (c Config) Validate() error {
 	if c.Strategy == nil {
 		return errors.NotValidf("missing lifecycle strategy")
 	}
-	if c.RetryDelay > 0 && c.Clock == nil {
+	if c.RetryStrategy.ShouldRetry && c.Clock == nil {
 		return errors.NotValidf("missing clock for retry")
+	}
+	if c.ClearResolved == nil {
+		return errors.NotValidf("missing clear resolved function")
 	}
 	return nil
 }
@@ -158,15 +167,71 @@ func (w *HolisticUniter) Wait() error {
 
 func (w *HolisticUniter) loop() error {
 	ctx := w.catacomb.Context(context.Background())
-	var retry <-chan time.Time
-	reconcile := func() error {
+	retryCh := make(chan struct{}, 1)
+	retryTimer := utils.NewBackoffTimer(utils.BackoffTimerConfig{
+		Min:    w.config.RetryStrategy.MinRetryTime,
+		Max:    w.config.RetryStrategy.MaxRetryTime,
+		Jitter: w.config.RetryStrategy.JitterRetryTime,
+		Factor: w.config.RetryStrategy.RetryTimeFactor,
+		Clock:  w.config.Clock,
+		Func: func() {
+			select {
+			case retryCh <- struct{}{}:
+			default:
+			}
+		},
+	})
+	defer retryTimer.Reset()
+	retryStarted := false
+	reconcile := func(retryDue bool) error {
 		snapshot, err := w.config.Snapshot.Snapshot(ctx)
 		if err != nil {
 			return errors.Annotate(err, "getting unit snapshot")
 		}
-		return w.config.Strategy.Handle(ctx, snapshot)
+		if resolver, ok := w.config.Strategy.(PendingEventResolver); ok && resolver.PendingEvent() != "" {
+			switch snapshot.ResolvedMode {
+			case params.ResolvedRetryHooks:
+				if err := w.config.ClearResolved(ctx); err != nil {
+					return errors.Annotate(err, "clearing resolved mode")
+				}
+				if err := resolver.RetryPending(ctx); err != nil {
+					return errors.Annotate(err, "preparing pending event retry")
+				}
+				retryTimer.Reset()
+				retryStarted = false
+			case params.ResolvedNoHooks:
+				if err := w.config.ClearResolved(ctx); err != nil {
+					return errors.Annotate(err, "clearing resolved mode")
+				}
+				if err := resolver.SkipPending(ctx, snapshot); err != nil {
+					return errors.Annotate(err, "skipping pending event")
+				}
+				retryTimer.Reset()
+				retryStarted = false
+				return nil
+			case params.ResolvedNone:
+				if !retryDue {
+					if !retryStarted && w.config.RetryStrategy.ShouldRetry {
+						retryTimer.Start()
+						retryStarted = true
+					}
+					return nil
+				}
+				if err := resolver.RetryPending(ctx); err != nil {
+					return errors.Annotate(err, "preparing pending event retry")
+				}
+				retryStarted = false
+			}
+		}
+		err = w.config.Strategy.Handle(ctx, snapshot)
+		if err == nil {
+			retryTimer.Reset()
+			retryStarted = false
+		}
+		return err
 	}
 	for {
+		retryDue := false
 		select {
 		case <-w.catacomb.Dying():
 			return w.catacomb.ErrDying()
@@ -174,16 +239,14 @@ func (w *HolisticUniter) loop() error {
 			if !ok {
 				return nil
 			}
-			retry = nil
-		case <-retry:
-			retry = nil
+		case <-retryCh:
+			retryDue = true
 		}
 
-		if err := reconcile(); err != nil {
-			if w.config.RetryDelay <= 0 {
+		if err := reconcile(retryDue); err != nil {
+			if _, ok := w.config.Strategy.(PendingEventResolver); !ok {
 				return errors.Trace(err)
 			}
-			retry = w.config.Clock.After(w.config.RetryDelay)
 		}
 	}
 }
