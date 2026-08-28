@@ -5,12 +5,15 @@ package holisticuniter
 
 import (
 	"context"
+	"time"
 
+	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/worker/v5"
 	"github.com/juju/worker/v5/catacomb"
 
 	corewatcher "github.com/juju/juju/core/watcher"
+	"github.com/juju/juju/domain/deployment/charm/hooks"
 	charm "github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/rpc/params"
 )
@@ -26,9 +29,9 @@ type Unit interface {
 	WatchComposite(context.Context) (corewatcher.NotifyWatcher, error)
 }
 
-// DispatchFunc runs the charm's dispatch entry point with the snapshot
-// available through the dispatch context.
-type DispatchFunc func(context.Context, params.UnitSnapshot) error
+// DispatchFunc runs one named charm event with the snapshot available through
+// the dispatch context.
+type DispatchFunc func(context.Context, hooks.Kind, params.UnitSnapshot) error
 
 // CharmProvider returns the charm bundle selected by the controller. The
 // bundle reader verifies and downloads the archive when it is staged.
@@ -36,28 +39,53 @@ type CharmProvider func(context.Context, params.UnitSnapshot) (charm.BundleInfo,
 
 // NewForUnit creates a holistic worker using the unit's composite watcher and
 // snapshot API.
-func NewForUnit(ctx context.Context, unit Unit, dispatch DispatchFunc) (*HolisticUniter, error) {
-	return NewForUnitWithCharm(ctx, unit, nil, nil, dispatch)
+func NewForUnit(ctx context.Context, unit Unit, planner EventPlanner, dispatch DispatchFunc) (*HolisticUniter, error) {
+	strategy, err := NewLifecycleStrategy(StrategyConfig{Planner: planner, Dispatch: dispatch})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return newForUnit(ctx, unit, strategy, 0, nil)
 }
 
 // NewForUnitWithCharm is NewForUnit with charm staging and deployment enabled.
 // The first snapshot notification stages and deploys the selected charm before
 // dispatch; later notifications only deploy when the charm URL changes.
-func NewForUnitWithCharm(ctx context.Context, unit Unit, charmProvider CharmProvider, deployer charm.Deployer, dispatch DispatchFunc) (*HolisticUniter, error) {
+func NewForUnitWithCharm(ctx context.Context, unit Unit, planner EventPlanner, charmProvider CharmProvider, deployer charm.Deployer, dispatch DispatchFunc) (*HolisticUniter, error) {
 	if unit == nil {
 		return nil, errors.NotValidf("missing unit")
+	}
+	strategy, err := NewLifecycleStrategy(StrategyConfig{
+		Planner: planner, Charm: charmProvider, Deployer: deployer, Dispatch: dispatch,
+	})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return newForUnit(ctx, unit, strategy, 0, nil)
+}
+
+func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryDelay time.Duration, clock clock.Clock) (*HolisticUniter, error) {
+	if unit == nil {
+		return nil, errors.NotValidf("missing unit")
+	}
+	if strategy == nil {
+		return nil, errors.NotValidf("missing lifecycle strategy")
 	}
 	watcher, err := unit.WatchComposite(ctx)
 	if err != nil {
 		return nil, errors.Annotate(err, "watching unit snapshot")
 	}
-	w, err := New(Config{
-		Watcher:  watcher,
-		Snapshot: unit,
-		Charm:    charmProvider,
-		Deployer: deployer,
-		Dispatch: dispatch,
-	})
+	config := Config{
+		Watcher:    watcher,
+		Snapshot:   unit,
+		Strategy:   strategy,
+		RetryDelay: retryDelay,
+		Clock:      clock,
+	}
+	if err := config.Validate(); err != nil {
+		watcher.Kill()
+		return nil, errors.Trace(err)
+	}
+	w, err := New(config)
 	if err != nil {
 		watcher.Kill()
 		return nil, errors.Trace(err)
@@ -67,19 +95,35 @@ func NewForUnitWithCharm(ctx context.Context, unit Unit, charmProvider CharmProv
 
 // Config contains the dependencies of a holistic unit worker.
 type Config struct {
-	Watcher  corewatcher.NotifyWatcher
-	Snapshot SnapshotClient
-	Charm    CharmProvider
-	Deployer charm.Deployer
-	Dispatch DispatchFunc
+	Watcher    corewatcher.NotifyWatcher
+	Snapshot   SnapshotClient
+	Strategy   Strategy
+	RetryDelay time.Duration
+	Clock      clock.Clock
+}
+
+// Validate checks that all worker dependencies are present and consistent.
+func (c Config) Validate() error {
+	if c.Watcher == nil {
+		return errors.NotValidf("missing watcher")
+	}
+	if c.Snapshot == nil {
+		return errors.NotValidf("missing snapshot client")
+	}
+	if c.Strategy == nil {
+		return errors.NotValidf("missing lifecycle strategy")
+	}
+	if c.RetryDelay > 0 && c.Clock == nil {
+		return errors.NotValidf("missing clock for retry")
+	}
+	return nil
 }
 
 // HolisticUniter waits for coalesced unit changes, fetches the current
 // snapshot, and dispatches the charm against that snapshot.
 type HolisticUniter struct {
-	catacomb         catacomb.Catacomb
-	config           Config
-	deployedCharmURL string
+	catacomb catacomb.Catacomb
+	config   Config
 }
 
 var _ worker.Worker = (*HolisticUniter)(nil)
@@ -87,19 +131,9 @@ var _ worker.Worker = (*HolisticUniter)(nil)
 // New returns a holistic unit worker. The watcher is owned by the returned
 // worker and is stopped when the worker is stopped.
 func New(config Config) (*HolisticUniter, error) {
-	if config.Watcher == nil {
-		return nil, errors.NotValidf("missing watcher")
+	if err := config.Validate(); err != nil {
+		return nil, errors.Trace(err)
 	}
-	if config.Snapshot == nil {
-		return nil, errors.NotValidf("missing snapshot client")
-	}
-	if config.Dispatch == nil {
-		return nil, errors.NotValidf("missing dispatch function")
-	}
-	if (config.Charm == nil) != (config.Deployer == nil) {
-		return nil, errors.NotValidf("charm and deployer must be configured together")
-	}
-
 	w := &HolisticUniter{config: config}
 	if err := catacomb.Invoke(catacomb.Plan{
 		Name: "holistic-uniter",
@@ -124,6 +158,14 @@ func (w *HolisticUniter) Wait() error {
 
 func (w *HolisticUniter) loop() error {
 	ctx := w.catacomb.Context(context.Background())
+	var retry <-chan time.Time
+	reconcile := func() error {
+		snapshot, err := w.config.Snapshot.Snapshot(ctx)
+		if err != nil {
+			return errors.Annotate(err, "getting unit snapshot")
+		}
+		return w.config.Strategy.Handle(ctx, snapshot)
+	}
 	for {
 		select {
 		case <-w.catacomb.Dying():
@@ -132,28 +174,16 @@ func (w *HolisticUniter) loop() error {
 			if !ok {
 				return nil
 			}
-			snapshot, err := w.config.Snapshot.Snapshot(ctx)
-			if err != nil {
-				return errors.Annotate(err, "getting unit snapshot")
+			retry = nil
+		case <-retry:
+			retry = nil
+		}
+
+		if err := reconcile(); err != nil {
+			if w.config.RetryDelay <= 0 {
+				return errors.Trace(err)
 			}
-			if w.config.Charm != nil {
-				info, err := w.config.Charm(ctx, snapshot)
-				if err != nil {
-					return errors.Annotate(err, "getting charm bundle information")
-				}
-				if info.URL() != w.deployedCharmURL {
-					if err := w.config.Deployer.Stage(ctx, info); err != nil {
-						return errors.Annotate(err, "staging charm")
-					}
-					if err := w.config.Deployer.Deploy(); err != nil {
-						return errors.Annotate(err, "deploying charm")
-					}
-					w.deployedCharmURL = info.URL()
-				}
-			}
-			if err := w.config.Dispatch(ctx, snapshot); err != nil {
-				return errors.Annotate(err, "dispatching holistic unit")
-			}
+			retry = w.config.Clock.After(w.config.RetryDelay)
 		}
 	}
 }

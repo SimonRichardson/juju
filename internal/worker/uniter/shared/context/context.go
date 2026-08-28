@@ -174,6 +174,10 @@ type HookContext struct {
 	// configSettings holds the application configuration.
 	configSettings charm.Config
 
+	// unitSnapshot is the complete controller state captured by the holistic
+	// uniter for this hook execution. It is intentionally in-memory only.
+	unitSnapshot *params.UnitSnapshot
+
 	// goalState holds the goal state struct
 	goalState application.GoalState
 
@@ -329,6 +333,20 @@ type HookContext struct {
 	secretChanges *secretsChangeRecorder
 
 	mu sync.Mutex
+}
+
+// SetUnitSnapshot attaches the current holistic snapshot to this hook
+// context. It must be called before the hook runner is started.
+func (c *HookContext) SetUnitSnapshot(snapshot params.UnitSnapshot) {
+	c.unitSnapshot = &snapshot
+}
+
+// UnitSnapshot returns the holistic snapshot attached to this hook context.
+func (c *HookContext) UnitSnapshot() (params.UnitSnapshot, error) {
+	if c.unitSnapshot == nil {
+		return params.UnitSnapshot{}, errors.NotFoundf("unit snapshot")
+	}
+	return *c.unitSnapshot, nil
 }
 
 // GetLoggerByName returns a Logger for the specified module name.

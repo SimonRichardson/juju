@@ -118,7 +118,7 @@ func (hi Info) Validate() error {
 			return errors.Errorf("%q hook requires a check name", hi.Kind)
 		}
 		return nil
-	case hooks.Install, hooks.Remove, hooks.Start, hooks.ConfigChanged, hooks.UpgradeCharm, hooks.Stop,
+	case hooks.Install, hooks.Remove, hooks.Start, hooks.ConfigChanged, hooks.Reconcile, hooks.UpgradeCharm, hooks.Stop,
 		hooks.RelationCreated, hooks.RelationBroken, hooks.UpdateStatus:
 		return nil
 	case hooks.Action:
