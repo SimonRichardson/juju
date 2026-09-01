@@ -5,6 +5,7 @@ package context_test
 
 import (
 	"sort"
+	"strings"
 	stdtesting "testing"
 
 	"github.com/canonical/gomock/gomock"
@@ -12,6 +13,7 @@ import (
 	"github.com/juju/proxy"
 	"github.com/juju/tc"
 
+	"github.com/juju/juju/core/life"
 	jujuos "github.com/juju/juju/core/os"
 	"github.com/juju/juju/core/os/ostype"
 	"github.com/juju/juju/core/secrets"
@@ -263,6 +265,95 @@ func (s *EnvSuite) TestHostEnv(c *tc.C) {
 		noticeVars,
 		checkVars,
 	)
+}
+
+func (s *EnvSuite) TestHolisticSnapshotEnv(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	unit := apimocks.NewMockUnit(ctrl)
+	unit.EXPECT().Tag().Return(names.NewUnitTag("this-unit/123")).AnyTimes()
+	hookContext, _ := s.getHookContext(c, false, apimocks.NewMockUniterClient(ctrl), unit)
+	privateAddress := "10.0.0.1"
+	hookContext.SetUnitSnapshot(params.UnitSnapshot{
+		UnitName:             "snapshot/0",
+		ApplicationName:      "snapshot",
+		Life:                 life.Alive,
+		CharmURL:             "ch:amd64/jammy/snapshot-1",
+		CharmModifiedVersion: 3,
+		Leader:               true,
+		Config:               map[string]any{"message": "hello"},
+		Trust:                true,
+		Relations: []params.RelationSnapshot{{
+			ID:                7,
+			Name:              "database",
+			Endpoint:          "db",
+			Life:              life.Alive,
+			RemoteApplication: "postgresql",
+			RemoteUnits: []params.RemoteUnitSnapshot{{
+				Name: "postgresql/0",
+			}},
+		}},
+		Storage:           []params.StorageSnapshot{{ID: "data/0", Kind: "filesystem", Location: "/data", Life: life.Alive}},
+		Secrets:           []params.SecretSnapshot{{URI: "secret:abc", Revision: 2}},
+		Addresses:         []string{"10.0.0.1"},
+		PortRanges:        []params.PortRange{{FromPort: 80, ToPort: 80, Protocol: "tcp"}},
+		UnitStatus:        params.DetailedStatus{Status: "active"},
+		ApplicationStatus: params.DetailedStatus{Status: "active"},
+		CharmState:        map[string]string{"key": "value"},
+		WorkloadVersion:   "1.2.3",
+		APIAddresses:      []string{"api.example:17070"},
+		CloudAPIVersion:   "1.29",
+		LegacyProxySettings: params.ProxySettings{
+			HTTPProxy: "http://legacy.example",
+		},
+		JujuProxySettings: params.ProxySettings{
+			HTTPSProxy: "https://juju.example",
+		},
+		PrivateAddress: &privateAddress,
+		CharmTracingConfig: &params.CharmTracingConfig{
+			HTTPEndpoint: "https://trace.example",
+		},
+	})
+	paths, _ := s.getPaths()
+	vars, err := hookContext.HookVars(c.Context(), paths, context.NewRemoteEnvironmenter(
+		func() []string { return nil },
+		func(string) string { return "" },
+		func(string) (string, bool) { return "", false },
+	))
+	c.Assert(err, tc.ErrorIsNil)
+
+	values := make(map[string]string, len(vars))
+	counts := make(map[string]int, len(vars))
+	for _, variable := range vars {
+		key, value, found := strings.Cut(variable, "=")
+		c.Assert(found, tc.IsTrue)
+		values[key] = value
+		counts[key]++
+	}
+	for _, key := range []string{
+		"JUJU_APPLICATION_NAME", "JUJU_UNIT_LIFE", "JUJU_RESOLVED_MODE",
+		"JUJU_CHARM_URL", "JUJU_CHARM_MODIFIED_VERSION", "JUJU_IS_LEADER",
+		"JUJU_CONFIG", "JUJU_TRUST", "JUJU_RELATIONS", "JUJU_STORAGE",
+		"JUJU_SECRETS", "JUJU_ADDRESSES", "JUJU_PORT_RANGES", "JUJU_UNIT_STATUS",
+		"JUJU_APPLICATION_STATUS", "JUJU_GOAL_STATE", "JUJU_CHARM_STATE",
+		"JUJU_WORKLOAD_VERSION", "JUJU_PRIVATE_ADDRESS", "JUJU_LEGACY_PROXY_SETTINGS",
+		"JUJU_PROXY_SETTINGS", "JUJU_CHARM_TRACING_CONFIG",
+	} {
+		_, found := values[key]
+		c.Check(found, tc.IsTrue)
+	}
+	c.Check(counts["JUJU_UNIT_NAME"], tc.Equals, 1)
+	c.Check(values["JUJU_UNIT_NAME"], tc.Equals, "snapshot/0")
+	c.Check(values["JUJU_API_ADDRESSES"], tc.Equals, "api.example:17070")
+	c.Check(values["CLOUD_API_VERSION"], tc.Equals, "1.29")
+	c.Check(values["http_proxy"], tc.Equals, "http://legacy.example")
+	c.Check(values["JUJU_CHARM_HTTPS_PROXY"], tc.Equals, "https://juju.example")
+	c.Check(values["JUJU_CHARM_TRACE_CONFIG_HTTP"], tc.Equals, "https://trace.example")
+	c.Check(values["JUJU_RELATIONS"], tc.Equals, `[{"id":7,"name":"database","endpoint":"db","life":"alive","suspended":false,"remote-application":"postgresql","my-settings":null,"my-application-settings":null,"remote-units":[{"name":"postgresql/0","settings":null}]}]`)
+	c.Check(values["JUJU_STORAGE"], tc.Equals, `[{"id":"data/0","kind":"filesystem","location":"/data","life":"alive"}]`)
+	c.Check(values["JUJU_SECRETS"], tc.Equals, `[{"uri":"secret:abc","revision":2}]`)
+	c.Check(values["JUJU_CONFIG"], tc.Equals, `{"message":"hello"}`)
 }
 
 func (s *EnvSuite) TestContextDependentDoesNotIncludeUnSet(c *tc.C) {

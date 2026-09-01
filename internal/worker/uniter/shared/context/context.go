@@ -5,6 +5,7 @@ package context
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -339,14 +340,35 @@ type HookContext struct {
 // context. It must be called before the hook runner is started.
 func (c *HookContext) SetUnitSnapshot(snapshot params.UnitSnapshot) {
 	c.unitSnapshot = &snapshot
-}
-
-// UnitSnapshot returns the holistic snapshot attached to this hook context.
-func (c *HookContext) UnitSnapshot() (params.UnitSnapshot, error) {
-	if c.unitSnapshot == nil {
-		return params.UnitSnapshot{}, errors.NotFoundf("unit snapshot")
+	c.unitName = snapshot.UnitName
+	c.apiAddrs = snapshot.APIAddresses
+	c.cloudAPIVersion = snapshot.CloudAPIVersion
+	c.legacyProxySettings = proxy.Settings{
+		Http:    snapshot.LegacyProxySettings.HTTPProxy,
+		Https:   snapshot.LegacyProxySettings.HTTPSProxy,
+		Ftp:     snapshot.LegacyProxySettings.FTPProxy,
+		NoProxy: snapshot.LegacyProxySettings.NoProxy,
 	}
-	return *c.unitSnapshot, nil
+	c.jujuProxySettings = proxy.Settings{
+		Http:    snapshot.JujuProxySettings.HTTPProxy,
+		Https:   snapshot.JujuProxySettings.HTTPSProxy,
+		Ftp:     snapshot.JujuProxySettings.FTPProxy,
+		NoProxy: snapshot.JujuProxySettings.NoProxy,
+	}
+	if snapshot.PrivateAddress != nil {
+		c.privateAddress = *snapshot.PrivateAddress
+	} else {
+		c.privateAddress = ""
+	}
+	if snapshot.CharmTracingConfig != nil {
+		c.charmTracingConfig = uniter.CharmTracingConfig{
+			HTTPEndpoint:  snapshot.CharmTracingConfig.HTTPEndpoint,
+			GRPCEndpoint:  snapshot.CharmTracingConfig.GRPCEndpoint,
+			CACertificate: snapshot.CharmTracingConfig.CACertificate,
+		}
+	} else {
+		c.charmTracingConfig = uniter.CharmTracingConfig{}
+	}
 }
 
 // GetLoggerByName returns a Logger for the specified module name.
@@ -1458,6 +1480,13 @@ func (c *HookContext) HookVars(
 		"JUJU_CHARM_TRACE_CONFIG_GRPC="+c.charmTracingConfig.GRPCEndpoint,
 		"JUJU_CHARM_TRACE_CONFIG_CA_CERT="+c.charmTracingConfig.CACertificate,
 	)
+	if c.unitSnapshot != nil {
+		snapshotVars, err := snapshotEnvironment(*c.unitSnapshot)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		vars = append(vars, snapshotVars...)
+	}
 	if r, err := c.HookRelation(); err == nil {
 		vars = append(vars,
 			"JUJU_RELATION="+r.Name(),
@@ -1526,6 +1555,55 @@ func (c *HookContext) HookVars(
 	}
 
 	return append(vars, UbuntuEnvVars(paths, env)...), nil
+}
+
+// snapshotEnvironment returns the holistic state that is not represented by
+// the existing hook environment. Collection and object values are JSON so that
+// their shape is preserved for the charm.
+func snapshotEnvironment(snapshot params.UnitSnapshot) ([]string, error) {
+	vars := []string{
+		"JUJU_APPLICATION_NAME=" + snapshot.ApplicationName,
+		"JUJU_UNIT_LIFE=" + fmt.Sprint(snapshot.Life),
+		"JUJU_RESOLVED_MODE=" + fmt.Sprint(snapshot.ResolvedMode),
+		"JUJU_CHARM_URL=" + snapshot.CharmURL,
+		"JUJU_CHARM_MODIFIED_VERSION=" + strconv.Itoa(snapshot.CharmModifiedVersion),
+		"JUJU_IS_LEADER=" + strconv.FormatBool(snapshot.Leader),
+		"JUJU_TRUST=" + strconv.FormatBool(snapshot.Trust),
+		"JUJU_WORKLOAD_VERSION=" + snapshot.WorkloadVersion,
+		"JUJU_PRIVATE_ADDRESS=" + privateAddress(snapshot.PrivateAddress),
+	}
+	for _, value := range []struct {
+		name  string
+		value any
+	}{
+		{"JUJU_CONFIG", snapshot.Config},
+		{"JUJU_RELATIONS", snapshot.Relations},
+		{"JUJU_STORAGE", snapshot.Storage},
+		{"JUJU_SECRETS", snapshot.Secrets},
+		{"JUJU_ADDRESSES", snapshot.Addresses},
+		{"JUJU_PORT_RANGES", snapshot.PortRanges},
+		{"JUJU_UNIT_STATUS", snapshot.UnitStatus},
+		{"JUJU_APPLICATION_STATUS", snapshot.ApplicationStatus},
+		{"JUJU_GOAL_STATE", snapshot.GoalState},
+		{"JUJU_CHARM_STATE", snapshot.CharmState},
+		{"JUJU_LEGACY_PROXY_SETTINGS", snapshot.LegacyProxySettings},
+		{"JUJU_PROXY_SETTINGS", snapshot.JujuProxySettings},
+		{"JUJU_CHARM_TRACING_CONFIG", snapshot.CharmTracingConfig},
+	} {
+		encoded, err := json.Marshal(value.value)
+		if err != nil {
+			return nil, errors.Annotatef(err, "encoding %s", value.name)
+		}
+		vars = append(vars, value.name+"="+string(encoded))
+	}
+	return vars, nil
+}
+
+func privateAddress(address *string) string {
+	if address == nil {
+		return ""
+	}
+	return *address
 }
 
 func (c *HookContext) handleReboot(ctx context.Context, ctxErr error) error {

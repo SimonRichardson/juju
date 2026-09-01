@@ -10,6 +10,5 @@ executable entry points. `install`, `start`, `stop`, and `remove` express
 lifecycle setup or teardown; all snapshot-derived changes, including config
 and charm upgrades, dispatch `reconcile`.
 
-The reconciler records the event and prints the output of the `unit-snapshot`
-jujuc command. A charm selected for the holistic runtime always has that
-command available.
+The reconciler records the event and its complete state is supplied through
+the hook environment. Collection values, such as `JUJU_RELATIONS`, are JSON.
