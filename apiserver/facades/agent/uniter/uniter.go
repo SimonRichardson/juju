@@ -3440,6 +3440,14 @@ func (u *UniterAPI) getUnitSnapshot(
 	if err != nil {
 		return params.UnitSnapshot{}, internalerrors.Capture(err)
 	}
+	addresses, err := u.getUnitSnapshotAddresses(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	goalState, err := u.oneGoalState(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
 	unitContext, err := u.getUnitContext(ctx, unitName)
 	if err != nil {
 		return params.UnitSnapshot{}, errors.Trace(err)
@@ -3476,6 +3484,12 @@ func (u *UniterAPI) getUnitSnapshot(
 			Revision: secret.Revision,
 		}
 	}
+	sort.Slice(secretSnapshots, func(i, j int) bool {
+		if secretSnapshots[i].URI != secretSnapshots[j].URI {
+			return secretSnapshots[i].URI < secretSnapshots[j].URI
+		}
+		return secretSnapshots[i].Revision < secretSnapshots[j].Revision
+	})
 
 	storageSnapshots := make([]params.StorageSnapshot, len(snapshot.Storage))
 	for i, item := range snapshot.Storage {
@@ -3490,6 +3504,9 @@ func (u *UniterAPI) getUnitSnapshot(
 			Life:     storageLife,
 		}
 	}
+	sort.Slice(storageSnapshots, func(i, j int) bool {
+		return storageSnapshots[i].ID < storageSnapshots[j].ID
+	})
 
 	return params.UnitSnapshot{
 		UnitName:             snapshot.UnitName,
@@ -3498,6 +3515,7 @@ func (u *UniterAPI) getUnitSnapshot(
 		ResolvedMode:         resolvedMode,
 		CharmURL:             snapshot.CharmURL,
 		CharmModifiedVersion: snapshot.CharmModifiedVersion,
+		Leader:               snapshot.Leader,
 		Config:               map[string]any(config),
 		Trust:                snapshot.Trust,
 		WorkloadVersion:      snapshot.WorkloadVersion,
@@ -3507,7 +3525,9 @@ func (u *UniterAPI) getUnitSnapshot(
 		Relations:            relations,
 		Secrets:              secretSnapshots,
 		Storage:              storageSnapshots,
+		Addresses:            addresses,
 		PortRanges:           portRangesForUnit(unitContext, tag),
+		GoalState:            *goalState,
 		APIAddresses:         apiAddresses,
 		CloudAPIVersion:      unitContext.CloudAPIVersion,
 		LegacyProxySettings:  unitContext.LegacyProxySettings,
@@ -3515,6 +3535,28 @@ func (u *UniterAPI) getUnitSnapshot(
 		PrivateAddress:       unitContext.PrivateAddress,
 		CharmTracingConfig:   snapshotTracingConfig,
 	}, nil
+}
+
+func (u *UniterAPI) getUnitSnapshotAddresses(
+	ctx context.Context, unitName coreunit.Name,
+) ([]string, error) {
+	addresses := make([]string, 0, 2)
+	privateAddress, err := u.networkService.GetUnitPrivateAddress(ctx, unitName)
+	if err != nil && !network.IsNoAddressError(err) {
+		return nil, errors.Trace(err)
+	}
+	if err == nil {
+		addresses = append(addresses, privateAddress.Value)
+	}
+
+	publicAddress, err := u.networkService.GetUnitPublicAddress(ctx, unitName)
+	if err != nil && !network.IsNoAddressError(err) {
+		return nil, errors.Trace(err)
+	}
+	if err == nil && (len(addresses) == 0 || addresses[0] != publicAddress.Value) {
+		addresses = append(addresses, publicAddress.Value)
+	}
+	return addresses, nil
 }
 
 func detailedStatusFromStatusInfo(statusInfo status.StatusInfo) params.DetailedStatus {
@@ -3535,6 +3577,15 @@ func portRangesForUnit(unitContext params.UnitContext, unitTag names.UnitTag) []
 	for _, portRanges := range unitContext.OpenedPortRangesByEndpoint[unitTagString] {
 		result = append(result, portRanges...)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].FromPort != result[j].FromPort {
+			return result[i].FromPort < result[j].FromPort
+		}
+		if result[i].ToPort != result[j].ToPort {
+			return result[i].ToPort < result[j].ToPort
+		}
+		return result[i].Protocol < result[j].Protocol
+	})
 	return result
 }
 
@@ -3612,6 +3663,9 @@ func (u *UniterAPI) getRelationSnapshots(
 		}
 		result = append(result, snapshot)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
 	return result, nil
 }
 
@@ -3636,6 +3690,9 @@ func (u *UniterAPI) getRemoteUnitSnapshots(
 			Settings: settingsByUnitID[unitName.Number()],
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result, nil
 }
 

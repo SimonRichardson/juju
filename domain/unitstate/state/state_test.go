@@ -80,13 +80,14 @@ WHERE uuid = ?`, s.unitUUID).Scan(&applicationUUID, &charmUUID, &netNodeUUID)
 	identifiers, err := s.state.GetUnitSnapshotWatchIdentifiers(c.Context(), coreunit.Name(s.unitName))
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(identifiers, tc.DeepEquals, unitstate.SnapshotWatchIdentifiers{
-		UnitUUID:              s.unitUUID,
-		ApplicationUUID:       applicationUUID,
-		CharmUUID:             charmUUID,
-		NetNodeUUIDs:          []string{netNodeUUID},
-		RelationUUIDs:         []string{},
-		RelationUnitUUIDs:     []string{},
-		RelationEndpointUUIDs: []string{},
+		UnitUUID:               s.unitUUID,
+		ApplicationUUID:        applicationUUID,
+		CharmUUID:              charmUUID,
+		NetNodeUUIDs:           []string{netNodeUUID},
+		RelationUUIDs:          []string{},
+		RelationUnitUUIDs:      []string{},
+		RelationEndpointUUIDs:  []string{},
+		StorageAttachmentUUIDs: []string{},
 	})
 }
 
@@ -105,18 +106,44 @@ JOIN charm AS c ON c.uuid = u.charm_uuid
 WHERE u.uuid = ?`, s.unitUUID).Scan(&applicationUUID, &charmUUID, &charmName)
 	c.Assert(err, tc.ErrorIsNil)
 
+	s.query(c, `UPDATE unit SET life_id = 1 WHERE uuid = ?`, s.unitUUID)
+	s.query(c, `UPDATE application SET charm_modified_version = 7 WHERE uuid = ?`, applicationUUID)
+	s.query(c, `UPDATE application_setting SET trust = TRUE WHERE application_uuid = ?`, applicationUUID)
+	s.query(c, `INSERT INTO unit_resolved (unit_uuid, mode_id) VALUES (?, 0)`, s.unitUUID)
+	s.query(c, `UPDATE unit_workload_version SET version = ? WHERE unit_uuid = ?`, "8.0", s.unitUUID)
+	s.query(c, `INSERT INTO storage_pool (uuid, name, type) VALUES (?, ?, ?)`, "pool-uuid", "pool", "loop")
+	s.query(c, `
+INSERT INTO storage_instance
+    (uuid, charm_name, storage_name, storage_kind_id, storage_id, life_id,
+     storage_pool_uuid, requested_size_mib)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"storage-instance-uuid", "app", "data", 1, "data/0", 0, "pool-uuid", 1024)
+	s.query(c, `
+INSERT INTO storage_attachment (uuid, storage_instance_uuid, unit_uuid, life_id)
+VALUES (?, ?, ?, ?)`, "storage-attachment-uuid", "storage-instance-uuid", s.unitUUID, 1)
+
 	snapshot, err := s.state.GetUnitSnapshot(c.Context(), coreunit.Name(s.unitName))
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(snapshot, tc.DeepEquals, unitstate.UnitSnapshot{
-		UnitName:        s.unitName,
-		ApplicationName: "app",
-		ApplicationUUID: applicationUUID,
-		UnitUUID:        s.unitUUID,
-		CharmUUID:       charmUUID,
-		CharmURL:        charmName,
+		UnitName:             s.unitName,
+		ApplicationName:      "app",
+		ApplicationUUID:      applicationUUID,
+		UnitUUID:             s.unitUUID,
+		CharmUUID:            charmUUID,
+		CharmURL:             charmName,
+		LifeID:               1,
+		ResolvedMode:         "retry-hooks",
+		CharmModifiedVersion: 7,
+		Trust:                true,
+		WorkloadVersion:      "8.0",
 		CharmState: map[string]string{
 			"snapshot-key": "snapshot-value",
 		},
+		Storage: []unitstate.StorageSnapshot{{
+			ID:     "data/0",
+			KindID: 1,
+			LifeID: 1,
+		}},
 	})
 }
 

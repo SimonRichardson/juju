@@ -455,16 +455,28 @@ func newHolisticUniter(ctx stdcontext.Context, config holisticUniterFactoryConfi
 	})
 }
 
-func output(in worker.Worker, out any) error {
-	uniter, _ := in.(*Uniter)
-	if uniter == nil {
-		return errors.Errorf("expected Uniter in")
-	}
+type probeProvider interface {
+	ProbeProvider() probe.ProbeProvider
+}
 
+var (
+	_ probeProvider = (*Uniter)(nil)
+	_ probeProvider = (*holisticuniter.HolisticUniter)(nil)
+)
+
+func output(in worker.Worker, out any) error {
 	switch outPtr := out.(type) {
 	case *probe.ProbeProvider:
-		*outPtr = &uniter.Probe
+		provider, ok := in.(probeProvider)
+		if !ok {
+			return errors.Errorf("expected uniter worker in")
+		}
+		*outPtr = provider.ProbeProvider()
 	case **Uniter:
+		uniter, ok := in.(*Uniter)
+		if !ok {
+			return errors.Errorf("expected delta Uniter in")
+		}
 		*outPtr = uniter
 	default:
 		return errors.Errorf("unknown out type")

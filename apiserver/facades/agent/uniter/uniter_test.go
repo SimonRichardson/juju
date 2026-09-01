@@ -171,7 +171,9 @@ func (s *uniterSuite) TestWatchUnitComposite(c *tc.C) {
 
 	unitName := coreunit.Name("foo/0")
 	w := NewMockNotifyWatcher(ctrl)
-	w.EXPECT().Changes().Return(make(chan struct{})).AnyTimes()
+	changes := make(chan struct{}, 1)
+	changes <- struct{}{}
+	w.EXPECT().Changes().Return(changes).AnyTimes()
 	s.unitStateService.EXPECT().WatchUnitSnapshot(gomock.Any(), unitName).Return(w, nil)
 	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("watcher-id", nil)
 
@@ -210,6 +212,8 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 	unitName := coreunit.Name("mysql/0")
 	appUUID := coreapplication.UUID("application-uuid")
 	privateAddress := "10.0.0.1"
+	legacyProxySettings := proxy.Settings{Http: "http://legacy-proxy:3128"}
+	jujuProxySettings := proxy.Settings{Https: "http://juju-proxy:3130"}
 	s.unitStateService.EXPECT().UnitSnapshot(gomock.Any(), unitName).Return(unitstate.UnitSnapshot{
 		UnitName:             "mysql/0",
 		ApplicationName:      "mysql",
@@ -218,6 +222,7 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		LifeID:               int(domainlife.Alive),
 		ResolvedMode:         "none",
 		CharmModifiedVersion: 3,
+		Leader:               true,
 		Trust:                true,
 		WorkloadVersion:      "8.0",
 		CharmState:           map[string]string{"foo": "bar"},
@@ -238,9 +243,25 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		Status:  status.Active,
 		Message: "available",
 	}, nil)
+	s.networkService.EXPECT().GetUnitPrivateAddress(gomock.Any(), unitName).Return(
+		network.NewSpaceAddress("10.0.0.1"), nil,
+	)
+	s.networkService.EXPECT().GetUnitPublicAddress(gomock.Any(), unitName).Return(
+		network.NewSpaceAddress("203.0.113.1"), nil,
+	)
+	s.applicationService.EXPECT().GetApplicationUUIDByUnitName(gomock.Any(), unitName).Return(appUUID, nil)
+	s.applicationService.EXPECT().GetUnitNamesForApplication(gomock.Any(), "mysql").Return([]coreunit.Name{unitName}, nil)
+	s.statusService.EXPECT().GetUnitWorkloadStatusesForApplication(gomock.Any(), appUUID).Return(
+		map[coreunit.Name]status.StatusInfo{unitName: {Status: status.Active}}, nil,
+	)
+	s.applicationService.EXPECT().GetUnitPrincipal(gomock.Any(), unitName).Return(coreunit.Name(""), false, nil)
+	s.applicationService.EXPECT().GetUnitLife(gomock.Any(), unitName).Return(life.Alive, nil)
+	s.relationService.EXPECT().GetGoalStateRelationDataForApplication(gomock.Any(), appUUID).Return(nil, nil)
 	s.applicationService.EXPECT().GetIAASUnitContext(gomock.Any(), unitName).Return(service.IAASUnitContext{
-		CloudAPIVersion: "v1",
-		PrivateAddress:  &privateAddress,
+		CloudAPIVersion:     "v1",
+		LegacyProxySettings: legacyProxySettings,
+		JujuProxySettings:   jujuProxySettings,
+		PrivateAddress:      &privateAddress,
 		OpenedMachinePortRangesByEndpoint: map[coreunit.Name]network.GroupedPortRanges{
 			unitName: {
 				"db": []network.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
@@ -269,6 +290,7 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 		ResolvedMode:         params.ResolvedNone,
 		CharmURL:             "ch:amd64/mysql-42",
 		CharmModifiedVersion: 3,
+		Leader:               true,
 		Config:               map[string]any{"max-connections": 100},
 		Trust:                true,
 		CharmState:           map[string]string{"foo": "bar"},
@@ -292,11 +314,20 @@ func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
 			{ID: "data/0", Kind: "filesystem", Location: "/var/lib/mysql", Life: life.Alive},
 			{ID: "disk/0", Kind: "block", Location: "/dev/disk/by-id/short", Life: life.Dying},
 		},
-		PortRanges:         []params.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
-		APIAddresses:       []string{"10.0.0.2:17070"},
-		CloudAPIVersion:    "v1",
-		PrivateAddress:     &privateAddress,
-		CharmTracingConfig: &params.CharmTracingConfig{HTTPEndpoint: "https://trace.example"},
+		Addresses:  []string{"10.0.0.1", "203.0.113.1"},
+		PortRanges: []params.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
+		GoalState: params.GoalState{
+			Units: params.UnitsGoalState{
+				"mysql/0": {Status: "active"},
+			},
+			Relations: map[string]params.UnitsGoalState{},
+		},
+		APIAddresses:        []string{"10.0.0.2:17070"},
+		CloudAPIVersion:     "v1",
+		LegacyProxySettings: encodeProxySettings(legacyProxySettings),
+		JujuProxySettings:   encodeProxySettings(jujuProxySettings),
+		PrivateAddress:      &privateAddress,
+		CharmTracingConfig:  &params.CharmTracingConfig{HTTPEndpoint: "https://trace.example"},
 	})
 }
 

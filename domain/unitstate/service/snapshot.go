@@ -21,7 +21,13 @@ func (s *LeadershipService) UnitSnapshot(ctx context.Context, unitName coreunit.
 	if err := unitName.Validate(); err != nil {
 		return unitstate.UnitSnapshot{}, errors.Capture(err)
 	}
-	return s.st.GetUnitSnapshot(ctx, unitName)
+	snapshot, err := s.st.GetUnitSnapshot(ctx, unitName)
+	if err != nil {
+		return unitstate.UnitSnapshot{}, errors.Capture(err)
+	}
+	snapshot.Leader = s.leaderEnsurer.
+		LeadershipCheck(snapshot.ApplicationName, unitName.String()).Check() == nil
+	return snapshot, nil
 }
 
 // WatchUnitSnapshot watches every model row that contributes to the named
@@ -39,14 +45,21 @@ func (s *LeadershipService) WatchUnitSnapshot(ctx context.Context, unitName core
 		eventsource.PredicateFilter("unit_principal", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
 		eventsource.PredicateFilter("unit_resolved", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
 		eventsource.PredicateFilter("application", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
-		eventsource.PredicateFilter("application_config", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
+		eventsource.PredicateFilter("application_config_hash", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
 		eventsource.PredicateFilter("application_setting", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
 		eventsource.PredicateFilter("application_scale", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
 		eventsource.PredicateFilter("charm", changestream.All, eventsource.EqualsPredicate(identifiers.CharmUUID)),
-		eventsource.PredicateFilter("net_node_address", changestream.All, eventsource.ContainsPredicate(identifiers.NetNodeUUIDs)),
+		eventsource.PredicateFilter("ip_address", changestream.All, eventsource.ContainsPredicate(identifiers.NetNodeUUIDs)),
 		eventsource.PredicateFilter("relation", changestream.All, eventsource.ContainsPredicate(identifiers.RelationUUIDs)),
-		eventsource.PredicateFilter("relation_unit", changestream.All, eventsource.ContainsPredicate(identifiers.RelationUnitUUIDs)),
+		eventsource.PredicateFilter("relation_unit", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
 		eventsource.PredicateFilter("relation_unit_settings_hash", changestream.All, eventsource.ContainsPredicate(identifiers.RelationUnitUUIDs)),
 		eventsource.PredicateFilter("relation_application_settings_hash", changestream.All, eventsource.ContainsPredicate(identifiers.RelationEndpointUUIDs)),
+		eventsource.PredicateFilter("unit_state_charm", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter("unit_workload_version", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter("custom_unit_workload_status", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter("application_status", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
+		eventsource.PredicateFilter("port_range", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter("custom_storage_attachment_unit_uuid_lifecycle", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter("custom_storage_attachment_entities_storage_attachment_uuid", changestream.All, eventsource.ContainsPredicate(identifiers.StorageAttachmentUUIDs)),
 	)
 }

@@ -10,6 +10,9 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/tc"
 	"github.com/juju/worker/v5"
+
+	"github.com/juju/juju/internal/observability/probe"
+	"github.com/juju/juju/internal/worker/uniter/holisticuniter"
 )
 
 type ManifoldFactorySuite struct{}
@@ -73,4 +76,30 @@ func (s *ManifoldFactorySuite) TestNewRequiresRuntimeConstructor(c *tc.C) {
 
 	c.Check(err, tc.ErrorIs, errors.NotValid)
 	c.Check(err, tc.ErrorMatches, "missing holistic uniter constructor not valid")
+}
+
+func (s *ManifoldFactorySuite) TestHolisticOutputProvidesProbes(c *tc.C) {
+	worker := &holisticuniter.HolisticUniter{}
+	var provider probe.ProbeProvider
+
+	err := output(worker, &provider)
+
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(provider, tc.NotNil)
+	probes := provider.SupportedProbes()
+	c.Check(probes[probe.ProbeLiveness], tc.NotNil)
+	c.Check(probes[probe.ProbeReadiness], tc.NotNil)
+}
+
+func (s *ManifoldFactorySuite) TestDeltaOutputProvidesProbes(c *tc.C) {
+	worker := &Uniter{}
+	var provider probe.ProbeProvider
+
+	err := output(worker, &provider)
+
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(provider, tc.NotNil)
+	probes := provider.SupportedProbes()
+	c.Check(probes[probe.ProbeLiveness], tc.NotNil)
+	c.Check(probes[probe.ProbeReadiness], tc.NotNil)
 }

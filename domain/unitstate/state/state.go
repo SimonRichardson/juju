@@ -90,11 +90,21 @@ WHERE u.name = $unitName.name
 	if err != nil {
 		return unitstate.SnapshotWatchIdentifiers{}, errors.Capture(err)
 	}
+	storageAttachmentsStmt, err := st.Prepare(`
+SELECT sa.uuid AS &entityUUID.uuid
+FROM storage_attachment AS sa
+JOIN unit AS u ON u.uuid = sa.unit_uuid
+WHERE u.name = $unitName.name
+`, entityUUID{}, ident)
+	if err != nil {
+		return unitstate.SnapshotWatchIdentifiers{}, errors.Capture(err)
+	}
 
 	var unit unitSnapshotWatchIdentifier
 	var netNodes []unitNetNodeUUID
 	var relations []relationSnapshotWatchIdentifier
 	var relationEndpoints []entityUUID
+	var storageAttachments []entityUUID
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		if err := tx.Query(ctx, unitStmt, ident).Get(&unit); err != nil {
 			if errors.Is(err, sqlair.ErrNoRows) {
@@ -111,6 +121,9 @@ WHERE u.name = $unitName.name
 		if err := tx.Query(ctx, relationEndpointsStmt, ident).GetAll(&relationEndpoints); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
 			return errors.Capture(err)
 		}
+		if err := tx.Query(ctx, storageAttachmentsStmt, ident).GetAll(&storageAttachments); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Capture(err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -118,13 +131,14 @@ WHERE u.name = $unitName.name
 	}
 
 	result := unitstate.SnapshotWatchIdentifiers{
-		UnitUUID:              unit.UnitUUID,
-		ApplicationUUID:       unit.ApplicationUUID,
-		CharmUUID:             unit.CharmUUID,
-		NetNodeUUIDs:          make([]string, len(netNodes)),
-		RelationUUIDs:         make([]string, len(relations)),
-		RelationUnitUUIDs:     make([]string, len(relations)),
-		RelationEndpointUUIDs: make([]string, len(relationEndpoints)),
+		UnitUUID:               unit.UnitUUID,
+		ApplicationUUID:        unit.ApplicationUUID,
+		CharmUUID:              unit.CharmUUID,
+		NetNodeUUIDs:           make([]string, len(netNodes)),
+		RelationUUIDs:          make([]string, len(relations)),
+		RelationUnitUUIDs:      make([]string, len(relations)),
+		RelationEndpointUUIDs:  make([]string, len(relationEndpoints)),
+		StorageAttachmentUUIDs: make([]string, len(storageAttachments)),
 	}
 	for i, netNode := range netNodes {
 		result.NetNodeUUIDs[i] = netNode.NetNodeUUID
@@ -135,6 +149,9 @@ WHERE u.name = $unitName.name
 	}
 	for i, endpoint := range relationEndpoints {
 		result.RelationEndpointUUIDs[i] = endpoint.UUID
+	}
+	for i, attachment := range storageAttachments {
+		result.StorageAttachmentUUIDs[i] = attachment.UUID
 	}
 	return result, nil
 }
@@ -148,10 +165,20 @@ func (st *State) GetUnitSnapshot(ctx context.Context, name coreunit.Name) (units
 		return unitstate.UnitSnapshot{}, errors.Capture(err)
 	}
 	storageStmt, err := st.Prepare(`
+WITH block_device_location AS (
+    SELECT bdld.block_device_uuid AS block_device_uuid,
+           bdld.name AS location,
+           ROW_NUMBER() OVER (
+               PARTITION BY bdld.block_device_uuid
+               ORDER BY LENGTH(bdld.name), bdld.name
+           ) AS location_rank
+    FROM block_device_link_device AS bdld
+    WHERE bdld.name LIKE '/dev/disk/by-id/%'
+)
 SELECT si.storage_id AS &unitSnapshotStorageRow.storage_id,
        si.storage_kind_id AS &unitSnapshotStorageRow.storage_kind_id,
        sa.life_id AS &unitSnapshotStorageRow.life_id,
-       COALESCE(sfa.mount_point, bdld.name) AS &unitSnapshotStorageRow.location
+       COALESCE(sfa.mount_point, bdl.location) AS &unitSnapshotStorageRow.location
 FROM storage_attachment AS sa
 JOIN storage_instance AS si ON si.uuid = sa.storage_instance_uuid
 JOIN unit AS u ON u.uuid = sa.unit_uuid
@@ -159,8 +186,9 @@ LEFT JOIN storage_instance_filesystem AS sif ON sif.storage_instance_uuid = si.u
 LEFT JOIN storage_filesystem_attachment AS sfa ON sfa.storage_filesystem_uuid = sif.storage_filesystem_uuid AND sfa.net_node_uuid = u.net_node_uuid
 LEFT JOIN storage_instance_volume AS siv ON siv.storage_instance_uuid = si.uuid
 LEFT JOIN storage_volume_attachment AS sva ON sva.storage_volume_uuid = siv.storage_volume_uuid AND sva.net_node_uuid = u.net_node_uuid
-LEFT JOIN block_device_link_device AS bdld ON bdld.block_device_uuid = sva.block_device_uuid
+LEFT JOIN block_device_location AS bdl ON bdl.block_device_uuid = sva.block_device_uuid AND bdl.location_rank = 1
 WHERE sa.unit_uuid = $entityUUID.uuid
+ORDER BY si.storage_id
 `, unitSnapshotStorageRow{}, entityUUID{})
 	if err != nil {
 		return unitstate.UnitSnapshot{}, errors.Capture(err)

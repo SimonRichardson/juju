@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/core/life"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
+	"github.com/juju/juju/internal/observability/probe"
 	internalworker "github.com/juju/juju/internal/worker"
 	charm "github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/rpc/params"
@@ -135,6 +136,7 @@ func (c Config) Validate() error {
 type HolisticUniter struct {
 	catacomb catacomb.Catacomb
 	config   Config
+	probe    Probe
 }
 
 var _ worker.Worker = (*HolisticUniter)(nil)
@@ -165,6 +167,11 @@ func (w *HolisticUniter) Kill() {
 // Wait waits for the worker and its composite watcher to stop.
 func (w *HolisticUniter) Wait() error {
 	return w.catacomb.Wait()
+}
+
+// ProbeProvider returns the holistic uniter's liveness and readiness probes.
+func (w *HolisticUniter) ProbeProvider() probe.ProbeProvider {
+	return &w.probe
 }
 
 func (w *HolisticUniter) loop() error {
@@ -227,6 +234,7 @@ func (w *HolisticUniter) loop() error {
 		}
 		err = w.config.Strategy.Handle(ctx, snapshot)
 		if err == nil {
+			w.probe.SetHasStarted(snapshot.Life == life.Alive)
 			retryTimer.Reset()
 			retryStarted = false
 			if snapshot.Life == life.Dead {

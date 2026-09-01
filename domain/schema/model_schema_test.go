@@ -677,6 +677,14 @@ func (s *modelSchemaSuite) TestModelTriggers(c *tc.C) {
 		"trg_log_unit_resolved_insert",
 		"trg_log_unit_resolved_update",
 
+		"trg_log_unit_state_charm_delete",
+		"trg_log_unit_state_charm_insert",
+		"trg_log_unit_state_charm_update",
+
+		"trg_log_unit_workload_version_delete",
+		"trg_log_unit_workload_version_insert",
+		"trg_log_unit_workload_version_update",
+
 		"trg_log_removal_delete",
 		"trg_log_removal_insert",
 		"trg_log_removal_update",
