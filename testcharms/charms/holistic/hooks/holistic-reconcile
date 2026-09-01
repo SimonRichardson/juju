@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+event=${HOLISTIC_EVENT:-${JUJU_HOOK_NAME:-$(basename "$0")}}
+message=$(config-get message 2>/dev/null || printf '%s' holistic)
+
+status-set maintenance "holistic reconcile: ${event}" || true
+juju-log "holistic reconcile event=${event} message=${message}" || true
+
+# Holistic state is supplied in the hook environment.
+juju-log "holistic relations=${JUJU_RELATIONS:-[]}" || true
+
+status-set active "holistic: ${event}" || true

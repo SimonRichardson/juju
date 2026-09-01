@@ -33,6 +33,7 @@ type LeadershipService struct {
 	leaderEnsurer         leadership.Ensurer
 	secretBackendState    SecretBackendReferenceMutator
 	secretGrantAuthorizer SecretGrantAuthorizer
+	watcherFactory        WatcherFactory
 	clock                 clock.Clock
 	uuidGenerator         func() (uuid.UUID, error)
 	logger                logger.Logger
@@ -47,6 +48,7 @@ func NewLeadershipService(
 	leaderEnsurer leadership.Ensurer,
 	clk clock.Clock,
 	logger logger.Logger,
+	watcherFactory WatcherFactory,
 ) *LeadershipService {
 	return &LeadershipService{
 		Service:               NewService(st, logger),
@@ -56,5 +58,6 @@ func NewLeadershipService(
 		clock:                 clk,
 		uuidGenerator:         uuid.NewUUID,
 		logger:                logger,
+		watcherFactory:        watcherFactory,
 	}
 }

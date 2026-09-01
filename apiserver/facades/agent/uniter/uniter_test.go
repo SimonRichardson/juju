@@ -32,12 +32,14 @@ import (
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/core/watcher/watchertest"
+	domainapplication "github.com/juju/juju/domain/application"
 	"github.com/juju/juju/domain/application/architecture"
 	domaincharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	"github.com/juju/juju/domain/application/service"
 	crossmodelrelationerrors "github.com/juju/juju/domain/crossmodelrelation/errors"
 	"github.com/juju/juju/domain/deployment/charm"
+	domainlife "github.com/juju/juju/domain/life"
 	machineerrors "github.com/juju/juju/domain/machine/errors"
 	domainnetwork "github.com/juju/juju/domain/network"
 	"github.com/juju/juju/domain/operation"
@@ -64,15 +66,21 @@ type uniterSuite struct {
 	badTag  names.Tag
 	authTag names.Tag
 
-	applicationService    *MockApplicationService
-	machineService        *MockMachineService
-	operationService      *MockOperationService
-	networkService        *MockNetworkService
-	portService           *MockPortService
-	controllerNodeService *MockControllerNodeService
-	resolveService        *MockResolveService
-	removalService        *MockRemovalService
-	tracingService        *MockTracingService
+	applicationService         *MockApplicationService
+	relationService            *MockRelationService
+	statusService              *MockStatusService
+	blockDeviceService         *MockBlockDeviceService
+	storageProvisioningService *MockStorageProvisioningService
+	machineService             *MockMachineService
+	operationService           *MockOperationService
+	networkService             *MockNetworkService
+	portService                *MockPortService
+	controllerNodeService      *MockControllerNodeService
+	resolveService             *MockResolveService
+	removalService             *MockRemovalService
+	tracingService             *MockTracingService
+	secretService              *MockSecretService
+	unitStateService           *MockUnitStateService
 
 	watcherRegistry *MockWatcherRegistry
 
@@ -132,6 +140,265 @@ func (s *uniterSuite) TestEnsureDead(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(res.Results, tc.HasLen, 1)
 	c.Check(res.Results[0].Error, tc.IsNil)
+}
+
+func (s *uniterSuite) TestRefreshIncludesRuntimeType(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("foo/0")
+	s.applicationService.EXPECT().GetUnitRefreshAttributes(gomock.Any(), unitName).Return(
+		domainapplication.UnitAttributes{
+			Life:        domainlife.Alive,
+			ResolveMode: "none",
+			RuntimeType: domainapplication.UnitRuntimeTypeHolistic,
+		}, nil,
+	)
+
+	result, err := s.uniter.Refresh(c.Context(), params.Entities{Entities: []params.Entity{
+		{Tag: names.NewUnitTag(unitName.String()).String()},
+	}})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.UnitRefreshResults{Results: []params.UnitRefreshResult{{
+		Life:        life.Alive,
+		Resolved:    params.ResolvedNone,
+		RuntimeType: "holistic",
+	}}})
+}
+
+func (s *uniterSuite) TestWatchUnitComposite(c *tc.C) {
+	ctrl := s.setupMocks(c)
+	defer ctrl.Finish()
+
+	unitName := coreunit.Name("foo/0")
+	w := NewMockNotifyWatcher(ctrl)
+	changes := make(chan struct{}, 1)
+	changes <- struct{}{}
+	w.EXPECT().Changes().Return(changes).AnyTimes()
+	s.unitStateService.EXPECT().WatchUnitSnapshot(gomock.Any(), unitName).Return(w, nil)
+	s.watcherRegistry.EXPECT().Register(gomock.Any(), w).Return("watcher-id", nil)
+
+	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{
+		Tag: names.NewUnitTag(unitName.String()).String(),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.NotifyWatchResult{NotifyWatcherId: "watcher-id"})
+}
+
+func (s *uniterSuite) TestWatchUnitCompositeUnauthorized(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.badTag = names.NewUnitTag("foo/0")
+	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{Tag: s.badTag.String()})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result.Error, tc.Satisfies, params.IsCodeUnauthorized)
+}
+
+func (s *uniterSuite) TestWatchUnitCompositeNotFound(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("foo/0")
+	s.unitStateService.EXPECT().WatchUnitSnapshot(gomock.Any(), unitName).Return(nil, applicationerrors.UnitNotFound)
+
+	result, err := s.uniter.WatchUnitComposite(c.Context(), params.Entity{
+		Tag: names.NewUnitTag(unitName.String()).String(),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result.Error, tc.Satisfies, params.IsCodeNotFound)
+}
+
+func (s *uniterSuite) TestGetUnitSnapshot(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("mysql/0")
+	appUUID := coreapplication.UUID("application-uuid")
+	privateAddress := "10.0.0.1"
+	legacyProxySettings := proxy.Settings{Http: "http://legacy-proxy:3128"}
+	jujuProxySettings := proxy.Settings{Https: "http://juju-proxy:3130"}
+	s.unitStateService.EXPECT().UnitSnapshot(gomock.Any(), unitName).Return(unitstate.UnitSnapshot{
+		UnitName:             "mysql/0",
+		ApplicationName:      "mysql",
+		ApplicationUUID:      appUUID.String(),
+		CharmURL:             "ch:amd64/mysql-42",
+		LifeID:               int(domainlife.Alive),
+		ResolvedMode:         "none",
+		CharmModifiedVersion: 3,
+		Leader:               true,
+		Trust:                true,
+		WorkloadVersion:      "8.0",
+		CharmState:           map[string]string{"foo": "bar"},
+		Storage: []unitstate.StorageSnapshot{
+			{ID: "data/0", KindID: int(domainstorage.StorageKindFilesystem), LifeID: int(domainlife.Alive), Location: "/var/lib/mysql"},
+			{ID: "disk/0", KindID: int(domainstorage.StorageKindBlock), LifeID: int(domainlife.Dying), Location: "/dev/disk/by-id/short"},
+		},
+	}, nil)
+	s.applicationService.EXPECT().GetApplicationConfigWithDefaults(gomock.Any(), appUUID).Return(
+		charm.Config{"max-connections": 100}, nil,
+	)
+	s.statusService.EXPECT().GetUnitWorkloadStatus(gomock.Any(), unitName).Return(status.StatusInfo{
+		Status:  status.Active,
+		Message: "ready",
+		Data:    map[string]any{"connections": 10},
+	}, nil)
+	s.statusService.EXPECT().GetApplicationDisplayStatus(gomock.Any(), "mysql").Return(status.StatusInfo{
+		Status:  status.Active,
+		Message: "available",
+	}, nil)
+	s.networkService.EXPECT().GetUnitPrivateAddress(gomock.Any(), unitName).Return(
+		network.NewSpaceAddress("10.0.0.1"), nil,
+	)
+	s.networkService.EXPECT().GetUnitPublicAddress(gomock.Any(), unitName).Return(
+		network.NewSpaceAddress("203.0.113.1"), nil,
+	)
+	s.applicationService.EXPECT().GetApplicationUUIDByUnitName(gomock.Any(), unitName).Return(appUUID, nil)
+	s.applicationService.EXPECT().GetUnitNamesForApplication(gomock.Any(), "mysql").Return([]coreunit.Name{unitName}, nil)
+	s.statusService.EXPECT().GetUnitWorkloadStatusesForApplication(gomock.Any(), appUUID).Return(
+		map[coreunit.Name]status.StatusInfo{unitName: {Status: status.Active}}, nil,
+	)
+	s.applicationService.EXPECT().GetUnitPrincipal(gomock.Any(), unitName).Return(coreunit.Name(""), false, nil)
+	s.applicationService.EXPECT().GetUnitLife(gomock.Any(), unitName).Return(life.Alive, nil)
+	s.relationService.EXPECT().GetGoalStateRelationDataForApplication(gomock.Any(), appUUID).Return(nil, nil)
+	s.applicationService.EXPECT().GetIAASUnitContext(gomock.Any(), unitName).Return(service.IAASUnitContext{
+		CloudAPIVersion:     "v1",
+		LegacyProxySettings: legacyProxySettings,
+		JujuProxySettings:   jujuProxySettings,
+		PrivateAddress:      &privateAddress,
+		OpenedMachinePortRangesByEndpoint: map[coreunit.Name]network.GroupedPortRanges{
+			unitName: {
+				"db": []network.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
+			},
+		},
+	}, nil)
+	s.controllerNodeService.EXPECT().GetAllAPIAddressesForAgents(gomock.Any()).Return([]string{"10.0.0.2:17070"}, nil)
+	s.tracingService.EXPECT().GetCharmTracingConfig(gomock.Any()).Return(tracingservice.CharmTracingConfig{
+		HTTPEndpoint: "https://trace.example",
+	}, nil)
+	s.relationService.EXPECT().GetRelationUUIDsByUnitName(gomock.Any(), unitName).Return(nil, nil)
+	s.secretService.EXPECT().ListUnitSecretMetadata(gomock.Any(), unitName).Return([]domainsecret.UnitSecretMetadata{{
+		URI:      &coresecrets.URI{ID: "secret-id"},
+		Label:    "database-password",
+		Revision: 2,
+	}}, nil)
+
+	result, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{
+		Tag: names.NewUnitTag(unitName.String()).String(),
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, params.UnitSnapshot{
+		UnitName:             "mysql/0",
+		ApplicationName:      "mysql",
+		Life:                 life.Alive,
+		ResolvedMode:         params.ResolvedNone,
+		CharmURL:             "ch:amd64/mysql-42",
+		CharmModifiedVersion: 3,
+		Leader:               true,
+		Config:               map[string]any{"max-connections": 100},
+		Trust:                true,
+		CharmState:           map[string]string{"foo": "bar"},
+		Relations:            []params.RelationSnapshot{},
+		Secrets: []params.SecretSnapshot{{
+			URI:      "secret:secret-id",
+			Label:    "database-password",
+			Revision: 2,
+		}},
+		WorkloadVersion: "8.0",
+		UnitStatus: params.DetailedStatus{
+			Status: "active",
+			Info:   "ready",
+			Data:   map[string]any{"connections": 10},
+		},
+		ApplicationStatus: params.DetailedStatus{
+			Status: "active",
+			Info:   "available",
+		},
+		Storage: []params.StorageSnapshot{
+			{ID: "data/0", Kind: "filesystem", Location: "/var/lib/mysql", Life: life.Alive},
+			{ID: "disk/0", Kind: "block", Location: "/dev/disk/by-id/short", Life: life.Dying},
+		},
+		Addresses:  []string{"10.0.0.1", "203.0.113.1"},
+		PortRanges: []params.PortRange{{FromPort: 3306, ToPort: 3306, Protocol: "tcp"}},
+		GoalState: params.GoalState{
+			Units: params.UnitsGoalState{
+				"mysql/0": {Status: "active"},
+			},
+			Relations: map[string]params.UnitsGoalState{},
+		},
+		APIAddresses:        []string{"10.0.0.2:17070"},
+		CloudAPIVersion:     "v1",
+		LegacyProxySettings: encodeProxySettings(legacyProxySettings),
+		JujuProxySettings:   encodeProxySettings(jujuProxySettings),
+		PrivateAddress:      &privateAddress,
+		CharmTracingConfig:  &params.CharmTracingConfig{HTTPEndpoint: "https://trace.example"},
+	})
+}
+
+func (s *uniterSuite) TestGetUnitSnapshotUnauthorized(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	s.badTag = names.NewUnitTag("mysql/0")
+	_, err := s.uniter.GetUnitSnapshot(c.Context(), params.Entity{Tag: s.badTag.String()})
+	c.Check(err, tc.Satisfies, params.IsCodeUnauthorized)
+}
+
+func (s *uniterSuite) TestGetRelationSnapshots(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	unitName := coreunit.Name("mysql/0")
+	relationUUID := tc.Must(c, corerelation.NewUUID)
+	s.relationService.EXPECT().GetRelationUUIDsByUnitName(gomock.Any(), unitName).Return([]corerelation.UUID{relationUUID}, nil)
+	s.relationService.EXPECT().GetRelationDetails(gomock.Any(), relationUUID).Return(relation.RelationDetails{
+		ID:        7,
+		UUID:      relationUUID,
+		Life:      life.Alive,
+		Suspended: true,
+		Endpoints: []relation.Endpoint{
+			{ApplicationName: "mysql", Relation: charm.Relation{Name: "database"}},
+			{ApplicationName: "wordpress", Relation: charm.Relation{Name: "db"}},
+		},
+	}, nil)
+	s.relationService.EXPECT().GetRelationUnitSettings(gomock.Any(), relationUUID, unitName).Return(
+		map[string]string{"host": "10.0.0.1"}, nil,
+	)
+	remoteAppUUID := coreapplication.UUID("wordpress-uuid")
+	s.applicationService.EXPECT().GetApplicationUUIDByName(gomock.Any(), "wordpress").Return(remoteAppUUID, nil)
+	s.relationService.EXPECT().GetRelationApplicationSettings(gomock.Any(), relationUUID, remoteAppUUID).Return(
+		map[string]string{"database": "mysql"}, nil,
+	)
+	s.relationService.EXPECT().GetInScopeUnits(gomock.Any(), remoteAppUUID, relationUUID).Return(
+		[]coreunit.Name{"wordpress/0", "wordpress/1"}, nil,
+	)
+	s.relationService.EXPECT().GetUnitSettingsForUnits(gomock.Any(), relationUUID, []coreunit.Name{"wordpress/0", "wordpress/1"}).Return(
+		[]relation.UnitSettings{
+			{UnitID: 0, Settings: map[string]string{"ingress": "true"}},
+			{UnitID: 1, Settings: map[string]string{"ingress": "false"}},
+		}, nil,
+	)
+
+	localAppUUID := coreapplication.UUID("mysql-uuid")
+	s.relationService.EXPECT().GetRelationApplicationSettingsWithLeader(gomock.Any(), unitName, relationUUID, localAppUUID).Return(
+		map[string]string{"database": "mysql"}, nil,
+	)
+
+	result, err := s.uniter.getRelationSnapshots(c.Context(), unitName, localAppUUID)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, []params.RelationSnapshot{{
+		ID:                7,
+		Name:              "database",
+		Endpoint:          "database",
+		Life:              life.Alive,
+		Suspended:         true,
+		RemoteApplication: "wordpress",
+		MySettings:        map[string]string{"host": "10.0.0.1"},
+		MyApplicationSettings: map[string]string{
+			"database": "mysql",
+		},
+		RemoteApplicationSettings: map[string]string{
+			"database": "mysql",
+		},
+		RemoteUnits: []params.RemoteUnitSnapshot{
+			{Name: "wordpress/0", Settings: map[string]string{"ingress": "true"}},
+			{Name: "wordpress/1", Settings: map[string]string{"ingress": "false"}},
+		},
+	}})
 }
 
 func (s *uniterSuite) TestEnsureDeadNotFound(c *tc.C) {
@@ -1780,6 +2047,10 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	}
 
 	s.applicationService = NewMockApplicationService(ctrl)
+	s.relationService = NewMockRelationService(ctrl)
+	s.statusService = NewMockStatusService(ctrl)
+	s.blockDeviceService = NewMockBlockDeviceService(ctrl)
+	s.storageProvisioningService = NewMockStorageProvisioningService(ctrl)
 	s.machineService = NewMockMachineService(ctrl)
 	s.networkService = NewMockNetworkService(ctrl)
 	s.operationService = NewMockOperationService(ctrl)
@@ -1788,6 +2059,8 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	s.resolveService = NewMockResolveService(ctrl)
 	s.removalService = NewMockRemovalService(ctrl)
 	s.tracingService = NewMockTracingService(ctrl)
+	s.secretService = NewMockSecretService(ctrl)
+	s.unitStateService = NewMockUnitStateService(ctrl)
 	s.watcherRegistry = NewMockWatcherRegistry(ctrl)
 
 	authFunc := func(ctx context.Context) (common.AuthFunc, error) {
@@ -1797,7 +2070,14 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	}
 
 	s.uniter = &UniterAPI{
+		StorageAPI: &StorageAPI{
+			applicationService:         s.applicationService,
+			blockDeviceService:         s.blockDeviceService,
+			storageProvisioningService: s.storageProvisioningService,
+		},
 		applicationService:    s.applicationService,
+		relationService:       s.relationService,
+		statusService:         s.statusService,
 		machineService:        s.machineService,
 		networkService:        s.networkService,
 		operationService:      s.operationService,
@@ -1806,6 +2086,8 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 		resolveService:        s.resolveService,
 		removalService:        s.removalService,
 		tracingService:        s.tracingService,
+		secretService:         s.secretService,
+		unitStateService:      s.unitStateService,
 		auth:                  authorizer,
 		accessApplication:     authFunc,
 		accessMachine:         authFunc,
@@ -1817,6 +2099,10 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 	c.Cleanup(func() {
 		s.uniter = nil
 		s.applicationService = nil
+		s.relationService = nil
+		s.statusService = nil
+		s.blockDeviceService = nil
+		s.storageProvisioningService = nil
 		s.machineService = nil
 		s.networkService = nil
 		s.operationService = nil
@@ -1825,6 +2111,7 @@ func (s *uniterSuite) setupMocks(c *tc.C) *gomock.Controller {
 		s.resolveService = nil
 		s.removalService = nil
 		s.tracingService = nil
+		s.secretService = nil
 		s.watcherRegistry = nil
 	})
 

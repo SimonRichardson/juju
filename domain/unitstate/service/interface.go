@@ -10,6 +10,8 @@ import (
 	corerelation "github.com/juju/juju/core/relation"
 	coresecrets "github.com/juju/juju/core/secrets"
 	coreunit "github.com/juju/juju/core/unit"
+	"github.com/juju/juju/core/watcher"
+	"github.com/juju/juju/core/watcher/eventsource"
 	"github.com/juju/juju/domain/secret"
 	"github.com/juju/juju/domain/unitstate"
 	"github.com/juju/juju/domain/unitstate/internal"
@@ -20,6 +22,19 @@ import (
 type State interface {
 	CommitHookState
 	UnitStateState
+	UnitSnapshotState
+}
+
+// WatcherFactory creates watchers over model change streams.
+type WatcherFactory interface {
+	// NewNotifyWatcher returns a watcher that emits when one of the supplied
+	// filters matches a model change.
+	NewNotifyWatcher(
+		ctx context.Context,
+		summary string,
+		filter eventsource.FilterOption,
+		filters ...eventsource.FilterOption,
+	) (watcher.NotifyWatcher, error)
 }
 
 // CommitHookState defines a persistence layer interface for commit hook changes.
@@ -90,6 +105,17 @@ type UnitStateState interface {
 	// SetUnitState persists the input unit state selectively,
 	// based on its populated values.
 	SetUnitState(context.Context, unitstate.UnitState) error
+}
+
+// UnitSnapshotState defines the persistence needed to create a watcher for a
+// unit snapshot.
+type UnitSnapshotState interface {
+	// GetUnitSnapshot returns the model-database projection for a unit snapshot.
+	GetUnitSnapshot(context.Context, coreunit.Name) (unitstate.UnitSnapshot, error)
+
+	// GetUnitSnapshotWatchIdentifiers returns the stable identifiers used to
+	// watch all model state represented by a unit snapshot.
+	GetUnitSnapshotWatchIdentifiers(context.Context, coreunit.Name) (unitstate.SnapshotWatchIdentifiers, error)
 }
 
 // SecretBackendReferenceMutator describes methods for modifying secret

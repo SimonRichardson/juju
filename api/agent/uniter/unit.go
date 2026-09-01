@@ -24,10 +24,11 @@ import (
 
 // Unit represents a juju unit as seen by a uniter worker.
 type Unit struct {
-	client     *Client
-	tag        names.UnitTag
-	life       life.Value
-	providerID string
+	client      *Client
+	tag         names.UnitTag
+	life        life.Value
+	providerID  string
+	runtimeType string
 }
 
 // Tag returns the unit's tag.
@@ -112,7 +113,14 @@ func (u *Unit) Refresh(ctx context.Context) error {
 
 	u.life = result.Life
 	u.providerID = result.ProviderID
+	u.runtimeType = result.RuntimeType
 	return nil
+}
+
+// RuntimeType returns the persisted execution environment selected for the
+// unit.
+func (u *Unit) RuntimeType() string {
+	return u.runtimeType
 }
 
 // SetUnitStatus sets the status of the unit.
@@ -195,6 +203,33 @@ func (s *Unit) Watch(ctx context.Context) (watcher.NotifyWatcher, error) {
 		return nil, result.Error
 	}
 	return apiwatcher.NewNotifyWatcher(s.client.facade.RawAPICaller(), result), nil
+}
+
+// WatchComposite returns a watcher for all state that affects the unit's
+// holistic snapshot.
+func (s *Unit) WatchComposite(ctx context.Context) (watcher.NotifyWatcher, error) {
+	arg := params.Entity{Tag: s.tag.String()}
+	var result params.NotifyWatchResult
+
+	err := s.client.facade.FacadeCall(ctx, "WatchUnitComposite", arg, &result)
+	if err != nil {
+		return nil, errors.Trace(apiservererrors.RestoreError(err))
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return apiwatcher.NewNotifyWatcher(s.client.facade.RawAPICaller(), result), nil
+}
+
+// Snapshot returns the current state used by a holistic unit runtime to
+// reconcile its charm.
+func (s *Unit) Snapshot(ctx context.Context) (params.UnitSnapshot, error) {
+	var result params.UnitSnapshot
+	err := s.client.facade.FacadeCall(ctx, "GetUnitSnapshot", params.Entity{Tag: s.tag.String()}, &result)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(apiservererrors.RestoreError(err))
+	}
+	return result, nil
 }
 
 // WatchResolveMode returns a NotifyWatcher that will send notifications when

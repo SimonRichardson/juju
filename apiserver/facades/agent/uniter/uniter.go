@@ -51,6 +51,7 @@ import (
 	"github.com/juju/juju/domain/relation"
 	relationerrors "github.com/juju/juju/domain/relation/errors"
 	resolveerrors "github.com/juju/juju/domain/resolve/errors"
+	"github.com/juju/juju/domain/storage"
 	"github.com/juju/juju/domain/unitstate"
 	internalerrors "github.com/juju/juju/internal/errors"
 	"github.com/juju/juju/rpc/params"
@@ -1546,6 +1547,7 @@ func (u *UniterAPI) Refresh(ctx context.Context, args params.Entities) (params.U
 		result.Results[i].Life = life
 		result.Results[i].Resolved = resolveMode
 		result.Results[i].ProviderID = attr.ProviderID
+		result.Results[i].RuntimeType = attr.RuntimeType.String()
 	}
 	return result, nil
 }
@@ -3180,6 +3182,46 @@ func (u *UniterAPI) WatchUnit(ctx context.Context, entity params.Entity) (params
 	}, nil
 }
 
+// WatchUnitComposite starts a NotifyWatcher for all state affecting a
+// holistic unit runtime's snapshot.
+func (u *UniterAPI) WatchUnitComposite(ctx context.Context, entity params.Entity) (params.NotifyWatchResult, error) {
+	canWatch, err := u.accessUnit(ctx)
+	if err != nil {
+		return params.NotifyWatchResult{}, errors.Trace(err)
+	}
+
+	tag, err := names.ParseUnitTag(entity.Tag)
+	if err != nil {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(apiservererrors.ErrPerm)}, nil
+	}
+	if !canWatch(tag) {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(apiservererrors.ErrPerm)}, nil
+	}
+
+	unitName, err := coreunit.NewName(tag.Id())
+	if err != nil {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
+			errors.BadRequestf("parsing unit name: %s", tag.Id()),
+		)}, nil
+	}
+	w, err := u.unitStateService.WatchUnitSnapshot(ctx, unitName)
+	if errors.Is(err, applicationerrors.UnitNotFound) {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
+			errors.NotFoundf("unit %q", unitName),
+		)}, nil
+	} else if err != nil {
+		return params.NotifyWatchResult{Error: apiservererrors.ServerError(
+			internalerrors.Errorf("watching composite state for unit %q: %w", unitName, err),
+		)}, nil
+	}
+
+	id, _, err := internal.EnsureRegisterWatcher[struct{}](ctx, u.watcherRegistry, w)
+	return params.NotifyWatchResult{
+		NotifyWatcherId: id,
+		Error:           apiservererrors.ServerError(err),
+	}, nil
+}
+
 // Watch starts an NotifyWatcher for a unit or application.
 // This is being deprecated in favour of separate WatchUnit and WatchApplication
 // methods.
@@ -3339,6 +3381,319 @@ func (u *UniterAPI) GetUnitContext(ctx context.Context, args params.Entity) (par
 	unitContext.APIAddresses = apiAddresses
 
 	return unitContext, nil
+}
+
+// GetUnitSnapshot returns the current state needed by a holistic unit runtime
+// to reconcile its charm.
+func (u *UniterAPI) GetUnitSnapshot(ctx context.Context, args params.Entity) (params.UnitSnapshot, error) {
+	canAccess, err := u.accessUnit(ctx)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+
+	tag, err := names.ParseUnitTag(args.Tag)
+	if err != nil || !canAccess(tag) {
+		return params.UnitSnapshot{}, apiservererrors.ServerError(apiservererrors.ErrPerm)
+	}
+	unitName, err := coreunit.NewName(tag.Id())
+	if err != nil {
+		return params.UnitSnapshot{}, apiservererrors.ServerError(
+			errors.BadRequestf("parsing unit name: %s", tag.Id()),
+		)
+	}
+
+	snapshot, err := u.getUnitSnapshot(ctx, tag, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, apiservererrors.ServerError(err)
+	}
+	return snapshot, nil
+}
+
+func (u *UniterAPI) getUnitSnapshot(
+	ctx context.Context,
+	tag names.UnitTag,
+	unitName coreunit.Name,
+) (params.UnitSnapshot, error) {
+	snapshot, err := u.unitStateService.UnitSnapshot(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	lifeValue, err := domainlife.Life(snapshot.LifeID).Value()
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	resolvedMode, err := encodeResolveMode(snapshot.ResolvedMode)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+
+	appUUID := application.UUID(snapshot.ApplicationUUID)
+	config, err := u.applicationService.GetApplicationConfigWithDefaults(ctx, appUUID)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	unitStatus, err := u.statusService.GetUnitWorkloadStatus(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	applicationStatus, err := u.statusService.GetApplicationDisplayStatus(ctx, unitName.Application())
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	addresses, err := u.getUnitSnapshotAddresses(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	goalState, err := u.oneGoalState(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	unitContext, err := u.getUnitContext(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	apiAddresses, err := u.controllerNodeService.GetAllAPIAddressesForAgents(ctx)
+	if err != nil {
+		return params.UnitSnapshot{}, internalerrors.Capture(err)
+	}
+	tracingConfig, err := u.tracingService.GetCharmTracingConfig(ctx)
+	if err != nil {
+		u.logger.Errorf(ctx, "getting charm tracing config failed: %v", err)
+	}
+	var snapshotTracingConfig *params.CharmTracingConfig
+	if err == nil {
+		snapshotTracingConfig = &params.CharmTracingConfig{
+			HTTPEndpoint:  tracingConfig.HTTPEndpoint,
+			GRPCEndpoint:  tracingConfig.GRPCEndpoint,
+			CACertificate: tracingConfig.CACertificate,
+		}
+	}
+	relations, err := u.getRelationSnapshots(ctx, unitName, appUUID)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	secrets, err := u.secretService.ListUnitSecretMetadata(ctx, unitName)
+	if err != nil {
+		return params.UnitSnapshot{}, errors.Trace(err)
+	}
+	secretSnapshots := make([]params.SecretSnapshot, len(secrets))
+	for i, secret := range secrets {
+		secretSnapshots[i] = params.SecretSnapshot{
+			URI:      secret.URI.String(),
+			Label:    secret.Label,
+			Revision: secret.Revision,
+		}
+	}
+	sort.Slice(secretSnapshots, func(i, j int) bool {
+		if secretSnapshots[i].URI != secretSnapshots[j].URI {
+			return secretSnapshots[i].URI < secretSnapshots[j].URI
+		}
+		return secretSnapshots[i].Revision < secretSnapshots[j].Revision
+	})
+
+	storageSnapshots := make([]params.StorageSnapshot, len(snapshot.Storage))
+	for i, item := range snapshot.Storage {
+		storageLife, err := domainlife.Life(item.LifeID).Value()
+		if err != nil {
+			return params.UnitSnapshot{}, internalerrors.Capture(err)
+		}
+		storageSnapshots[i] = params.StorageSnapshot{
+			ID:       item.ID,
+			Kind:     storage.StorageKind(item.KindID).String(),
+			Location: item.Location,
+			Life:     storageLife,
+		}
+	}
+	sort.Slice(storageSnapshots, func(i, j int) bool {
+		return storageSnapshots[i].ID < storageSnapshots[j].ID
+	})
+
+	return params.UnitSnapshot{
+		UnitName:             snapshot.UnitName,
+		ApplicationName:      snapshot.ApplicationName,
+		Life:                 lifeValue,
+		ResolvedMode:         resolvedMode,
+		CharmURL:             snapshot.CharmURL,
+		CharmModifiedVersion: snapshot.CharmModifiedVersion,
+		Leader:               snapshot.Leader,
+		Config:               map[string]any(config),
+		Trust:                snapshot.Trust,
+		WorkloadVersion:      snapshot.WorkloadVersion,
+		CharmState:           snapshot.CharmState,
+		UnitStatus:           detailedStatusFromStatusInfo(unitStatus),
+		ApplicationStatus:    detailedStatusFromStatusInfo(applicationStatus),
+		Relations:            relations,
+		Secrets:              secretSnapshots,
+		Storage:              storageSnapshots,
+		Addresses:            addresses,
+		PortRanges:           portRangesForUnit(unitContext, tag),
+		GoalState:            *goalState,
+		APIAddresses:         apiAddresses,
+		CloudAPIVersion:      unitContext.CloudAPIVersion,
+		LegacyProxySettings:  unitContext.LegacyProxySettings,
+		JujuProxySettings:    unitContext.JujuProxySettings,
+		PrivateAddress:       unitContext.PrivateAddress,
+		CharmTracingConfig:   snapshotTracingConfig,
+	}, nil
+}
+
+func (u *UniterAPI) getUnitSnapshotAddresses(
+	ctx context.Context, unitName coreunit.Name,
+) ([]string, error) {
+	addresses := make([]string, 0, 2)
+	privateAddress, err := u.networkService.GetUnitPrivateAddress(ctx, unitName)
+	if err != nil && !network.IsNoAddressError(err) {
+		return nil, errors.Trace(err)
+	}
+	if err == nil {
+		addresses = append(addresses, privateAddress.Value)
+	}
+
+	publicAddress, err := u.networkService.GetUnitPublicAddress(ctx, unitName)
+	if err != nil && !network.IsNoAddressError(err) {
+		return nil, errors.Trace(err)
+	}
+	if err == nil && (len(addresses) == 0 || addresses[0] != publicAddress.Value) {
+		addresses = append(addresses, publicAddress.Value)
+	}
+	return addresses, nil
+}
+
+func detailedStatusFromStatusInfo(statusInfo status.StatusInfo) params.DetailedStatus {
+	return params.DetailedStatus{
+		Status: statusInfo.Status.String(),
+		Info:   statusInfo.Message,
+		Data:   statusInfo.Data,
+		Since:  statusInfo.Since,
+	}
+}
+
+func portRangesForUnit(unitContext params.UnitContext, unitTag names.UnitTag) []params.PortRange {
+	unitTagString := unitTag.String()
+	result := make([]params.PortRange, 0)
+	for _, portRanges := range unitContext.OpenedMachinePortRangesByEndpoint[unitTagString] {
+		result = append(result, portRanges...)
+	}
+	for _, portRanges := range unitContext.OpenedPortRangesByEndpoint[unitTagString] {
+		result = append(result, portRanges...)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].FromPort != result[j].FromPort {
+			return result[i].FromPort < result[j].FromPort
+		}
+		if result[i].ToPort != result[j].ToPort {
+			return result[i].ToPort < result[j].ToPort
+		}
+		return result[i].Protocol < result[j].Protocol
+	})
+	return result
+}
+
+func (u *UniterAPI) getRelationSnapshots(
+	ctx context.Context,
+	unitName coreunit.Name,
+	applicationUUID application.UUID,
+) ([]params.RelationSnapshot, error) {
+	relationUUIDs, err := u.relationService.GetRelationUUIDsByUnitName(ctx, unitName)
+	if err != nil {
+		return nil, internalerrors.Capture(err)
+	}
+
+	result := make([]params.RelationSnapshot, 0, len(relationUUIDs))
+	for _, relationUUID := range relationUUIDs {
+		details, err := u.relationService.GetRelationDetails(ctx, relationUUID)
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+
+		var local, remote *relation.Endpoint
+		for i := range details.Endpoints {
+			endpoint := &details.Endpoints[i]
+			if endpoint.ApplicationName == unitName.Application() {
+				local = endpoint
+			} else {
+				remote = endpoint
+			}
+		}
+		if local == nil {
+			return nil, errors.NotFoundf("local endpoint for relation %q", relationUUID)
+		}
+
+		mySettings, err := u.relationService.GetRelationUnitSettings(ctx, relationUUID, unitName)
+		if err != nil {
+			return nil, internalerrors.Capture(err)
+		}
+		snapshot := params.RelationSnapshot{
+			ID:         details.ID,
+			Name:       local.Name,
+			Endpoint:   local.Name,
+			Life:       details.Life,
+			Suspended:  details.Suspended,
+			MySettings: mySettings,
+		}
+		localApplicationSettings, err := u.relationService.GetRelationApplicationSettingsWithLeader(
+			ctx, unitName, relationUUID, applicationUUID,
+		)
+		if err == nil {
+			snapshot.MyApplicationSettings = localApplicationSettings
+		} else if !errors.Is(err, corelease.ErrNotHeld) {
+			return nil, internalerrors.Capture(err)
+		}
+		if remote != nil {
+			snapshot.RemoteApplication = remote.ApplicationName
+			remoteAppUUID, err := u.applicationService.GetApplicationUUIDByName(ctx, remote.ApplicationName)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			remoteSettings, err := u.relationService.GetRelationApplicationSettings(ctx, relationUUID, remoteAppUUID)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			snapshot.RemoteApplicationSettings = remoteSettings
+
+			remoteUnitNames, err := u.relationService.GetInScopeUnits(ctx, remoteAppUUID, relationUUID)
+			if err != nil {
+				return nil, internalerrors.Capture(err)
+			}
+			remoteUnits, err := u.getRemoteUnitSnapshots(ctx, relationUUID, remoteUnitNames)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			snapshot.RemoteUnits = remoteUnits
+		}
+		result = append(result, snapshot)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
+	return result, nil
+}
+
+func (u *UniterAPI) getRemoteUnitSnapshots(
+	ctx context.Context,
+	relationUUID corerelation.UUID,
+	unitNames []coreunit.Name,
+) ([]params.RemoteUnitSnapshot, error) {
+	settings, err := u.relationService.GetUnitSettingsForUnits(ctx, relationUUID, unitNames)
+	if err != nil {
+		return nil, internalerrors.Capture(err)
+	}
+	settingsByUnitID := make(map[int]map[string]string, len(settings))
+	for _, setting := range settings {
+		settingsByUnitID[setting.UnitID] = setting.Settings
+	}
+
+	result := make([]params.RemoteUnitSnapshot, len(unitNames))
+	for i, unitName := range unitNames {
+		result[i] = params.RemoteUnitSnapshot{
+			Name:     unitName.String(),
+			Settings: settingsByUnitID[unitName.Number()],
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+	return result, nil
 }
 
 func (u *UniterAPI) getUnitContext(ctx context.Context, unitName coreunit.Name) (params.UnitContext, error) {

@@ -767,6 +767,52 @@ func (s *serviceSuite) TestListCharmSecrets(c *tc.C) {
 	c.Assert(gotRevisions, tc.DeepEquals, revs)
 }
 
+func (s *serviceSuite) TestListUnitSecretMetadata(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	owned := &coresecrets.URI{ID: "owned"}
+	consumed := &coresecrets.URI{ID: "consumed"}
+	unitName := coreunit.Name("mysql/0")
+	s.state.EXPECT().ListCharmSecrets(
+		gomock.Any(), domainsecret.ApplicationOwners{"mysql"}, domainsecret.UnitOwners{"mysql/0"},
+	).Return([]*coresecrets.SecretMetadata{{
+		URI:            owned,
+		Label:          "owned",
+		LatestRevision: 3,
+	}}, nil, nil)
+	s.state.EXPECT().AllSecretConsumers(gomock.Any()).Return(map[string][]domainsecret.ConsumerInfo{
+		consumed.ID: {{
+			SubjectTypeID:   domainsecret.SubjectUnit,
+			SubjectID:       unitName.String(),
+			Label:           "consumed",
+			CurrentRevision: 2,
+		}},
+		"not-visible": {{
+			SubjectTypeID:   domainsecret.SubjectUnit,
+			SubjectID:       "mysql/1",
+			CurrentRevision: 1,
+		}},
+	}, nil)
+	s.state.EXPECT().GetSecret(gomock.Any(), &coresecrets.URI{ID: consumed.ID}).Return(&coresecrets.SecretMetadata{
+		URI: consumed,
+	}, nil)
+	s.state.EXPECT().AllRemoteSecrets(gomock.Any()).Return([]domainsecret.RemoteSecretInfo{{
+		URI:             &coresecrets.URI{ID: "remote", SourceUUID: "model-uuid"},
+		SubjectTypeID:   domainsecret.SubjectUnit,
+		SubjectID:       unitName.String(),
+		Label:           "remote",
+		CurrentRevision: 4,
+	}}, nil)
+
+	result, err := s.service.ListUnitSecretMetadata(c.Context(), unitName)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(result, tc.DeepEquals, []domainsecret.UnitSecretMetadata{
+		{URI: &coresecrets.URI{ID: "remote", SourceUUID: "model-uuid"}, Label: "remote", Revision: 4},
+		{URI: consumed, Label: "consumed", Revision: 2},
+		{URI: owned, Label: "owned", Revision: 3},
+	})
+}
+
 func (s *serviceSuite) TestListSecretsErrWhenURIAndLabelsProvided(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 

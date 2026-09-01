@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+HOLISTIC_EVENT=remove "$(dirname "$0")/holistic-reconcile"

@@ -527,6 +527,7 @@ func (s *ModelServices) UnitState() *unitstateservice.LeadershipService {
 		domain.NewLeaseService(s.leaseManager),
 		s.clock,
 		log,
+		s.modelWatcherFactory("unitstate"),
 	)
 }
 

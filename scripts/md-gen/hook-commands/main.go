@@ -15,7 +15,7 @@ import (
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/domain/deployment/charm"
 	"github.com/juju/juju/internal/storage"
-	"github.com/juju/juju/internal/worker/uniter/runner/jujuc"
+	"github.com/juju/juju/internal/worker/uniter/shared/jujuc"
 )
 
 // These commands are deprecated, we don't want to document them.

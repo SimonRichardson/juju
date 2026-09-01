@@ -48,7 +48,7 @@ import (
 	internalworker "github.com/juju/juju/internal/worker"
 	"github.com/juju/juju/internal/worker/introspection"
 	"github.com/juju/juju/internal/worker/logsender"
-	uniterworker "github.com/juju/juju/internal/worker/uniter"
+	"github.com/juju/juju/internal/worker/uniter/shared"
 	jnames "github.com/juju/juju/juju/names"
 )
 
@@ -192,7 +192,7 @@ func (c *containerUnitAgent) Init(args []string) error {
 
 func (c *containerUnitAgent) ensureToolSymlinks(srcPath, dataDir string, unitTag names.UnitTag) error {
 	// Setup tool symlinks
-	uniterPaths := uniterworker.NewPaths(dataDir, unitTag, nil)
+	uniterPaths := shared.NewPaths(dataDir, unitTag, nil)
 	toolsDir := uniterPaths.GetToolsDir()
 	err := c.fileReaderWriter.RemoveAll(toolsDir)
 	if err != nil {

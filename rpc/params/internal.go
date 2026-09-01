@@ -1046,10 +1046,11 @@ type ResourceUploadResult struct {
 // UnitRefreshResult is used to return the latest values for attributes
 // on a unit.
 type UnitRefreshResult struct {
-	Life       life.Value
-	Resolved   ResolvedMode
-	Error      *Error
-	ProviderID string `json:"provider-id,omitempty"`
+	Life        life.Value
+	Resolved    ResolvedMode
+	Error       *Error
+	ProviderID  string `json:"provider-id,omitempty"`
+	RuntimeType string `json:"runtime-type,omitempty"`
 }
 
 // UnitRefreshResults holds the results for any API call which ends

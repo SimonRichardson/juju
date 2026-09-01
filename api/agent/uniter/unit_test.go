@@ -277,9 +277,10 @@ func (s *unitSuite) TestRefresh(c *tc.C) {
 		c.Assert(result, tc.FitsTypeOf, &params.UnitRefreshResults{})
 		*(result.(*params.UnitRefreshResults)) = params.UnitRefreshResults{
 			Results: []params.UnitRefreshResult{{
-				Life:       life.Dying,
-				Resolved:   params.ResolvedRetryHooks,
-				ProviderID: "666",
+				Life:        life.Dying,
+				Resolved:    params.ResolvedRetryHooks,
+				ProviderID:  "666",
+				RuntimeType: "holistic",
 			}},
 		}
 		return nil
@@ -291,6 +292,7 @@ func (s *unitSuite) TestRefresh(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(unit.Life(), tc.Equals, life.Dying)
 	c.Check(unit.ProviderID(), tc.Equals, "666")
+	c.Check(unit.RuntimeType(), tc.Equals, "holistic")
 }
 
 func (s *unitSuite) TestRefreshNotImplemented(c *tc.C) {
@@ -379,6 +381,44 @@ func (s *unitSuite) TestWatchNotImplemented(c *tc.C) {
 	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
 	_, err := unit.Watch(c.Context())
 	c.Assert(err, tc.ErrorIs, errors.NotImplemented)
+}
+
+func (s *unitSuite) TestWatchComposite(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		if objType == "NotifyWatcher" {
+			return nil
+		}
+		c.Check(objType, tc.Equals, "Uniter")
+		c.Check(request, tc.Equals, "WatchUnitComposite")
+		c.Check(arg, tc.DeepEquals, params.Entity{Tag: "unit-mysql-0"})
+		c.Assert(result, tc.FitsTypeOf, &params.NotifyWatchResult{})
+		*(result.(*params.NotifyWatchResult)) = params.NotifyWatchResult{NotifyWatcherId: "1"}
+		return nil
+	})
+	client := uniter.NewClient(apiCaller, names.NewUnitTag("mysql/0"))
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+
+	w, err := unit.WatchComposite(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	wc := watchertest.NewNotifyWatcherC(c, w)
+	defer wc.AssertStops()
+}
+
+func (s *unitSuite) TestSnapshot(c *tc.C) {
+	apiCaller := basetesting.APICallerFunc(func(objType string, version int, id, request string, arg, result any) error {
+		c.Check(objType, tc.Equals, "Uniter")
+		c.Check(request, tc.Equals, "GetUnitSnapshot")
+		c.Check(arg, tc.DeepEquals, params.Entity{Tag: "unit-mysql-0"})
+		c.Assert(result, tc.FitsTypeOf, &params.UnitSnapshot{})
+		*(result.(*params.UnitSnapshot)) = params.UnitSnapshot{UnitName: "mysql/0"}
+		return nil
+	})
+	client := uniter.NewClient(apiCaller, names.NewUnitTag("mysql/0"))
+	unit := uniter.CreateUnit(client, names.NewUnitTag("mysql/0"))
+
+	snapshot, err := unit.Snapshot(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(snapshot, tc.DeepEquals, params.UnitSnapshot{UnitName: "mysql/0"})
 }
 
 func (s *unitSuite) TestWatchResolveMode(c *tc.C) {

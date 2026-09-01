@@ -193,6 +193,7 @@ func (s *modelSchemaSuite) TestModelTables(c *tc.C) {
 		"unit_workload_version",
 		"ssh_key_algorithm_type",
 		"unit_virtual_ssh_host_key",
+		"unit_runtime_type",
 		"unit",
 
 		// Resolve
@@ -675,6 +676,14 @@ func (s *modelSchemaSuite) TestModelTriggers(c *tc.C) {
 		"trg_log_unit_resolved_delete",
 		"trg_log_unit_resolved_insert",
 		"trg_log_unit_resolved_update",
+
+		"trg_log_unit_state_charm_delete",
+		"trg_log_unit_state_charm_insert",
+		"trg_log_unit_state_charm_update",
+
+		"trg_log_unit_workload_version_delete",
+		"trg_log_unit_workload_version_insert",
+		"trg_log_unit_workload_version_update",
 
 		"trg_log_removal_delete",
 		"trg_log_removal_insert",

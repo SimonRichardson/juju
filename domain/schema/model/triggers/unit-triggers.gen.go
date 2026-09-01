@@ -35,6 +35,7 @@ WHEN
 	NEW.application_uuid != OLD.application_uuid OR
 	NEW.net_node_uuid != OLD.net_node_uuid OR
 	NEW.charm_uuid != OLD.charm_uuid OR
+	NEW.runtime_type_id != OLD.runtime_type_id OR
 	(NEW.password_hash_algorithm_id != OLD.password_hash_algorithm_id OR (NEW.password_hash_algorithm_id IS NOT NULL AND OLD.password_hash_algorithm_id IS NULL) OR (NEW.password_hash_algorithm_id IS NULL AND OLD.password_hash_algorithm_id IS NOT NULL)) OR
 	(NEW.password_hash != OLD.password_hash OR (NEW.password_hash IS NOT NULL AND OLD.password_hash IS NULL) OR (NEW.password_hash IS NULL AND OLD.password_hash IS NOT NULL))
 BEGIN
@@ -123,3 +124,75 @@ END;`, columnName, namespaceID))
 	}
 }
 
+// ChangeLogTriggersForUnitStateCharm generates the triggers for the
+// unit_state_charm table.
+func ChangeLogTriggersForUnitStateCharm(columnName string, namespaceID int) func() schema.Patch {
+	return func() schema.Patch {
+		return schema.MakePatch(fmt.Sprintf(`
+-- insert namespace for UnitStateCharm
+INSERT INTO change_log_namespace VALUES (%[2]d, 'unit_state_charm', 'UnitStateCharm changes based on %[1]s');
+
+-- insert trigger for UnitStateCharm
+CREATE TRIGGER trg_log_unit_state_charm_insert
+AFTER INSERT ON unit_state_charm FOR EACH ROW
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    VALUES (1, %[2]d, NEW.%[1]s, DATETIME('now', 'utc'));
+END;
+
+-- update trigger for UnitStateCharm
+CREATE TRIGGER trg_log_unit_state_charm_update
+AFTER UPDATE ON unit_state_charm FOR EACH ROW
+WHEN
+	NEW.unit_uuid != OLD.unit_uuid OR
+	NEW.key != OLD.key OR
+	NEW.value != OLD.value
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    VALUES (2, %[2]d, OLD.%[1]s, DATETIME('now', 'utc'));
+END;
+-- delete trigger for UnitStateCharm
+CREATE TRIGGER trg_log_unit_state_charm_delete
+AFTER DELETE ON unit_state_charm FOR EACH ROW
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    VALUES (4, %[2]d, OLD.%[1]s, DATETIME('now', 'utc'));
+END;`, columnName, namespaceID))
+	}
+}
+
+// ChangeLogTriggersForUnitWorkloadVersion generates the triggers for the
+// unit_workload_version table.
+func ChangeLogTriggersForUnitWorkloadVersion(columnName string, namespaceID int) func() schema.Patch {
+	return func() schema.Patch {
+		return schema.MakePatch(fmt.Sprintf(`
+-- insert namespace for UnitWorkloadVersion
+INSERT INTO change_log_namespace VALUES (%[2]d, 'unit_workload_version', 'UnitWorkloadVersion changes based on %[1]s');
+
+-- insert trigger for UnitWorkloadVersion
+CREATE TRIGGER trg_log_unit_workload_version_insert
+AFTER INSERT ON unit_workload_version FOR EACH ROW
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    VALUES (1, %[2]d, NEW.%[1]s, DATETIME('now', 'utc'));
+END;
+
+-- update trigger for UnitWorkloadVersion
+CREATE TRIGGER trg_log_unit_workload_version_update
+AFTER UPDATE ON unit_workload_version FOR EACH ROW
+WHEN
+	NEW.unit_uuid != OLD.unit_uuid OR
+	NEW.version != OLD.version
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    VALUES (2, %[2]d, OLD.%[1]s, DATETIME('now', 'utc'));
+END;
+-- delete trigger for UnitWorkloadVersion
+CREATE TRIGGER trg_log_unit_workload_version_delete
+AFTER DELETE ON unit_workload_version FOR EACH ROW
+BEGIN
+    INSERT INTO change_log (edit_type_id, namespace_id, changed, created_at)
+    VALUES (4, %[2]d, OLD.%[1]s, DATETIME('now', 'utc'));
+END;`, columnName, namespaceID))
+	}
+}

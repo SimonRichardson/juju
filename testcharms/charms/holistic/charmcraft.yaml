@@ -1,0 +1,27 @@
+name: holistic
+type: charm
+summary: Minimal holistic uniter test charm
+description: |
+  A deliberately small bash charm used to exercise holistic unit dispatch.
+  Every lifecycle hook remains a separate event, while all events call the
+  same idempotent reconciler.
+links:
+  contact: Juju Crew <juju-crew@canonical.com>
+assumes:
+  - holistic-uniter
+config:
+  options:
+    message:
+      type: string
+      default: holistic
+      description: Message written by the holistic reconciler.
+platforms:
+  ubuntu@22.04:amd64:
+  ubuntu@24.04:amd64:
+parts:
+  holistic:
+    plugin: dump
+    source: .
+    prime:
+      - hooks
+      - README.md

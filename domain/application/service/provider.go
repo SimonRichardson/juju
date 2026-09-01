@@ -29,12 +29,14 @@ import (
 	"github.com/juju/juju/core/trace"
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/domain/application"
+	applicationcharm "github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
 	applicationinternal "github.com/juju/juju/domain/application/internal"
 	"github.com/juju/juju/domain/application/service/storage"
 	"github.com/juju/juju/domain/constraints"
 	"github.com/juju/juju/domain/deployment"
 	internalcharm "github.com/juju/juju/domain/deployment/charm"
+	charmassumes "github.com/juju/juju/domain/deployment/charm/assumes"
 	"github.com/juju/juju/domain/life"
 	modelerrors "github.com/juju/juju/domain/model/errors"
 	domainnetwork "github.com/juju/juju/domain/network"
@@ -80,6 +82,8 @@ type ProviderService struct {
 	cloudInfoGetter         providertracker.ProviderGetter[CloudInfoProvider]
 	st                      State
 }
+
+const holisticUniterAssumption = "holistic-uniter"
 
 // NewProviderService returns a new Service for interacting with a models state.
 func NewProviderService(
@@ -236,7 +240,7 @@ func (s *ProviderService) GetSupportedFeatures(ctx context.Context) (assumes.Fea
 		Name:        "juju",
 		Description: assumes.UserFriendlyFeatureDescriptions["juju"],
 		Version:     &agentVersion,
-	})
+	}, assumes.HolisticUniterFeature())
 
 	supportedFeatureProvider, err := s.caasApplicationProvider(ctx)
 	if errors.Is(err, coreerrors.NotSupported) {
@@ -300,6 +304,14 @@ func (s *ProviderService) AddIAASUnits(
 	if err != nil {
 		return nil, nil, errors.Errorf("getting application %q id: %w", appName, err)
 	}
+	ch, err := s.st.GetCharmByApplicationUUID(ctx, appUUID)
+	if err != nil {
+		return nil, nil, errors.Errorf("getting application %q charm: %w", appName, err)
+	}
+	runtimeType, err := unitRuntimeTypeFromMetadata(ch.Metadata)
+	if err != nil {
+		return nil, nil, errors.Errorf("getting application %q runtime type: %w", appName, err)
+	}
 
 	cons, err := s.makeApplicationConstraints(ctx, appUUID)
 	if err != nil {
@@ -324,6 +336,9 @@ func (s *ProviderService) AddIAASUnits(
 	)
 	if err != nil {
 		return nil, nil, errors.Errorf("making unit args: %w", err)
+	}
+	for i := range args {
+		args[i].RuntimeType = runtimeType
 	}
 
 	if err := s.precheckInstances(
@@ -371,6 +386,14 @@ func (s *ProviderService) AddCAASUnits(
 	if err != nil {
 		return nil, errors.Errorf("getting application %q id: %w", appName, err)
 	}
+	ch, err := s.st.GetCharmByApplicationUUID(ctx, appUUID)
+	if err != nil {
+		return nil, errors.Errorf("getting application %q charm: %w", appName, err)
+	}
+	runtimeType, err := unitRuntimeTypeFromMetadata(ch.Metadata)
+	if err != nil {
+		return nil, errors.Errorf("getting application %q runtime type: %w", appName, err)
+	}
 
 	cons, err := s.makeApplicationConstraints(ctx, appUUID)
 	if err != nil {
@@ -390,6 +413,9 @@ func (s *ProviderService) AddCAASUnits(
 	)
 	if err != nil {
 		return nil, errors.Errorf("making CAAS unit args: %w", err)
+	}
+	for i := range args {
+		args[i].RuntimeType = runtimeType
 	}
 
 	origin, err := s.st.GetApplicationCharmOrigin(ctx, appUUID)
@@ -731,6 +757,9 @@ func (s *ProviderService) makeIAASApplicationArg(ctx context.Context,
 	if err != nil {
 		return "", application.AddIAASApplicationArg{}, nil, errors.Errorf("making unit args: %w", err)
 	}
+	for i := range unitArgs {
+		unitArgs[i].RuntimeType = unitRuntimeType(charm.Meta().Assumes)
+	}
 
 	return appName, addIAASApplicationArgs, unitArgs, nil
 }
@@ -791,7 +820,25 @@ func (s *ProviderService) makeCAASApplicationArg(
 	if err != nil {
 		return "", application.AddCAASApplicationArg{}, nil, errors.Errorf("making CAAS unit args: %w", err)
 	}
+	for i := range unitArgs {
+		unitArgs[i].RuntimeType = unitRuntimeType(charm.Meta().Assumes)
+	}
 	return appName, addCAASApplicationArg, unitArgs, nil
+}
+
+func unitRuntimeTypeFromMetadata(metadata applicationcharm.Metadata) (application.UnitRuntimeType, error) {
+	assumes, err := decodeMetadataAssumes(metadata.Assumes)
+	if err != nil {
+		return application.UnitRuntimeTypeDelta, errors.Errorf("decoding charm assumes: %w", err)
+	}
+	return unitRuntimeType(assumes), nil
+}
+
+func unitRuntimeType(assumes *charmassumes.ExpressionTree) application.UnitRuntimeType {
+	if charmassumes.RequiresFeature(assumes, holisticUniterAssumption) {
+		return application.UnitRuntimeTypeHolistic
+	}
+	return application.UnitRuntimeTypeDelta
 }
 
 func (s *ProviderService) validateCreateApplicationArgs(

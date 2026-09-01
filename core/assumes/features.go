@@ -16,16 +16,18 @@ var (
 	// feature that is not included in the feature set supported by the
 	// current model.
 	UserFriendlyFeatureDescriptions = map[string]string{
-		"juju":    "the version of Juju used by the model",
-		"k8s-api": "the Kubernetes API lets charms query and manipulate the state of API objects in a Kubernetes cluster",
+		"juju":            "the version of Juju used by the model",
+		"k8s-api":         "the Kubernetes API lets charms query and manipulate the state of API objects in a Kubernetes cluster",
+		"holistic-uniter": "the snapshot-based holistic unit runtime",
 	}
 )
 
 // featureMissingErrs is a list of user-friendly error messages to return when
 // a given feature is expected by a charm, but not present in the model.
 var featureMissingErrs = map[string]string{
-	"juju":    "charm requires Juju", // this should never happen
-	"k8s-api": "charm must be deployed on a Kubernetes cloud",
+	"juju":            "charm requires Juju", // this should never happen
+	"k8s-api":         "charm must be deployed on a Kubernetes cloud",
+	"holistic-uniter": "charm requires the holistic unit runtime",
 }
 
 // featureMissingErr returns a user-friendly error message to return when a
@@ -79,5 +81,14 @@ func K8sAPIFeature(ver semversion.Number) Feature {
 		Name:        "k8s-api",
 		Description: UserFriendlyFeatureDescriptions["k8s-api"],
 		Version:     &ver,
+	}
+}
+
+// HolisticUniterFeature returns a new Feature representing support for the
+// snapshot-based holistic unit runtime.
+func HolisticUniterFeature() Feature {
+	return Feature{
+		Name:        "holistic-uniter",
+		Description: UserFriendlyFeatureDescriptions["holistic-uniter"],
 	}
 }
