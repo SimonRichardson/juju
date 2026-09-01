@@ -182,8 +182,74 @@ func (p *LifecyclePlanner) Complete(ctx context.Context, event hooks.Kind, snaps
 	return nil
 }
 
+// reconcileProjection contains the controller-owned state that can require a
+// charm to reconcile. Hook-owned outputs remain in UnitSnapshot for the charm
+// to inspect, but must not cause the hook to requeue itself.
+type reconcileProjection struct {
+	Leader              bool
+	Config              map[string]any
+	Trust               bool
+	Relations           []reconcileRelationProjection
+	Storage             []params.StorageSnapshot
+	Secrets             []params.SecretSnapshot
+	Addresses           []string
+	GoalState           params.GoalState
+	APIAddresses        []string
+	CloudAPIVersion     string
+	LegacyProxySettings params.ProxySettings
+	JujuProxySettings   params.ProxySettings
+	PrivateAddress      *string
+	CharmTracingConfig  *params.CharmTracingConfig
+}
+
+// reconcileRelationProjection omits settings owned by this unit or
+// application. Their writes are hook outputs; remote relation data is input.
+type reconcileRelationProjection struct {
+	ID                        int
+	Name                      string
+	Endpoint                  string
+	Life                      life.Value
+	Suspended                 bool
+	RemoteApplication         string
+	RemoteUnits               []params.RemoteUnitSnapshot
+	RemoteApplicationSettings map[string]string
+}
+
+func snapshotReconcileProjection(snapshot params.UnitSnapshot) reconcileProjection {
+	relations := make([]reconcileRelationProjection, len(snapshot.Relations))
+	for i, relation := range snapshot.Relations {
+		relations[i] = reconcileRelationProjection{
+			ID:                        relation.ID,
+			Name:                      relation.Name,
+			Endpoint:                  relation.Endpoint,
+			Life:                      relation.Life,
+			Suspended:                 relation.Suspended,
+			RemoteApplication:         relation.RemoteApplication,
+			RemoteUnits:               relation.RemoteUnits,
+			RemoteApplicationSettings: relation.RemoteApplicationSettings,
+		}
+	}
+	return reconcileProjection{
+		Leader:              snapshot.Leader,
+		Config:              snapshot.Config,
+		Trust:               snapshot.Trust,
+		Relations:           relations,
+		Storage:             snapshot.Storage,
+		Secrets:             snapshot.Secrets,
+		Addresses:           snapshot.Addresses,
+		GoalState:           snapshot.GoalState,
+		APIAddresses:        snapshot.APIAddresses,
+		CloudAPIVersion:     snapshot.CloudAPIVersion,
+		LegacyProxySettings: snapshot.LegacyProxySettings,
+		JujuProxySettings:   snapshot.JujuProxySettings,
+		PrivateAddress:      snapshot.PrivateAddress,
+		CharmTracingConfig:  snapshot.CharmTracingConfig,
+	}
+}
+
 func snapshotReconcileHash(snapshot params.UnitSnapshot) string {
-	config, err := json.Marshal(snapshot)
+	projection := snapshotReconcileProjection(snapshot)
+	config, err := json.Marshal(projection)
 	if err != nil {
 		return ""
 	}

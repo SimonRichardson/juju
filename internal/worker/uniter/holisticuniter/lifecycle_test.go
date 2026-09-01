@@ -111,6 +111,65 @@ func (s *LifecycleSuite) TestPlannerDispatchesReconcileWhenSnapshotChanges(c *tc
 	c.Check(planner.Plan(snapshot), tc.DeepEquals, []hooks.Kind{hooks.Reconcile})
 }
 
+func (s *LifecycleSuite) TestPlannerDoesNotDispatchReconcileWhenHookOutputsChange(c *tc.C) {
+	planner := NewLifecyclePlanner()
+	snapshot := params.UnitSnapshot{
+		CharmURL: "charmhub/example",
+		CharmState: map[string]string{
+			"state": "initial reconcile",
+		},
+		WorkloadVersion: "1.0",
+		PortRanges: []params.PortRange{{
+			FromPort: 80,
+			ToPort:   80,
+			Protocol: "tcp",
+		}},
+		UnitStatus: params.DetailedStatus{
+			Status: "active",
+			Info:   "initial reconcile",
+		},
+		ApplicationStatus: params.DetailedStatus{
+			Status: "active",
+			Info:   "initial reconcile",
+		},
+		Relations: []params.RelationSnapshot{{
+			ID:                    1,
+			MySettings:            map[string]string{"state": "initial reconcile"},
+			MyApplicationSettings: map[string]string{"state": "initial reconcile"},
+		}},
+	}
+	for _, event := range planner.Plan(snapshot) {
+		c.Assert(planner.Complete(c.Context(), event, snapshot), tc.ErrorIsNil)
+	}
+
+	snapshot.UnitStatus.Info = "reconcile complete"
+	snapshot.ApplicationStatus.Info = "reconcile complete"
+	snapshot.CharmState["state"] = "reconcile complete"
+	snapshot.WorkloadVersion = "1.1"
+	snapshot.PortRanges[0].ToPort = 443
+	snapshot.Relations[0].MySettings["state"] = "reconcile complete"
+	snapshot.Relations[0].MyApplicationSettings["state"] = "reconcile complete"
+	c.Check(planner.Plan(snapshot), tc.IsNil)
+}
+
+func (s *LifecycleSuite) TestPlannerDispatchesReconcileWhenRemoteRelationDataChanges(c *tc.C) {
+	planner := NewLifecyclePlanner()
+	snapshot := params.UnitSnapshot{
+		CharmURL: "charmhub/example",
+		Relations: []params.RelationSnapshot{{
+			ID:                        1,
+			RemoteApplication:         "database",
+			RemoteApplicationSettings: map[string]string{"host": "10.0.0.1"},
+		}},
+	}
+	for _, event := range planner.Plan(snapshot) {
+		c.Assert(planner.Complete(c.Context(), event, snapshot), tc.ErrorIsNil)
+	}
+
+	snapshot.Relations[0].RemoteApplicationSettings["host"] = "10.0.0.2"
+	c.Check(planner.Plan(snapshot), tc.DeepEquals, []hooks.Kind{hooks.Reconcile})
+}
+
 func (s *LifecycleSuite) TestDyingUnitStopsThenRemovesBeforeTermination(c *tc.C) {
 	store := &testLifecycleStore{state: LifecycleState{Installed: true, Started: true}}
 	planner, err := NewPersistentLifecyclePlanner(c.Context(), store)
