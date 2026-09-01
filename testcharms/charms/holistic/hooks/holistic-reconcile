@@ -7,7 +7,7 @@ message=$(config-get message 2>/dev/null || printf '%s' holistic)
 status-set maintenance "holistic reconcile: ${event}" || true
 juju-log "holistic reconcile event=${event} message=${message}" || true
 
-# A charm selected for the holistic runtime always receives this command.
-unit-snapshot
+# Holistic state is supplied in the hook environment.
+juju-log "holistic relations=${JUJU_RELATIONS:-[]}" || true
 
 status-set active "holistic: ${event}" || true
