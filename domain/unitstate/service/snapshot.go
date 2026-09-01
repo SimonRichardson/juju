@@ -56,7 +56,7 @@ func (s *LeadershipService) WatchUnitSnapshot(ctx context.Context, unitName core
 		eventsource.PredicateFilter("relation_application_settings_hash", changestream.All, eventsource.ContainsPredicate(identifiers.RelationEndpointUUIDs)),
 		eventsource.PredicateFilter("unit_state_charm", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
 		eventsource.PredicateFilter("unit_workload_version", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
-		eventsource.PredicateFilter("custom_unit_workload_status", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
+		eventsource.PredicateFilter("custom_unit_workload_status", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
 		eventsource.PredicateFilter("application_status", changestream.All, eventsource.EqualsPredicate(identifiers.ApplicationUUID)),
 		eventsource.PredicateFilter("port_range", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
 		eventsource.PredicateFilter("custom_storage_attachment_unit_uuid_lifecycle", changestream.All, eventsource.EqualsPredicate(identifiers.UnitUUID)),
