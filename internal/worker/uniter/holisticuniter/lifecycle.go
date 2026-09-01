@@ -281,13 +281,12 @@ func NewLifecycleStrategy(config StrategyConfig) (*LifecycleStrategy, error) {
 
 // Handle stages a changed charm before dispatching its planned events.
 func (s *LifecycleStrategy) Handle(ctx context.Context, snapshot params.UnitSnapshot) error {
-	if s.config.Charm != nil {
-		info, err := s.config.Charm(ctx, snapshot)
-		if err != nil {
-			return errors.Annotate(err, "getting charm bundle information")
-		}
-		if info.URL() != s.deployedCharmURL ||
-			snapshot.CharmModifiedVersion != s.deployedCharmModifiedVersion {
+	for _, event := range s.config.Planner.Plan(snapshot) {
+		if s.config.Charm != nil && s.needsStaging(event, snapshot) {
+			info, err := s.config.Charm(ctx, snapshot)
+			if err != nil {
+				return errors.Annotate(err, "getting charm bundle information")
+			}
 			if s.config.CharmDirGuard != nil {
 				if err := s.config.CharmDirGuard.Lockdown(ctx); err != nil {
 					return errors.Annotate(err, "locking down charm directory")
@@ -302,8 +301,6 @@ func (s *LifecycleStrategy) Handle(ctx context.Context, snapshot params.UnitSnap
 			s.deployedCharmURL = info.URL()
 			s.deployedCharmModifiedVersion = snapshot.CharmModifiedVersion
 		}
-	}
-	for _, event := range s.config.Planner.Plan(snapshot) {
 		if err := s.config.Planner.Begin(ctx, event, snapshot); err != nil {
 			return errors.Annotatef(err, "recording pending holistic %s event", event)
 		}
@@ -320,6 +317,22 @@ func (s *LifecycleStrategy) Handle(ctx context.Context, snapshot params.UnitSnap
 		}
 	}
 	return nil
+}
+
+// needsStaging reports whether the charm bundle must be staged before the
+// given event. Staging is required before Install (first-time deployment)
+// and before a charm-upgrade Reconcile.
+func (s *LifecycleStrategy) needsStaging(event hooks.Kind, snapshot params.UnitSnapshot) bool {
+	if event == hooks.Install {
+		return s.deployedCharmURL == "" ||
+			snapshot.CharmURL != s.deployedCharmURL ||
+			snapshot.CharmModifiedVersion != s.deployedCharmModifiedVersion
+	}
+	if event == hooks.Reconcile {
+		return snapshot.CharmURL != s.deployedCharmURL ||
+			snapshot.CharmModifiedVersion != s.deployedCharmModifiedVersion
+	}
+	return false
 }
 
 var _ Strategy = (*LifecycleStrategy)(nil)

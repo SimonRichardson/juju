@@ -15,6 +15,7 @@ import (
 	"github.com/juju/worker/v5"
 
 	"github.com/juju/juju/core/life"
+	"github.com/juju/juju/core/status"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
 	"github.com/juju/juju/internal/observability/probe"
@@ -47,10 +48,11 @@ func (s *WorkerSuite) TestDispatchesSnapshotForEachNotification(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 
 	w, err := New(Config{
-		Watcher:       watch,
-		Snapshot:      client,
-		Strategy:      strategy,
-		ClearResolved: clearResolved,
+		Watcher:        watch,
+		Snapshot:       client,
+		Strategy:       strategy,
+		SetAgentStatus: setAgentStatus,
+		ClearResolved:  clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	defer worker.Stop(w)
@@ -76,10 +78,11 @@ func (s *WorkerSuite) TestSnapshotErrorStopsWorker(c *tc.C) {
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	w, err := New(Config{
-		Watcher:       watch,
-		Snapshot:      client,
-		Strategy:      strategy,
-		ClearResolved: clearResolved,
+		Watcher:        watch,
+		Snapshot:       client,
+		Strategy:       strategy,
+		SetAgentStatus: setAgentStatus,
+		ClearResolved:  clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	watch.changes <- struct{}{}
@@ -102,7 +105,8 @@ func (s *WorkerSuite) TestSuccessfulReconcileMarksWorkerReady(c *tc.C) {
 			handled <- struct{}{}
 			return nil
 		}),
-		ClearResolved: clearResolved,
+		SetAgentStatus: setAgentStatus,
+		ClearResolved:  clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	defer worker.Stop(w)
@@ -127,7 +131,7 @@ func (s *WorkerSuite) TestFailedDispatchRetriesWithFreshSnapshot(c *tc.C) {
 	clock := testclock.NewClock(time.Now())
 	strategy := &retryStrategy{failed: make(chan struct{}), done: make(chan struct{})}
 	w, err := New(Config{
-		Watcher: watch, Snapshot: client, Strategy: strategy, ClearResolved: clearResolved,
+		Watcher: watch, Snapshot: client, Strategy: strategy, SetAgentStatus: setAgentStatus, ClearResolved: clearResolved,
 		RetryStrategy: params.RetryStrategy{ShouldRetry: true, MinRetryTime: time.Second, MaxRetryTime: time.Second, RetryTimeFactor: 1},
 		Clock:         clock,
 	})
@@ -161,10 +165,11 @@ func (s *WorkerSuite) TestDyingUnitRunsStopAndRemoveBeforeTermination(c *tc.C) {
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	w, err := New(Config{
-		Watcher:       watch,
-		Snapshot:      &testSnapshotClient{snapshot: params.UnitSnapshot{Life: life.Dying}},
-		Strategy:      strategy,
-		ClearResolved: clearResolved,
+		Watcher:        watch,
+		Snapshot:       &testSnapshotClient{snapshot: params.UnitSnapshot{Life: life.Dying}},
+		Strategy:       strategy,
+		SetAgentStatus: setAgentStatus,
+		ClearResolved:  clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 
@@ -182,10 +187,11 @@ func (s *WorkerSuite) TestDeadUnitTerminatesImmediately(c *tc.C) {
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	w, err := New(Config{
-		Watcher:       watch,
-		Snapshot:      &testSnapshotClient{snapshot: params.UnitSnapshot{Life: life.Dead}},
-		Strategy:      strategy,
-		ClearResolved: clearResolved,
+		Watcher:        watch,
+		Snapshot:       &testSnapshotClient{snapshot: params.UnitSnapshot{Life: life.Dead}},
+		Strategy:       strategy,
+		SetAgentStatus: setAgentStatus,
+		ClearResolved:  clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 
@@ -224,10 +230,11 @@ func (s *WorkerSuite) TestStagesAndDeploysCharmBeforeDispatch(c *tc.C) {
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	w, err := New(Config{
-		Watcher:       watch,
-		Snapshot:      &testSnapshotClient{snapshot: params.UnitSnapshot{CharmURL: "charmhub/ubuntu-0"}},
-		Strategy:      strategy,
-		ClearResolved: clearResolved,
+		Watcher:        watch,
+		Snapshot:       &testSnapshotClient{snapshot: params.UnitSnapshot{CharmURL: "charmhub/ubuntu-0"}},
+		Strategy:       strategy,
+		SetAgentStatus: setAgentStatus,
+		ClearResolved:  clearResolved,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	defer worker.Stop(w)
@@ -245,6 +252,7 @@ func (s *WorkerSuite) TestRuntimeStagesAndDispatchesWithStandardRunner(c *tc.C) 
 	unit := &testUnit{
 		testSnapshotClient: testSnapshotClient{snapshot: params.UnitSnapshot{CharmURL: "charmhub/ubuntu-0"}},
 		watcher:            newTestWatcher(),
+		agentStatuses:      make(chan status.Status, 2),
 	}
 	deployer := &testDeployer{done: make(chan struct{})}
 	testRunner := &testRunner{events: make(chan string, 3)}
@@ -280,6 +288,8 @@ func (s *WorkerSuite) TestRuntimeStagesAndDispatchesWithStandardRunner(c *tc.C) 
 	<-guard.unlocked
 	c.Check(guard.lockdowns, tc.Equals, 1)
 	c.Check(guard.unlocks, tc.Equals, 1)
+	c.Check(<-unit.agentStatuses, tc.Equals, status.Executing)
+	c.Check(<-unit.agentStatuses, tc.Equals, status.Idle)
 }
 
 func (s *WorkerSuite) TestNewValidation(c *tc.C) {
@@ -345,7 +355,8 @@ func (s *retryStrategy) SkipPending(context.Context, params.UnitSnapshot) error 
 
 type testUnit struct {
 	testSnapshotClient
-	watcher *testWatcher
+	watcher       *testWatcher
+	agentStatuses chan status.Status
 }
 
 type testBundleInfo struct{ url string }
@@ -407,7 +418,16 @@ func (u *testUnit) WatchComposite(context.Context) (corewatcher.NotifyWatcher, e
 
 func (*testUnit) ClearResolved(context.Context) error { return nil }
 
+func (u *testUnit) SetAgentStatus(_ context.Context, agentStatus status.Status, _ string, _ map[string]any) error {
+	if u.agentStatuses != nil {
+		u.agentStatuses <- agentStatus
+	}
+	return nil
+}
+
 func clearResolved(context.Context) error { return nil }
+
+func setAgentStatus(context.Context, status.Status, string, map[string]any) error { return nil }
 
 func (c *testSnapshotClient) Snapshot(context.Context) (params.UnitSnapshot, error) {
 	c.calls++

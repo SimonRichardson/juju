@@ -130,7 +130,7 @@ VALUES (?, ?, ?, ?)`, "storage-attachment-uuid", "storage-instance-uuid", s.unit
 		ApplicationUUID:      applicationUUID,
 		UnitUUID:             s.unitUUID,
 		CharmUUID:            charmUUID,
-		CharmURL:             charmName,
+		CharmURL:             "local:" + charmName + "-0",
 		LifeID:               1,
 		ResolvedMode:         "retry-hooks",
 		CharmModifiedVersion: 7,
@@ -150,6 +150,33 @@ VALUES (?, ?, ?, ?)`, "storage-attachment-uuid", "storage-instance-uuid", s.unit
 func (s *stateSuite) TestGetUnitSnapshotUnitNotFound(c *tc.C) {
 	_, err := s.state.GetUnitSnapshot(c.Context(), "unknown-unit")
 	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotFound)
+}
+
+func (s *stateSuite) TestSnapshotCharmURL(c *tc.C) {
+	for _, test := range []struct {
+		name   string
+		source string
+		url    string
+	}{
+		{
+			name:   "local",
+			source: "local",
+			url:    "local:holistic-42",
+		},
+		{
+			name:   "charmhub",
+			source: "charmhub",
+			url:    "ch:holistic-42",
+		},
+	} {
+		url, err := snapshotCharmURL(unitSnapshotRow{
+			CharmName:     "holistic",
+			CharmRevision: 42,
+			CharmSource:   test.source,
+		})
+		c.Assert(err, tc.ErrorIsNil, tc.Commentf("%s", test.name))
+		c.Check(url, tc.Equals, test.url, tc.Commentf("%s", test.name))
+	}
 }
 
 func (s *stateSuite) TestEnsureUnitStateRecord(c *tc.C) {

@@ -91,7 +91,9 @@ type unitSnapshotRow struct {
 	ApplicationUUID      string         `db:"application_uuid"`
 	ApplicationName      string         `db:"application_name"`
 	CharmUUID            string         `db:"charm_uuid"`
-	CharmURL             string         `db:"charm_url"`
+	CharmName            string         `db:"charm_name"`
+	CharmRevision        int            `db:"charm_revision"`
+	CharmSource          string         `db:"charm_source"`
 	LifeID               int            `db:"life_id"`
 	ResolvedMode         sql.NullString `db:"resolved_mode"`
 	CharmModifiedVersion int            `db:"charm_modified_version"`
