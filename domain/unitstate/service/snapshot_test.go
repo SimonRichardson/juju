@@ -77,6 +77,7 @@ func (s *snapshotSuite) TestWatchUnitSnapshot(c *tc.C) {
 	assertPredicate("relation_unit", identifiers.UnitUUID, identifiers.RelationUnitUUIDs[0])
 	assertPredicate("unit_state_charm", identifiers.UnitUUID, "other")
 	assertPredicate("unit_workload_version", identifiers.UnitUUID, "other")
+	assertPredicate("custom_unit_workload_status", identifiers.ApplicationUUID, identifiers.UnitUUID)
 	assertPredicate("custom_storage_attachment_unit_uuid_lifecycle", identifiers.UnitUUID, "other")
 	assertPredicate("custom_storage_attachment_entities_storage_attachment_uuid",
 		identifiers.StorageAttachmentUUIDs[0], "other")
