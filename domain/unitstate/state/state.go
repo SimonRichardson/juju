@@ -14,6 +14,7 @@ import (
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/domain"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
+	deploymentcharm "github.com/juju/juju/domain/deployment/charm"
 	"github.com/juju/juju/domain/unitstate"
 	"github.com/juju/juju/internal/errors"
 )
@@ -201,15 +202,18 @@ SELECT u.uuid AS &unitSnapshotRow.unit_uuid,
        a.uuid AS &unitSnapshotRow.application_uuid,
        a.name AS &unitSnapshotRow.application_name,
        c.uuid AS &unitSnapshotRow.charm_uuid,
-       c.reference_name AS &unitSnapshotRow.charm_url,
+       c.reference_name AS &unitSnapshotRow.charm_name,
+       c.revision AS &unitSnapshotRow.charm_revision,
+       cs.name AS &unitSnapshotRow.charm_source,
        u.life_id AS &unitSnapshotRow.life_id,
-       rm.name AS &unitSnapshotRow.resolved_mode,
+       COALESCE(rm.name, 'none') AS &unitSnapshotRow.resolved_mode,
        a.charm_modified_version AS &unitSnapshotRow.charm_modified_version,
        COALESCE(aps.trust, FALSE) AS &unitSnapshotRow.trust,
        uwv.version AS &unitSnapshotRow.workload_version
 FROM unit AS u
 JOIN application AS a ON a.uuid = u.application_uuid
 JOIN charm AS c ON c.uuid = u.charm_uuid
+JOIN charm_source AS cs ON cs.id = c.source_id
 LEFT JOIN application_setting AS aps ON aps.application_uuid = a.uuid
 LEFT JOIN unit_workload_version AS uwv ON uwv.unit_uuid = u.uuid
 LEFT JOIN unit_resolved AS ur ON ur.unit_uuid = u.uuid
@@ -249,13 +253,17 @@ WHERE unit_uuid = $entityUUID.uuid
 	if err != nil {
 		return unitstate.UnitSnapshot{}, errors.Capture(err)
 	}
+	charmURL, err := snapshotCharmURL(row)
+	if err != nil {
+		return unitstate.UnitSnapshot{}, errors.Capture(err)
+	}
 	snapshot := unitstate.UnitSnapshot{
 		UnitName:             row.UnitName,
 		ApplicationName:      row.ApplicationName,
 		ApplicationUUID:      row.ApplicationUUID,
 		UnitUUID:             row.UnitUUID,
 		CharmUUID:            row.CharmUUID,
-		CharmURL:             row.CharmURL,
+		CharmURL:             charmURL,
 		LifeID:               row.LifeID,
 		ResolvedMode:         row.ResolvedMode.String,
 		CharmModifiedVersion: row.CharmModifiedVersion,
@@ -280,6 +288,23 @@ WHERE unit_uuid = $entityUUID.uuid
 		}
 	}
 	return snapshot, nil
+}
+
+func snapshotCharmURL(row unitSnapshotRow) (string, error) {
+	var schema deploymentcharm.Schema
+	switch row.CharmSource {
+	case "charmhub":
+		schema = deploymentcharm.CharmHub
+	case "local":
+		schema = deploymentcharm.Local
+	default:
+		return "", errors.Errorf("unsupported charm source %q", row.CharmSource)
+	}
+	return (&deploymentcharm.URL{
+		Schema:   schema.String(),
+		Name:     row.CharmName,
+		Revision: row.CharmRevision,
+	}).String(), nil
 }
 
 // GetUnitState returns the full unit state. The state may be

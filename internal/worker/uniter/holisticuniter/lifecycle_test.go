@@ -187,6 +187,50 @@ func (s *LifecycleSuite) TestHandleRedeploysModifiedCharm(c *tc.C) {
 	c.Check(deployer.staged, tc.Equals, 2)
 }
 
+func (s *LifecycleSuite) TestHandleDoesNotStageForSnapshotReconcile(c *tc.C) {
+	deployer := &testDeployer{done: make(chan struct{})}
+	strategy, err := NewLifecycleStrategy(StrategyConfig{
+		Planner: NewLifecyclePlanner(),
+		Charm: func(context.Context, params.UnitSnapshot) (charm.BundleInfo, error) {
+			return testBundleInfo{url: "charmhub/example"}, nil
+		},
+		Deployer: deployer,
+		Dispatch: func(context.Context, hooks.Kind, params.UnitSnapshot) error { return nil },
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	snapshot := params.UnitSnapshot{CharmURL: "charmhub/example", Config: map[string]any{"key": "one"}}
+	err = strategy.Handle(c.Context(), snapshot)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(deployer.staged, tc.Equals, 1)
+
+	snapshot.Config["key"] = "two"
+	err = strategy.Handle(c.Context(), snapshot)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(deployer.staged, tc.Equals, 1)
+}
+
+func (s *LifecycleSuite) TestHandleDoesNotStageForStopRemove(c *tc.C) {
+	deployer := &testDeployer{done: make(chan struct{})}
+	store := &testLifecycleStore{state: LifecycleState{Installed: true, Started: true}}
+	planner, err := NewPersistentLifecyclePlanner(c.Context(), store)
+	c.Assert(err, tc.ErrorIsNil)
+
+	strategy, err := NewLifecycleStrategy(StrategyConfig{
+		Planner: planner,
+		Charm: func(context.Context, params.UnitSnapshot) (charm.BundleInfo, error) {
+			return testBundleInfo{url: "charmhub/example"}, nil
+		},
+		Deployer: deployer,
+		Dispatch: func(context.Context, hooks.Kind, params.UnitSnapshot) error { return nil },
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	err = strategy.Handle(c.Context(), params.UnitSnapshot{Life: life.Dying})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(deployer.staged, tc.Equals, 0)
+}
+
 type testLifecycleStore struct {
 	state LifecycleState
 	saves int

@@ -13,6 +13,7 @@ import (
 	"github.com/juju/worker/v5/catacomb"
 
 	"github.com/juju/juju/core/life"
+	"github.com/juju/juju/core/status"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
 	"github.com/juju/juju/internal/observability/probe"
@@ -34,11 +35,16 @@ type Unit interface {
 	WatchComposite(context.Context) (corewatcher.NotifyWatcher, error)
 	// ClearResolved clears the unit's explicit hook-resolution mode.
 	ClearResolved(context.Context) error
+	// SetAgentStatus updates the status displayed for the unit agent.
+	SetAgentStatus(context.Context, status.Status, string, map[string]any) error
 }
 
 // DispatchFunc runs one named charm event with the snapshot available through
 // the dispatch context.
 type DispatchFunc func(context.Context, hooks.Kind, params.UnitSnapshot) error
+
+// AgentStatusFunc updates the status displayed for the unit agent.
+type AgentStatusFunc func(context.Context, status.Status, string, map[string]any) error
 
 // CharmProvider returns the charm bundle selected by the controller. The
 // bundle reader verifies and downloads the archive when it is staged.
@@ -82,12 +88,13 @@ func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryStrategy
 		return nil, errors.Annotate(err, "watching unit snapshot")
 	}
 	config := Config{
-		Watcher:       watcher,
-		Snapshot:      unit,
-		Strategy:      strategy,
-		RetryStrategy: retryStrategy,
-		ClearResolved: unit.ClearResolved,
-		Clock:         clock,
+		Watcher:        watcher,
+		Snapshot:       unit,
+		Strategy:       strategy,
+		SetAgentStatus: unit.SetAgentStatus,
+		RetryStrategy:  retryStrategy,
+		ClearResolved:  unit.ClearResolved,
+		Clock:          clock,
 	}
 	if err := config.Validate(); err != nil {
 		watcher.Kill()
@@ -103,12 +110,13 @@ func newForUnit(ctx context.Context, unit Unit, strategy Strategy, retryStrategy
 
 // Config contains the dependencies of a holistic unit worker.
 type Config struct {
-	Watcher       corewatcher.NotifyWatcher
-	Snapshot      SnapshotClient
-	Strategy      Strategy
-	RetryStrategy params.RetryStrategy
-	ClearResolved func(context.Context) error
-	Clock         clock.Clock
+	Watcher        corewatcher.NotifyWatcher
+	Snapshot       SnapshotClient
+	Strategy       Strategy
+	SetAgentStatus AgentStatusFunc
+	RetryStrategy  params.RetryStrategy
+	ClearResolved  func(context.Context) error
+	Clock          clock.Clock
 }
 
 // Validate checks that all worker dependencies are present and consistent.
@@ -121,6 +129,9 @@ func (c Config) Validate() error {
 	}
 	if c.Strategy == nil {
 		return errors.NotValidf("missing lifecycle strategy")
+	}
+	if c.SetAgentStatus == nil {
+		return errors.NotValidf("missing agent status setter")
 	}
 	if c.RetryStrategy.ShouldRetry && c.Clock == nil {
 		return errors.NotValidf("missing clock for retry")
@@ -232,8 +243,14 @@ func (w *HolisticUniter) loop() error {
 				retryStarted = false
 			}
 		}
+		if err := w.config.SetAgentStatus(ctx, status.Executing, "", nil); err != nil {
+			return errors.Annotate(err, "setting agent executing status")
+		}
 		err = w.config.Strategy.Handle(ctx, snapshot)
 		if err == nil {
+			if err := w.config.SetAgentStatus(ctx, status.Idle, "", nil); err != nil {
+				return errors.Annotate(err, "setting agent idle status")
+			}
 			w.probe.SetHasStarted(snapshot.Life == life.Alive)
 			retryTimer.Reset()
 			retryStarted = false
