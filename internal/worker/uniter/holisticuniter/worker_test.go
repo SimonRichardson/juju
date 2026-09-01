@@ -17,6 +17,7 @@ import (
 	"github.com/juju/juju/core/life"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/domain/deployment/charm/hooks"
+	"github.com/juju/juju/internal/observability/probe"
 	internalworker "github.com/juju/juju/internal/worker"
 	"github.com/juju/juju/internal/worker/uniter/shared/charm"
 	"github.com/juju/juju/internal/worker/uniter/shared/hook"
@@ -84,6 +85,40 @@ func (s *WorkerSuite) TestSnapshotErrorStopsWorker(c *tc.C) {
 	watch.changes <- struct{}{}
 	err = w.Wait()
 	c.Check(err, tc.ErrorMatches, "getting unit snapshot: snapshot failed")
+}
+
+func (s *WorkerSuite) TestSuccessfulReconcileMarksWorkerReady(c *tc.C) {
+	watch := newTestWatcher()
+	called := make(chan struct{}, 2)
+	handled := make(chan struct{}, 2)
+	client := &testSnapshotClient{
+		snapshot: params.UnitSnapshot{Life: life.Alive},
+		called:   called,
+	}
+	w, err := New(Config{
+		Watcher:  watch,
+		Snapshot: client,
+		Strategy: strategyFunc(func(context.Context, params.UnitSnapshot) error {
+			handled <- struct{}{}
+			return nil
+		}),
+		ClearResolved: clearResolved,
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	defer worker.Stop(w)
+
+	watch.changes <- struct{}{}
+	<-called
+	<-handled
+
+	// A second snapshot can only be fetched after the first reconciliation has
+	// completed and updated readiness.
+	watch.changes <- struct{}{}
+	<-called
+	readiness := w.ProbeProvider().SupportedProbes()[probe.ProbeReadiness]
+	ready, err := readiness.Probe()
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(ready, tc.IsTrue)
 }
 
 func (s *WorkerSuite) TestFailedDispatchRetriesWithFreshSnapshot(c *tc.C) {
@@ -264,6 +299,13 @@ type testSnapshotClient struct {
 	snapshot params.UnitSnapshot
 	err      error
 	calls    int
+	called   chan struct{}
+}
+
+type strategyFunc func(context.Context, params.UnitSnapshot) error
+
+func (f strategyFunc) Handle(ctx context.Context, snapshot params.UnitSnapshot) error {
+	return f(ctx, snapshot)
 }
 
 type retryStrategy struct {
@@ -369,6 +411,9 @@ func clearResolved(context.Context) error { return nil }
 
 func (c *testSnapshotClient) Snapshot(context.Context) (params.UnitSnapshot, error) {
 	c.calls++
+	if c.called != nil {
+		c.called <- struct{}{}
+	}
 	return c.snapshot, c.err
 }
 

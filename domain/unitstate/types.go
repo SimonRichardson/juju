@@ -67,13 +67,14 @@ type RetrievedUnitState struct {
 // SnapshotWatchIdentifiers contains stable database identifiers used to watch
 // state represented by a unit snapshot.
 type SnapshotWatchIdentifiers struct {
-	UnitUUID              string
-	ApplicationUUID       string
-	CharmUUID             string
-	NetNodeUUIDs          []string
-	RelationUUIDs         []string
-	RelationUnitUUIDs     []string
-	RelationEndpointUUIDs []string
+	UnitUUID               string
+	ApplicationUUID        string
+	CharmUUID              string
+	NetNodeUUIDs           []string
+	RelationUUIDs          []string
+	RelationUnitUUIDs      []string
+	RelationEndpointUUIDs  []string
+	StorageAttachmentUUIDs []string
 }
 
 // UnitSnapshot is the model-database projection consumed by a holistic unit
@@ -88,6 +89,7 @@ type UnitSnapshot struct {
 	LifeID               int
 	ResolvedMode         string
 	CharmModifiedVersion int
+	Leader               bool
 	Trust                bool
 	WorkloadVersion      string
 	CharmState           map[string]string

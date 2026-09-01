@@ -16,6 +16,11 @@ type Probe struct {
 	hasStarted     bool
 }
 
+// ProbeProvider returns the delta uniter's liveness and readiness probes.
+func (u *Uniter) ProbeProvider() probe.ProbeProvider {
+	return &u.Probe
+}
+
 // HasStarted indiciates if this probe considered the uniter to have been
 // started.
 func (p *Probe) HasStarted() bool {
