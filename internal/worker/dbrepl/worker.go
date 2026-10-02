@@ -260,6 +260,8 @@ func (w *dbReplWorker) loop() (err error) {
 			w.changeLog(ctx)
 		case ".change-stream":
 			w.changeStream(ctx)
+		case ".watch":
+			w.execWatch(ctx, line, args[1:])
 		case ".describe-cluster":
 			w.describeCluster(ctx)
 
@@ -360,7 +362,7 @@ func (w *dbReplWorker) execQueryForModels(ctx context.Context, args []string) {
 			models = append(models, uuid)
 		}
 
-		return nil
+		return rows.Err()
 	}); err != nil {
 		w.cfg.Logger.Errorf(ctx, "failed to execute query: %v", err)
 		return
@@ -872,6 +874,8 @@ Database commands:
   .query-models <query>       Execute a query on all models and print the results.
   .change-log                 Show the change log entries in the current database.
   .change-stream              Show the entries of the change log that the change stream will view.
+  .watch <table>              Print new, updated, and deleted rows with all table columns.
+                              Press Enter or Ctrl-C to stop watching.
 
 DQlite cluster commands:
 
