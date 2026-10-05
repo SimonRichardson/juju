@@ -312,6 +312,10 @@ type StatusService interface {
 	// GetUnitWorkloadStatus returns the workload status of the specified unit
 	GetUnitWorkloadStatus(context.Context, coreunit.Name) (corestatus.StatusInfo, error)
 
+	// GetApplicationDisplayStatus returns the display status for the specified
+	// application.
+	GetApplicationDisplayStatus(context.Context, string) (corestatus.StatusInfo, error)
+
 	// SetUnitWorkloadStatus sets the workload status of the specified unit
 	SetUnitWorkloadStatus(context.Context, coreunit.Name, corestatus.StatusInfo) error
 
@@ -348,6 +352,10 @@ type StatusService interface {
 // UnitStateService describes the ability to retrieve and persist
 // unit agent state for informing hook reconciliation.
 type UnitStateService interface {
+	// UnitSnapshot returns the model-state projection for a unit snapshot.
+	UnitSnapshot(context.Context, coreunit.Name) (unitstate.UnitSnapshot, error)
+	// WatchUnitSnapshot watches all state represented in a unit snapshot.
+	WatchUnitSnapshot(context.Context, coreunit.Name) (watcher.NotifyWatcher, error)
 	// CommitHookChanges persists a set of changes after a hook successfully
 	// completes and executes them in a single transaction.
 	CommitHookChanges(ctx context.Context, arg unitstate.CommitHookChangesArg) error
@@ -502,6 +510,14 @@ type RelationService interface {
 	// for a relation.
 	GetRelationDetails(ctx context.Context, relationUUID corerelation.UUID) (relation.RelationDetails, error)
 
+	// GetInScopeUnits returns the units of an application that are in scope for
+	// the relation.
+	GetInScopeUnits(
+		ctx context.Context,
+		applicationUUID coreapplication.UUID,
+		relationUUID corerelation.UUID,
+	) ([]coreunit.Name, error)
+
 	// GetRelationUUIDsByUnitName returns a slice of relation UUIDs for relations
 	// the given unit is part of and in scope.
 	GetRelationUUIDsByUnitName(ctx context.Context, unitName coreunit.Name) ([]corerelation.UUID, error)
@@ -532,6 +548,14 @@ type RelationService interface {
 		relationUUID corerelation.UUID,
 		unitName coreunit.Name,
 	) (map[string]string, error)
+
+	// GetUnitSettingsForUnits returns the current settings for the supplied
+	// relation units.
+	GetUnitSettingsForUnits(
+		ctx context.Context,
+		relationUUID corerelation.UUID,
+		unitNames []coreunit.Name,
+	) ([]relation.UnitSettings, error)
 
 	// GetRelationUUIDByKey returns a relation UUID for the given relation Key.
 	// The relation key is a ordered space separated string of the endpoint

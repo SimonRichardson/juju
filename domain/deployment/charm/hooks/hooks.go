@@ -27,6 +27,11 @@ const (
 	// configuration changes, and when recovering from transient unit agent errors.
 	ConfigChanged Kind = "config-changed"
 
+	// Reconcile is the holistic runtime's opaque steady-state event. It is
+	// dispatched when the unit snapshot changes, so the charm can reconcile its
+	// complete current state without inferring a delta-specific cause.
+	Reconcile Kind = "reconcile"
+
 	// The `upgrade-charm` hook always runs once immediately after the charm directory
 	// contents have been changed by an unforced charm upgrade operation, and *may* do
 	// so after a forced upgrade; but will *not* be run after a forced upgrade from an
@@ -108,6 +113,7 @@ var unitHooks = []Kind{
 	Install,
 	Start,
 	ConfigChanged,
+	Reconcile,
 	UpgradeCharm,
 	Stop,
 	Remove,

@@ -80,6 +80,7 @@ func (st *State) InsertIAASUnit(
 		ctx, tx, appUUID, unitUUID, args.NetNodeUUID.String(), insertUnitArg{
 			CharmUUID:     charmUUID,
 			UnitName:      unitName,
+			RuntimeType:   args.RuntimeType,
 			Constraints:   args.Constraints,
 			UnitStatusArg: args.UnitStatusArg,
 		},
@@ -187,6 +188,7 @@ type insertUnitArg struct {
 
 	CharmUUID       string
 	UnitName        string
+	RuntimeType     application.UnitRuntimeType
 	K8sPod          *application.K8sPod
 	Password        *application.PasswordInfo
 	Constraints     constraints.Constraints
@@ -208,6 +210,7 @@ func (st *State) insertUnit(
 		ApplicationID: appUUID,
 		UnitUUID:      unitUUID,
 		CharmUUID:     args.CharmUUID,
+		RuntimeTypeID: int(args.RuntimeType),
 		Name:          args.UnitName,
 		NetNodeID:     netNodeUUID,
 		LifeID:        life.Alive,

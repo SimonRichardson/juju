@@ -1208,6 +1208,7 @@ func (s *commitHookSuite) setupMocks(c *tc.C) *gomock.Controller {
 		s.leadershipEnsurer,
 		s.clock,
 		loggertesting.WrapCheckLog(c),
+		nil,
 	)
 
 	c.Cleanup(func() {

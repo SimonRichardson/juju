@@ -4,7 +4,9 @@
 package service
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	coreerrors "github.com/juju/juju/core/errors"
 	"github.com/juju/juju/core/secrets"
@@ -57,6 +59,81 @@ func (s *SecretService) GetSecretConsumer(ctx context.Context, uri *secrets.URI,
 
 	result, _, err := s.GetSecretConsumerAndLatest(ctx, uri, unitName)
 	return result, err
+}
+
+// ListUnitSecretMetadata returns only the metadata for secret revisions that
+// the unit owns or currently consumes. Secret content is never returned.
+func (s *SecretService) ListUnitSecretMetadata(
+	ctx context.Context, unitName unit.Name,
+) ([]domainsecret.UnitSecretMetadata, error) {
+	ctx, span := trace.Start(ctx, trace.NameFromFunc())
+	defer span.End()
+
+	appName := unitName.Application()
+	owned, _, err := s.secretState.ListCharmSecrets(
+		ctx,
+		domainsecret.ApplicationOwners{appName},
+		domainsecret.UnitOwners{unitName.String()},
+	)
+	if err != nil {
+		return nil, errors.Errorf("listing secrets owned by unit %q: %w", unitName, err)
+	}
+
+	result := make(map[string]domainsecret.UnitSecretMetadata, len(owned))
+	for _, metadata := range owned {
+		result[metadata.URI.ID] = domainsecret.UnitSecretMetadata{
+			URI:      metadata.URI,
+			Label:    metadata.Label,
+			Revision: metadata.LatestRevision,
+		}
+	}
+	consumers, err := s.secretState.AllSecretConsumers(ctx)
+	if err != nil {
+		return nil, errors.Errorf("listing secret consumers for unit %q: %w", unitName, err)
+	}
+	for secretID, infos := range consumers {
+		for _, info := range infos {
+			if info.SubjectID != unitName.String() {
+				continue
+			}
+			metadata, err := s.secretState.GetSecret(ctx, &secrets.URI{ID: secretID})
+			if err != nil {
+				return nil, errors.Errorf("getting visible secret %q: %w", secretID, err)
+			}
+			label := info.Label
+			if label == "" {
+				label = metadata.Label
+			}
+			result[secretID] = domainsecret.UnitSecretMetadata{
+				URI:      metadata.URI,
+				Label:    label,
+				Revision: info.CurrentRevision,
+			}
+		}
+	}
+	remoteSecrets, err := s.secretState.AllRemoteSecrets(ctx)
+	if err != nil {
+		return nil, errors.Errorf("listing remote secrets for unit %q: %w", unitName, err)
+	}
+	for _, secret := range remoteSecrets {
+		if secret.SubjectID != unitName.String() {
+			continue
+		}
+		result[secret.URI.String()] = domainsecret.UnitSecretMetadata{
+			URI:      secret.URI,
+			Label:    secret.Label,
+			Revision: secret.CurrentRevision,
+		}
+	}
+
+	metadata := make([]domainsecret.UnitSecretMetadata, 0, len(result))
+	for _, value := range result {
+		metadata = append(metadata, value)
+	}
+	slices.SortFunc(metadata, func(a, b domainsecret.UnitSecretMetadata) int {
+		return cmp.Compare(a.URI.String(), b.URI.String())
+	})
+	return metadata, nil
 }
 
 // SaveSecretConsumer saves the consumer metadata for the given secret and unit.

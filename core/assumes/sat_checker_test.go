@@ -142,6 +142,19 @@ assumes:
 	c.Assert(err, tc.ErrorIsNil)
 }
 
+func (s *SatCheckerSuite) TestHolisticUniterAssumeSatisfied(c *tc.C) {
+	var fs FeatureSet
+	fs.Add(HolisticUniterFeature())
+
+	exprTree := mustParseAssumesExpr(c, `
+assumes:
+  - holistic-uniter
+`)
+
+	err := fs.Satisfies(exprTree)
+	c.Assert(err, tc.ErrorIsNil)
+}
+
 func (s *SatCheckerSuite) TestVersionedUnitlessAssumesSatisfied(c *tc.C) {
 	var fs FeatureSet
 	fs.Add(UnitlessFeature())
@@ -164,6 +177,16 @@ assumes:
 
 	err := (FeatureSet{}).Satisfies(exprTree)
 	c.Assert(err, tc.ErrorMatches, `(?s).*charm requires support for unitless applications.*`)
+}
+
+func (s *SatCheckerSuite) TestHolisticUniterAssumeNotSatisfied(c *tc.C) {
+	exprTree := mustParseAssumesExpr(c, `
+assumes:
+  - holistic-uniter
+`)
+
+	err := (FeatureSet{}).Satisfies(exprTree)
+	c.Assert(err, tc.ErrorMatches, `(?s).*charm requires the holistic unit runtime.*`)
 }
 
 func genFeatureSet(c *tc.C) FeatureSet {
