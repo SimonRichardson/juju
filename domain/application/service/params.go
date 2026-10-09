@@ -285,9 +285,9 @@ type ImportCAASApplicationArgs struct {
 	// Units contains the CAAS units to import.
 	Units []ImportCAASUnitArg
 
-	// ScaleState is the scale state (including scaling, scale and scale
-	// target) of the application.
-	ScaleState application.ScaleState
+	// LegacyDesiredScale is the accepted scale request from the source model.
+	// It must be represented by the imported units before migration proceeds.
+	LegacyDesiredScale int
 }
 
 // ApplicationConfig represents the application config for the specified

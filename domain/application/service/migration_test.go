@@ -608,7 +608,6 @@ func (s *migrationServiceSuite) TestImportCAASApplication(c *tc.C) {
 	}, nil)
 	s.state.EXPECT().GetApplicationUnitSequence(gomock.Any(), "ubuntu").Return(uint64(0), false, nil)
 	s.state.EXPECT().EnsureApplicationUnitSequenceAtLeast(gomock.Any(), "ubuntu", uint64(666)).Return(nil)
-	s.state.EXPECT().GetApplicationLife(gomock.Any(), id).Return(domainlife.Alive, nil)
 
 	s.charm.EXPECT().Actions().Return(&charm.Actions{})
 	s.charm.EXPECT().Config().Return(&charm.ConfigSpec{
@@ -716,11 +715,7 @@ func (s *migrationServiceSuite) TestImportCAASApplication(c *tc.C) {
 		Units: []ImportCAASUnitArg{
 			unitArg,
 		},
-		ScaleState: application.ScaleState{
-			Scale:       1,
-			Scaling:     true,
-			ScaleTarget: 1,
-		},
+		LegacyDesiredScale: 1,
 	})
 	c.Assert(err, tc.ErrorIsNil)
 
@@ -753,6 +748,15 @@ func (s *migrationServiceSuite) TestImportCAASApplication(c *tc.C) {
 		},
 	}}
 	c.Check(receivedUnitArgs, tc.DeepEquals, expectedUnitArgs)
+}
+
+func (s *migrationServiceSuite) TestImportCAASApplicationRejectsUnmaterialisedScale(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	err := s.service.ImportCAASApplication(c.Context(), "ubuntu", ImportCAASApplicationArgs{
+		LegacyDesiredScale: 1,
+	})
+	c.Check(err, tc.ErrorMatches, "imported application .* scale request is not materialised")
 }
 
 func (s *migrationServiceSuite) TestGetUnitUUIDByName(c *tc.C) {
