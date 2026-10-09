@@ -21,10 +21,8 @@ import (
 	"github.com/juju/juju/core/application"
 	"github.com/juju/juju/core/life"
 	"github.com/juju/juju/core/logger"
-	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/core/watcher/watchertest"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
-	applicationservice "github.com/juju/juju/domain/application/service"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	coretesting "github.com/juju/juju/internal/testing"
 	. "github.com/juju/juju/internal/worker/caasapplicationprovisioner"
@@ -175,7 +173,6 @@ func (s *ApplicationWorkerSuite) TestWorker(c *tc.C) {
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	provisioningInfoChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
@@ -191,24 +188,19 @@ func (s *ApplicationWorkerSuite) TestWorker(c *tc.C) {
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
 		// handleChange
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).Return(life.Alive, nil),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").Return(applicationservice.ScalingState{}, nil),
 		facade.EXPECT().WatchProvisioningInfo(x, "test").Return(watchertest.NewMockNotifyWatcher(provisioningInfoChan), nil),
 		ops.EXPECT().ProvisioningInfo(x, "test", s.appUUID, x, x, x, x, x, x).Return(&ProvisioningInfo{}, nil),
 		applicationService.EXPECT().SetApplicationHasK8sResources(x, s.appUUID).Return(nil),
 		ops.EXPECT().AppAlive(x, "test", s.appUUID, app, x, x, x, x, x, x).Return(nil),
 		app.EXPECT().Watch(x).Return(watchertest.NewMockNotifyWatcher(appChan), nil),
-		app.EXPECT().WatchReplicas().DoAndReturn(func() (watcher.NotifyWatcher, error) {
-			scaleChan <- struct{}{}
-			return watchertest.NewMockNotifyWatcher(appReplicasChan), nil
-		}),
+		app.EXPECT().WatchReplicas().Return(watchertest.NewMockNotifyWatcher(appReplicasChan), nil),
 
-		// scaleChan fired
+		// Initial unit reconciliation.
 		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(errors.NotFound),
 		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
@@ -229,15 +221,14 @@ func (s *ApplicationWorkerSuite) TestWorker(c *tc.C) {
 		}),
 
 		// appUnitsChan fired
-		ops.EXPECT().ReconcileDeadUnitScale(x, "test", s.appUUID, app, x, x, x).
+		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(errors.NotFound),
-		ops.EXPECT().ReconcileDeadUnitScale(x, "test", s.appUUID, app, x, x, x).
+		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(errors.ConstError("try again")),
-		ops.EXPECT().ReconcileDeadUnitScale(x, "test", s.appUUID, app, x, x, x).
+		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			DoAndReturn(func(ctx context.Context, s string, i application.UUID, a caas.Application,
-				cf CAASProvisionerFacade,
-				as ApplicationService,
-				l logger.Logger) error {
+				v life.Value, cf CAASProvisionerFacade,
+				as ApplicationService, aps AgentPasswordService, l logger.Logger) error {
 				appChan <- struct{}{}
 				return nil
 			}),
@@ -280,6 +271,7 @@ func (s *ApplicationWorkerSuite) TestWorker(c *tc.C) {
 		}),
 	)
 
+	ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).Return(nil).AnyTimes()
 	appWorker := s.startAppWorker(c, clk, facade, broker, ops, applicationService, statusService, agentPasswordService, storageProvisioningService, resourceOpenerGetter)
 	s.waitDone(c, done)
 	workertest.CleanKill(c, appWorker)
@@ -312,7 +304,6 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedWhileOperating(c *tc.C) {
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	provisioningInfoChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
@@ -328,24 +319,19 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedWhileOperating(c *tc.C) {
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
 		// handleChange
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).Return(life.Alive, nil),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").Return(applicationservice.ScalingState{}, nil),
 		facade.EXPECT().WatchProvisioningInfo(x, "test").Return(watchertest.NewMockNotifyWatcher(provisioningInfoChan), nil),
 		ops.EXPECT().ProvisioningInfo(x, "test", s.appUUID, x, x, x, x, x, x).Return(&ProvisioningInfo{}, nil),
 		applicationService.EXPECT().SetApplicationHasK8sResources(x, s.appUUID).Return(nil),
 		ops.EXPECT().AppAlive(x, "test", s.appUUID, app, x, x, x, x, x, x).Return(nil),
 		app.EXPECT().Watch(x).Return(watchertest.NewMockNotifyWatcher(appChan), nil),
-		app.EXPECT().WatchReplicas().DoAndReturn(func() (watcher.NotifyWatcher, error) {
-			scaleChan <- struct{}{}
-			return watchertest.NewMockNotifyWatcher(appReplicasChan), nil
-		}),
+		app.EXPECT().WatchReplicas().Return(watchertest.NewMockNotifyWatcher(appReplicasChan), nil),
 
-		// scaleChan fired: the application rows are gone from state while
+		// Initial reconciliation: the application rows are gone from state while
 		// the worker operates on it. The worker must not die.
 		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(applicationerrors.ApplicationNotFound),
@@ -388,7 +374,6 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedWhileUpdatingState(c *tc.C)
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	provisioningInfoChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
@@ -404,13 +389,11 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedWhileUpdatingState(c *tc.C)
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
 		// handleChange
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).Return(life.Alive, nil),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").Return(applicationservice.ScalingState{}, nil),
 		facade.EXPECT().WatchProvisioningInfo(x, "test").Return(watchertest.NewMockNotifyWatcher(provisioningInfoChan), nil),
 		ops.EXPECT().ProvisioningInfo(x, "test", s.appUUID, x, x, x, x, x, x).Return(&ProvisioningInfo{}, nil),
 		applicationService.EXPECT().SetApplicationHasK8sResources(x, s.appUUID).Return(nil),
@@ -442,16 +425,15 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedWhileUpdatingState(c *tc.C)
 		}),
 	)
 
+	ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).Return(nil).AnyTimes()
 	appWorker := s.startAppWorker(c, clk, facade, broker, ops, applicationService, statusService, agentPasswordService, storageProvisioningService, resourceOpenerGetter)
 	s.waitDone(c, done)
 	workertest.CleanKill(c, appWorker)
 }
 
 // TestWorkerAppRemovedDuringInitialHandleChange pins the initial-block gap:
-// a forced removal landing between the worker startup and the first
-// handleChange makes GetApplicationScalingState return ApplicationNotFound.
-// The worker must treat the zero scaling state as "nothing to scale" and
-// still take the dead cleanup path below.
+// a forced removal landing between worker startup and the first handleChange
+// must still take the dead cleanup path.
 func (s *ApplicationWorkerSuite) TestWorkerAppRemovedDuringInitialHandleChange(c *tc.C) {
 	ctrl := gomock.NewController(c)
 	defer ctrl.Finish()
@@ -471,7 +453,6 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedDuringInitialHandleChange(c
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
 
@@ -484,17 +465,12 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedDuringInitialHandleChange(c
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
-		// handleChange: the rows vanish before the initial block's
-		// scaling-state read. GetApplicationLife already observed the
-		// removal, so the Dead path is taken below.
+		// handleChange observes that the rows vanished and takes the Dead path.
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).
 			Return(life.Dead, applicationerrors.ApplicationNotFound),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").
-			Return(applicationservice.ScalingState{}, applicationerrors.ApplicationNotFound),
 
 		ops.EXPECT().AppDying(x, "test", s.appUUID, app, life.Dead, x, x, x, x).Return(nil),
 		ops.EXPECT().AppDead(x, "test", s.appUUID, app, applicationService, x, x).DoAndReturn(func(context.Context, string, application.UUID, caas.Application, ApplicationService, clock.Clock, logger.Logger) error {
@@ -532,7 +508,6 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedDuringAlivePath(c *tc.C) {
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	provisioningInfoChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
@@ -546,13 +521,11 @@ func (s *ApplicationWorkerSuite) TestWorkerAppRemovedDuringAlivePath(c *tc.C) {
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
 		// handleChange 1: Alive, but the rows vanish mid-path.
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).Return(life.Alive, nil),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").Return(applicationservice.ScalingState{}, nil),
 		facade.EXPECT().WatchProvisioningInfo(x, "test").Return(watchertest.NewMockNotifyWatcher(provisioningInfoChan), nil),
 		ops.EXPECT().ProvisioningInfo(x, "test", s.appUUID, x, x, x, x, x, x).Return(&ProvisioningInfo{}, nil),
 		applicationService.EXPECT().SetApplicationHasK8sResources(x, s.appUUID).
@@ -603,7 +576,6 @@ func (s *ApplicationWorkerSuite) TestWorkerRefreshTimerResetOnUnitsChurning(c *t
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	provisioningInfoChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
@@ -620,13 +592,11 @@ func (s *ApplicationWorkerSuite) TestWorkerRefreshTimerResetOnUnitsChurning(c *t
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
 		// handleChange (triggered by initial a.changes event)
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).Return(life.Alive, nil),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").Return(applicationservice.ScalingState{}, nil),
 		facade.EXPECT().WatchProvisioningInfo(x, "test").Return(watchertest.NewMockNotifyWatcher(provisioningInfoChan), nil),
 		ops.EXPECT().ProvisioningInfo(x, "test", s.appUUID, x, x, x, x, x, x).Return(&ProvisioningInfo{}, nil),
 		applicationService.EXPECT().SetApplicationHasK8sResources(x, s.appUUID).Return(nil),
@@ -647,6 +617,8 @@ func (s *ApplicationWorkerSuite) TestWorkerRefreshTimerResetOnUnitsChurning(c *t
 		}),
 	)
 
+	ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
+		Return(errors.ConstError("try again")).AnyTimes()
 	appWorker := s.startAppWorker(c, clk, facade, broker, ops, applicationService, statusService, agentPasswordService, storageProvisioningService, resourceOpenerGetter)
 
 	clk.Advance(0)
@@ -684,7 +656,6 @@ func (s *ApplicationWorkerSuite) TestNotProvisionedRetry(c *tc.C) {
 
 	clk := testclock.NewDilatedWallClock(time.Millisecond)
 
-	scaleChan := make(chan struct{}, 1)
 	settingsChan := make(chan struct{}, 1)
 	provisioningInfoChan := make(chan struct{}, 1)
 	appUnitsChan := make(chan []string, 1)
@@ -700,13 +671,11 @@ func (s *ApplicationWorkerSuite) TestNotProvisionedRetry(c *tc.C) {
 
 		agentPasswordService.EXPECT().SetApplicationPassword(x, s.appUUID, x).Return(nil),
 
-		applicationService.EXPECT().WatchApplicationScale(x, "test").Return(watchertest.NewMockNotifyWatcher(scaleChan), nil),
 		applicationService.EXPECT().WatchApplicationSettings(x, "test").Return(watchertest.NewMockNotifyWatcher(settingsChan), nil),
 		applicationService.EXPECT().WatchApplicationUnitLife(x, "test").Return(watchertest.NewMockStringsWatcher(appUnitsChan), nil),
 
 		// handleChange
 		applicationService.EXPECT().GetApplicationLife(x, s.appUUID).Return(life.Alive, nil),
-		applicationService.EXPECT().GetApplicationScalingState(x, "test").Return(applicationservice.ScalingState{}, nil),
 		facade.EXPECT().WatchProvisioningInfo(x, "test").Return(watchertest.NewMockNotifyWatcher(provisioningInfoChan), nil),
 		// error with not provisioned
 		ops.EXPECT().ProvisioningInfo(x, "test", s.appUUID, x, x, x, x, x, x).Return(nil, errors.NotProvisioned),
@@ -717,12 +686,9 @@ func (s *ApplicationWorkerSuite) TestNotProvisionedRetry(c *tc.C) {
 		applicationService.EXPECT().SetApplicationHasK8sResources(x, s.appUUID).Return(nil),
 		ops.EXPECT().AppAlive(x, "test", s.appUUID, app, x, x, x, x, x, x).Return(nil),
 		app.EXPECT().Watch(x).Return(watchertest.NewMockNotifyWatcher(appChan), nil),
-		app.EXPECT().WatchReplicas().DoAndReturn(func() (watcher.NotifyWatcher, error) {
-			scaleChan <- struct{}{}
-			return watchertest.NewMockNotifyWatcher(appReplicasChan), nil
-		}),
+		app.EXPECT().WatchReplicas().Return(watchertest.NewMockNotifyWatcher(appReplicasChan), nil),
 
-		// scaleChan fired
+		// Initial unit reconciliation.
 		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(errors.NotFound),
 		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
@@ -743,13 +709,14 @@ func (s *ApplicationWorkerSuite) TestNotProvisionedRetry(c *tc.C) {
 		}),
 
 		// appUnitsChan fired
-		ops.EXPECT().ReconcileDeadUnitScale(x, "test", s.appUUID, app, x, x, x).
+		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(errors.NotFound),
-		ops.EXPECT().ReconcileDeadUnitScale(x, "test", s.appUUID, app, x, x, x).
+		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			Return(errors.ConstError("try again")),
-		ops.EXPECT().ReconcileDeadUnitScale(x, "test", s.appUUID, app, x, x, x).
+		ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).
 			DoAndReturn(func(ctx context.Context, s string, i application.UUID, a caas.Application,
-				cf CAASProvisionerFacade, as ApplicationService, l logger.Logger) error {
+				v life.Value, cf CAASProvisionerFacade, as ApplicationService,
+				aps AgentPasswordService, l logger.Logger) error {
 				appChan <- struct{}{}
 				return nil
 			}),
@@ -791,6 +758,7 @@ func (s *ApplicationWorkerSuite) TestNotProvisionedRetry(c *tc.C) {
 		}),
 	)
 
+	ops.EXPECT().EnsureScale(x, "test", s.appUUID, app, life.Alive, x, x, x, x).Return(nil).AnyTimes()
 	appWorker := s.startAppWorker(c, clk, facade, broker, ops, applicationService, statusService, agentPasswordService, storageProvisioningService, resourceOpenerGetter)
 	s.waitDone(c, done)
 	workertest.CheckKill(c, appWorker)
