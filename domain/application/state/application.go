@@ -176,26 +176,12 @@ func (st *State) CreateCAASApplication(
 	}
 	appUUIDStr := appUUID.String()
 
-	scaleInfo := applicationScale{
-		ApplicationID: appUUIDStr,
-		Scale:         args.Scale,
-	}
-	createScale := `INSERT INTO application_scale (*) VALUES ($applicationScale.*)`
-	createScaleStmt, err := st.Prepare(createScale, scaleInfo)
-	if err != nil {
-		return "", errors.Capture(err)
-	}
-
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
 		if err := st.deleteApplicationSequence(ctx, tx, name); err != nil {
 			return errors.Errorf("deleting CAAS application sequence: %w", err)
 		}
 		if err := st.insertApplication(ctx, tx, name, appUUIDStr, args.BaseAddApplicationArg); err != nil {
 			return errors.Errorf("inserting CAAS application %q: %w", name, err)
-		}
-
-		if err := tx.Query(ctx, createScaleStmt, scaleInfo).Run(); err != nil {
-			return errors.Errorf("inserting scale row for application %q: %w", name, err)
 		}
 
 		if len(units) == 0 {
@@ -525,52 +511,6 @@ WHERE  name = $unitNameLife.name
 	return life.Life(unit.LifeID), nil
 }
 
-// GetApplicationScaleState looks up the scale state of the specified application, returning an error
-// satisfying [applicationerrors.ApplicationNotFound] if the application is not found.
-func (st *State) GetApplicationScaleState(ctx context.Context, appUUID coreapplication.UUID) (application.ScaleState, error) {
-	db, err := st.DB(ctx)
-	if err != nil {
-		return application.ScaleState{}, errors.Capture(err)
-	}
-
-	var appScale application.ScaleState
-	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		var err error
-		appScale, err = st.getApplicationScaleState(ctx, tx, appUUID.String())
-		return err
-	})
-	if err != nil {
-		return application.ScaleState{}, errors.Errorf("querying application %q scale: %w", appUUID, err)
-	}
-	return appScale, nil
-}
-
-func (st *State) getApplicationScaleState(ctx context.Context, tx *sqlair.TX, appUUID string) (application.ScaleState, error) {
-	appScale := applicationScale{ApplicationID: appUUID}
-	queryScale := `
-SELECT &applicationScale.*
-FROM   application_scale
-WHERE  application_uuid = $applicationScale.application_uuid
-`
-	queryScaleStmt, err := st.Prepare(queryScale, appScale)
-	if err != nil {
-		return application.ScaleState{}, errors.Capture(err)
-	}
-
-	err = tx.Query(ctx, queryScaleStmt, appScale).Get(&appScale)
-	if errors.Is(err, sql.ErrNoRows) {
-		return application.ScaleState{}, errors.Errorf("querying application %q scale not found", appUUID).Add(applicationerrors.ApplicationNotFound)
-	} else if err != nil {
-		return application.ScaleState{}, errors.Errorf("querying application %q scale: %w", appUUID, err)
-	}
-	return application.ScaleState{
-		StartOrdinal: appScale.StartOrdinal,
-		Scaling:      appScale.Scaling,
-		Scale:        appScale.Scale,
-		ScaleTarget:  appScale.ScaleTarget,
-	}, nil
-}
-
 // GetApplicationLife looks up the life of the specified application, returning
 // an error satisfying [applicationerrors.ApplicationNotFound] if the
 // application is not found.
@@ -876,178 +816,94 @@ WHERE  a.name = $applicationDetails.name;
 	return app, nil
 }
 
-// SetDesiredApplicationScale updates the desired scale of the specified
-// application.
-func (st *State) SetDesiredApplicationScale(ctx context.Context, appUUID coreapplication.UUID, scale int) error {
+// SetCAASApplicationUnitScale atomically changes the Alive unit set.
+// New units are pending; the provisioner completes their storage before pods
+// start. The application row lock makes concurrent relative requests retry
+// safely against the latest unit membership.
+func (st *State) SetCAASApplicationUnitScale(
+	ctx context.Context, appUUID coreapplication.UUID, expected, target int,
+	newUnits []application.AddCAASUnitArg,
+) ([]coreunit.Name, error) {
+	if target < 0 {
+		return nil, applicationerrors.ScaleChangeInvalid
+	}
 	db, err := st.DB(ctx)
 	if err != nil {
-		return errors.Capture(err)
+		return nil, errors.Capture(err)
 	}
-
-	scaleDetails := applicationScale{
-		ApplicationID: appUUID.String(),
-		Scale:         scale,
-	}
-	upsertApplicationScale := `
-UPDATE application_scale
-SET    scale = $applicationScale.scale
-WHERE  application_uuid = $applicationScale.application_uuid
-`
-
-	upsertStmt, err := st.Prepare(upsertApplicationScale, scaleDetails)
+	input := entityUUID{UUID: appUUID.String()}
+	getAlive, err := st.Prepare(`
+SELECT u.name AS &unitName.name
+FROM unit AS u
+WHERE u.application_uuid = $entityUUID.uuid
+AND u.life_id = 0
+`, input, unitName{})
 	if err != nil {
-		return errors.Capture(err)
+		return nil, errors.Capture(err)
 	}
+	setDying, err := st.Prepare(`
+UPDATE unit
+SET life_id = 1
+WHERE name = $unitName.name AND life_id = 0
+`, unitName{})
+	if err != nil {
+		return nil, errors.Capture(err)
+	}
+	var inserted []coreunit.Name
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		return tx.Query(ctx, upsertStmt, scaleDetails).Run()
-	})
-	return errors.Capture(err)
-}
-
-// UpdateApplicationScale updates the desired scale of an application by a
-// delta.
-// If the resulting scale is less than zero, an error satisfying
-// [applicationerrors.ScaleChangeInvalid] is returned. If the current scale
-// differs from expectedScale, [applicationerrors.ScalingStateInconsistent] is
-// returned.
-func (st *State) UpdateApplicationScale(ctx context.Context, appUUID coreapplication.UUID, expectedScale, delta int) (int, error) {
-	db, err := st.DB(ctx)
-	if err != nil {
-		return -1, errors.Capture(err)
-	}
-
-	upsertApplicationScale := `
-UPDATE application_scale
-SET    scale = $applicationScale.scale
-WHERE  application_uuid = $applicationScale.application_uuid
-`
-	upsertStmt, err := st.Prepare(upsertApplicationScale, applicationScale{})
-	if err != nil {
-		return -1, errors.Capture(err)
-	}
-	var newScale int
-	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		currentScaleState, err := st.getApplicationScaleState(ctx, tx, appUUID.String())
-		if err != nil {
+		var txnInserted []coreunit.Name
+		if err := st.checkApplicationAlive(ctx, tx, appUUID.String()); err != nil {
 			return errors.Capture(err)
 		}
-		if currentScaleState.Scale != expectedScale {
+		var alive []unitName
+		if err := tx.Query(ctx, getAlive, input).GetAll(&alive); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Capture(err)
+		}
+		if len(alive) != expected {
 			return applicationerrors.ScalingStateInconsistent
 		}
-
-		newScale = currentScaleState.Scale + delta
-		if newScale < 0 {
-			return errors.Errorf(
-				"%w: cannot remove more units than currently exist", applicationerrors.ScaleChangeInvalid)
+		needed := max(target-expected, 0)
+		if len(newUnits) != needed {
+			return errors.Errorf("expected %d new units, got %d", needed, len(newUnits))
 		}
-
-		scaleDetails := applicationScale{
-			ApplicationID: appUUID.String(),
-			Scale:         newScale,
-		}
-		return tx.Query(ctx, upsertStmt, scaleDetails).Run()
-	})
-	return newScale, errors.Capture(err)
-}
-
-// SetApplicationScalingState sets the scaling details for the given caas
-// application Scale is optional and is only set if not nil.
-func (st *State) SetApplicationScalingState(ctx context.Context, appName string, targetScale int, scaling bool) error {
-	db, err := st.DB(ctx)
-	if err != nil {
-		return errors.Capture(err)
-	}
-	upsertStmt, err := st.Prepare(updateApplicationScaleState, applicationScale{})
-	if err != nil {
-		return errors.Capture(err)
-	}
-	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		appDetails, err := st.getApplicationDetails(ctx, tx, appName)
-		if err != nil {
-			return errors.Capture(err)
-		}
-		scaleState, err := st.getApplicationScaleState(ctx, tx, appDetails.UUID)
-		if err != nil {
-			return errors.Capture(err)
-		}
-		return st.setApplicationScalingState(
-			ctx, tx, upsertStmt, appName, targetScale,
-			scaleState.StartOrdinal, scaling)
-	})
-	return errors.Capture(err)
-}
-
-// SetApplicationScalingStateWithStart updates the scale state and desired
-// StatefulSet start ordinal of a CAAS application.
-func (st *State) SetApplicationScalingStateWithStart(ctx context.Context, appName string, targetScale, startOrdinal int, scaling bool) error {
-	db, err := st.DB(ctx)
-	if err != nil {
-		return errors.Capture(err)
-	}
-
-	upsertStmt, err := st.Prepare(updateApplicationScaleState, applicationScale{})
-	if err != nil {
-		return errors.Capture(err)
-	}
-	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		return st.setApplicationScalingState(
-			ctx, tx, upsertStmt, appName, targetScale, startOrdinal, scaling)
-	})
-	return errors.Capture(err)
-}
-
-const updateApplicationScaleState = `
-UPDATE application_scale
-SET    scale = $applicationScale.scale,
-       scaling = $applicationScale.scaling,
-       scale_target = $applicationScale.scale_target,
-       start_ordinal = $applicationScale.start_ordinal
-WHERE  application_uuid = $applicationScale.application_uuid
-`
-
-func (st *State) setApplicationScalingState(
-	ctx context.Context, tx *sqlair.TX, upsertStmt *sqlair.Statement,
-	appName string, targetScale, startOrdinal int, scaling bool,
-) error {
-	appDetails, err := st.getApplicationDetails(ctx, tx, appName)
-	if err != nil {
-		return errors.Capture(err)
-	} else if appDetails.IsApplicationSynthetic {
-		return errors.Errorf("cannot set scaling state for synthetic application %q", appName)
-	}
-
-	currentScaleState, err := st.getApplicationScaleState(ctx, tx, appDetails.UUID)
-	if err != nil {
-		return errors.Capture(err)
-	}
-
-	var scale int
-	if scaling {
-		switch appDetails.LifeID {
-		case life.Alive:
-			// if starting a scale, ensure we are scaling to the same target.
-			if !currentScaleState.Scaling && currentScaleState.Scale != targetScale {
-				return applicationerrors.ScalingStateInconsistent
+		if target < expected {
+			sort.Slice(alive, func(i, j int) bool {
+				return coreunit.Name(alive[i].Name).Number() < coreunit.Name(alive[j].Name).Number()
+			})
+			for _, unit := range alive[:expected-target] {
+				if err := tx.Query(ctx, setDying, unit).Run(); err != nil {
+					return errors.Errorf("marking unit as dying: %w", err)
+				}
 			}
-			// Make sure to leave the scale value unchanged.
-			scale = currentScaleState.Scale
-		case life.Dying, life.Dead:
-			// force scale to the scale target when dying/dead.
-			scale = targetScale
+		} else if needed > 0 {
+			sort.Slice(alive, func(i, j int) bool {
+				return coreunit.Name(alive[i].Name).Number() < coreunit.Name(alive[j].Name).Number()
+			})
+			for i := 1; i < len(alive); i++ {
+				if coreunit.Name(alive[i].Name).Number() != coreunit.Name(alive[i-1].Name).Number()+1 {
+					return errors.Errorf("cannot scale a non-contiguous unit range: %w", applicationerrors.ScaleChangeInvalid)
+				}
+			}
+			charmUUID, err := st.getCharmIDByApplicationUUID(ctx, tx, appUUID.String())
+			if err != nil {
+				return errors.Capture(err)
+			}
+			for _, unit := range newUnits {
+				name, err := st.insertCAASUnit(ctx, tx, appUUID.String(), charmUUID, unit)
+				if err != nil {
+					return errors.Errorf("inserting pending unit: %w", err)
+				}
+				if len(alive) > 0 && len(txnInserted) == 0 &&
+					coreunit.Name(name).Number() != coreunit.Name(alive[len(alive)-1].Name).Number()+1 {
+					return errors.Errorf("cannot extend unit range without reusing ordinals: %w", applicationerrors.ScaleChangeInvalid)
+				}
+				txnInserted = append(txnInserted, coreunit.Name(name))
+			}
 		}
-	} else {
-		// Make sure to leave the scale value unchanged.
-		scale = currentScaleState.Scale
-	}
-
-	scaleDetailsToUpdate := applicationScale{
-		ApplicationID: appDetails.UUID,
-		StartOrdinal:  startOrdinal,
-		Scaling:       scaling,
-		Scale:         scale,
-		ScaleTarget:   targetScale,
-	}
-	return tx.Query(ctx, upsertStmt, scaleDetailsToUpdate).Run()
+		inserted = txnInserted
+		return nil
+	})
+	return inserted, errors.Capture(err)
 }
 
 // SetApplicationHasK8sResources records that the provisioner is managing k8s
@@ -3096,12 +2952,6 @@ func (*State) NamespaceForWatchApplicationConfig() string {
 // for application setting changes.
 func (*State) NamespaceForWatchApplicationSetting() string {
 	return "application_setting"
-}
-
-// NamespaceForWatchApplicationScale returns the namespace identifier
-// for application scale change watchers.
-func (*State) NamespaceForWatchApplicationScale() string {
-	return "application_scale"
 }
 
 // NamespaceForWatchApplicationExposed returns the namespace identifier

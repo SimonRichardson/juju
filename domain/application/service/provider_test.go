@@ -144,7 +144,6 @@ func (s *providerServiceSuite) TestCreateCAASApplication(c *tc.C) {
 				Arch: new("arm64"),
 			},
 		},
-		Scale: 1,
 	}
 
 	s.state.EXPECT().GetModelConstraints(gomock.Any()).Return(constraints.Constraints{}, nil)
