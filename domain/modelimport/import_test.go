@@ -98,7 +98,7 @@ func (s *importSuite) TestImportRestoresPendingUnitsAndSequence(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 
 	var names []string
-	var highWater, start int
+	var highWater int
 	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `SELECT name FROM unit ORDER BY name`)
 		if err != nil {
@@ -118,12 +118,11 @@ func (s *importSuite) TestImportRestoresPendingUnitsAndSequence(c *tc.C) {
 		if err := tx.QueryRowContext(ctx, `SELECT value FROM sequence WHERE namespace = 'application_foo'`).Scan(&highWater); err != nil {
 			return err
 		}
-		return tx.QueryRowContext(ctx, `SELECT start_ordinal FROM application_scale WHERE application_uuid = 'application-uuid'`).Scan(&start)
+		return nil
 	})
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(names, tc.DeepEquals, []string{"foo/2", "foo/3", "foo/4"})
 	c.Check(highWater, tc.Equals, 4)
-	c.Check(start, tc.Equals, 2)
 
 	// Reconciliation after a service restart must preserve the same identities.
 	modelDB := func(context.Context) (database.TxnRunner, error) {
@@ -134,7 +133,9 @@ func (s *importSuite) TestImportRestoresPendingUnitsAndSequence(c *tc.C) {
 		applicationstate.NewState(modelDB, coremodel.UUID(s.ModelUUID()), clock.WallClock, log),
 		clock.WallClock, log,
 	)
-	err = restarted.ReconcileImportedCAASUnits(c.Context(), "foo", true)
+	err = restarted.ReconcileImportedCAASUnits(c.Context(), "foo", application.ScaleState{
+		Scale: 3, ScaleTarget: 3, StartOrdinal: 2,
+	}, true)
 	c.Assert(err, tc.ErrorIsNil)
 	var count int
 	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
@@ -177,12 +178,16 @@ func (s *importSuite) TestImportAtZeroRetainsNextOrdinal(c *tc.C) {
 	err := modelimport.NewImporter(s.TxnRunnerFactory()).Import(c.Context(), payload)
 	c.Assert(err, tc.ErrorIsNil)
 
-	var start int
+	var count, highWater int
 	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		return tx.QueryRowContext(ctx, `SELECT start_ordinal FROM application_scale WHERE application_uuid = 'application-uuid'`).Scan(&start)
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM unit WHERE application_uuid = 'application-uuid'`).Scan(&count); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `SELECT value FROM sequence WHERE namespace = 'application_foo'`).Scan(&highWater)
 	})
 	c.Assert(err, tc.ErrorIsNil)
-	c.Check(start, tc.Equals, 8)
+	c.Check(count, tc.Equals, 0)
+	c.Check(highWater, tc.Equals, 7)
 
 	modelDB := func(context.Context) (database.TxnRunner, error) {
 		return s.ModelTxnRunner(), nil

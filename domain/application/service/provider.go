@@ -540,15 +540,7 @@ func (s *ProviderService) CAASUnitTerminating(ctx context.Context, unitNameStr s
 	if err != nil {
 		return false, errors.Capture(err)
 	}
-	appID, err := s.st.GetApplicationUUIDByName(ctx, appName)
-	if err != nil {
-		return false, errors.Capture(err)
-	}
-	scaleInfo, err := s.st.GetApplicationScaleState(ctx, appID)
-	if err != nil {
-		return false, errors.Capture(err)
-	}
-	if unitNum >= scaleInfo.Scale || unitNum >= appState.DesiredReplicas {
+	if unitNum < appState.StartOrdinal || unitNum >= appState.StartOrdinal+appState.DesiredReplicas {
 		restart = false
 	}
 	return restart, nil
@@ -838,7 +830,6 @@ func (s *ProviderService) makeCAASApplicationArg(
 	}
 	addCAASApplicationArg := application.AddCAASApplicationArg{
 		BaseAddApplicationArg: arg,
-		Scale:                 len(units),
 	}
 
 	storageDirectives := storage.MakeStorageDirectiveFromApplicationArg(

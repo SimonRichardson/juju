@@ -250,25 +250,6 @@ func (s *MigrationService) GetUnitUUIDByName(ctx context.Context, name coreunit.
 	return s.st.GetUnitUUIDByName(ctx, name)
 }
 
-// GetApplicationScaleState returns the scale state of the specified
-// application, returning an error satisfying
-// [applicationerrors.ApplicationNotFound] if the application is not found.
-func (s *MigrationService) GetApplicationScaleState(ctx context.Context, name string) (application.ScaleState, error) {
-	ctx, span := trace.Start(ctx, trace.NameFromFunc())
-	defer span.End()
-
-	if !application.IsValidApplicationName(name) {
-		return application.ScaleState{}, applicationerrors.ApplicationNameNotValid
-	}
-
-	appID, err := s.st.GetApplicationUUIDByName(ctx, name)
-	if err != nil {
-		return application.ScaleState{}, errors.Capture(err)
-	}
-
-	return s.st.GetApplicationScaleState(ctx, appID)
-}
-
 // ImportCAASApplication imports the specified CAAS application and units
 // if required, returning an error satisfying
 // [applicationerrors.ApplicationAlreadyExists] if the application already
@@ -282,19 +263,6 @@ func (s *MigrationService) ImportCAASApplication(ctx context.Context, name strin
 		return errors.Errorf("importing application %q: %w", name, err)
 	}
 
-	// TODO hml 1-May-25
-	// Improve the efficiency of importing caas applications by touching
-	// the application_scale table once, instead of three times. Once in
-	// st.ImportApplication and the following two methods.
-	if err := s.st.SetApplicationScalingStateWithStart(
-		ctx, name, args.ScaleState.ScaleTarget, args.ScaleState.StartOrdinal,
-		args.ScaleState.Scaling); err != nil {
-		return errors.Errorf("setting scale state for application %q: %w", name, err)
-	}
-	if err := s.st.SetDesiredApplicationScale(ctx, args.UUID, args.ScaleState.Scale); err != nil {
-		return errors.Errorf("setting desired scale for application %q: %w", name, err)
-	}
-
 	unitArgs, err := makeCAASUnitArgs(args.Units, charmUUID)
 	if err != nil {
 		return errors.Errorf("creating unit args: %w", err)
@@ -303,18 +271,16 @@ func (s *MigrationService) ImportCAASApplication(ctx context.Context, name strin
 	if err := s.st.InsertMigratingCAASUnits(ctx, args.UUID, unitArgs...); err != nil {
 		return errors.Capture(err)
 	}
-	return s.ReconcileImportedCAASUnits(ctx, name, false)
+	return s.ReconcileImportedCAASUnits(ctx, name, args.ScaleState, false)
 }
 
 // ReconcileImportedCAASUnits restores pending unit identities and the ordinal
 // high-water mark before a migrated Kubernetes application can be provisioned.
 // explicitStart is true for same-level imports, which carry start_ordinal.
-func (s *MigrationService) ReconcileImportedCAASUnits(ctx context.Context, name string, explicitStart bool) error {
+func (s *MigrationService) ReconcileImportedCAASUnits(
+	ctx context.Context, name string, scaleState application.ScaleState, explicitStart bool,
+) error {
 	appUUID, err := s.st.GetApplicationUUIDByName(ctx, name)
-	if err != nil {
-		return errors.Capture(err)
-	}
-	scaleState, err := s.st.GetApplicationScaleState(ctx, appUUID)
 	if err != nil {
 		return errors.Capture(err)
 	}
@@ -407,14 +373,6 @@ func (s *MigrationService) ReconcileImportedCAASUnits(ctx context.Context, name 
 			return errors.Errorf("reconciling unit sequence for application %q: %w", name, err)
 		}
 	}
-	if start != scaleState.StartOrdinal {
-		if err := s.st.SetApplicationScalingStateWithStart(
-			ctx, name, scaleState.ScaleTarget, start, scaleState.Scaling,
-		); err != nil {
-			return errors.Errorf("restoring ordinal range for application %q: %w", name, err)
-		}
-	}
-
 	appLife, err := s.st.GetApplicationLife(ctx, appUUID)
 	if err != nil {
 		return errors.Capture(err)
@@ -536,8 +494,6 @@ func (s *MigrationService) importCAASApplication(
 	if err != nil {
 		return "", errors.Errorf("creating application args: %w", err)
 	}
-
-	appArg.Scale = len(args.Units)
 
 	if err := s.st.InsertMigratingApplication(ctx, name, appArg); err != nil {
 		return "", errors.Errorf("creating application %q: %w", name, err)

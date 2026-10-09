@@ -595,16 +595,11 @@ func (s *migrationServiceSuite) TestImportCAASApplication(c *tc.C) {
 	}
 
 	var receivedUnitArgs []application.ImportCAASUnitArg
-	s.state.EXPECT().SetDesiredApplicationScale(gomock.Any(), id, 1).Return(nil)
-	s.state.EXPECT().SetApplicationScalingStateWithStart(gomock.Any(), "ubuntu", 1, 0, true).Return(nil)
 	s.state.EXPECT().InsertMigratingCAASUnits(gomock.Any(), id, gomock.Any()).DoAndReturn(func(_ context.Context, _ coreapplication.UUID, args ...application.ImportCAASUnitArg) error {
 		receivedUnitArgs = args
 		return nil
 	})
 	s.state.EXPECT().GetApplicationUUIDByName(gomock.Any(), "ubuntu").Return(id, nil)
-	s.state.EXPECT().GetApplicationScaleState(gomock.Any(), id).Return(application.ScaleState{
-		Scale: 1, Scaling: true, ScaleTarget: 1,
-	}, nil)
 	s.state.EXPECT().GetAllUnitLifeForApplication(gomock.Any(), id).Return(map[string]int{
 		"ubuntu/666": int(domainlife.Alive),
 	}, nil)
@@ -613,7 +608,6 @@ func (s *migrationServiceSuite) TestImportCAASApplication(c *tc.C) {
 	}, nil)
 	s.state.EXPECT().GetApplicationUnitSequence(gomock.Any(), "ubuntu").Return(uint64(0), false, nil)
 	s.state.EXPECT().EnsureApplicationUnitSequenceAtLeast(gomock.Any(), "ubuntu", uint64(666)).Return(nil)
-	s.state.EXPECT().SetApplicationScalingStateWithStart(gomock.Any(), "ubuntu", 1, 666, true).Return(nil)
 	s.state.EXPECT().GetApplicationLife(gomock.Any(), id).Return(domainlife.Alive, nil)
 
 	s.charm.EXPECT().Actions().Return(&charm.Actions{})
@@ -644,7 +638,6 @@ func (s *migrationServiceSuite) TestImportCAASApplication(c *tc.C) {
 		ApplicationUUID: id.String(),
 		Charm:           ch,
 		Platform:        platform,
-		Scale:           1,
 		Config: map[string]application.AddApplicationConfig{
 			"foo": {
 				Type:  domaincharm.OptionString,

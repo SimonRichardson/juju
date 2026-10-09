@@ -156,14 +156,6 @@ type UpdateCAASUnitParams struct {
 	FQDN *string
 }
 
-// ScalingState contains attributes that describes
-// the scaling state of a CAAS application.
-type ScalingState struct {
-	StartOrdinal int
-	ScaleTarget  int
-	Scaling      bool
-}
-
 // ResolvedResources is a collection of ResolvedResource elements.
 type ResolvedResources []ResolvedResource
 

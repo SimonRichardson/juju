@@ -256,10 +256,6 @@ func (s *unitStateSuite) TestRegisterCAASUnit(c *tc.C) {
 	appUUID := s.createCAASScalingApplication(c, "bar", life.Alive, 1)
 	s.reserveCAASUnit(c, appUUID, "bar/0")
 
-	// Allow scaling.
-	err := s.state.SetApplicationScalingState(c.Context(), "bar", 1, true)
-	c.Assert(err, tc.ErrorIsNil)
-
 	p := application.RegisterCAASUnitArg{
 		UnitUUID:     tc.Must(c, coreunit.NewUUID),
 		UnitName:     "bar/0",
@@ -270,7 +266,7 @@ func (s *unitStateSuite) TestRegisterCAASUnit(c *tc.C) {
 		OrderedScale: true,
 		OrderedId:    0,
 	}
-	err = s.state.RegisterCAASUnit(c.Context(), "bar", p)
+	err := s.state.RegisterCAASUnit(c.Context(), "bar", p)
 	c.Assert(err, tc.ErrorIsNil)
 
 	s.assertCAASUnit(c, "bar/0", "passwordhash", "10.6.6.6/8", []string{"0"})
@@ -344,9 +340,6 @@ func (s *unitStateSuite) TestRegisterCAASUnitOrdinalRange(c *tc.C) {
 	appUUID := s.createCAASScalingApplication(c, "bar", life.Alive, 2)
 	s.reserveCAASUnit(c, appUUID, "bar/1")
 
-	err := s.state.SetApplicationScalingStateWithStart(c.Context(), "bar", 2, 1, true)
-	c.Assert(err, tc.ErrorIsNil)
-
 	newArg := func(name coreunit.Name, ordinal int) application.RegisterCAASUnitArg {
 		return application.RegisterCAASUnitArg{
 			UnitUUID:     tc.Must(c, coreunit.NewUUID),
@@ -360,7 +353,7 @@ func (s *unitStateSuite) TestRegisterCAASUnitOrdinalRange(c *tc.C) {
 		}
 	}
 
-	err = s.state.RegisterCAASUnit(c.Context(), "bar", newArg("bar/1", 1))
+	err := s.state.RegisterCAASUnit(c.Context(), "bar", newArg("bar/1", 1))
 	c.Assert(err, tc.ErrorIsNil)
 
 	err = s.state.RegisterCAASUnit(c.Context(), "bar", newArg("bar/0", 0))
@@ -374,10 +367,6 @@ func (s *unitStateSuite) TestRegisterCAASUnitWithFQDN(c *tc.C) {
 	appUUID := s.createCAASScalingApplication(c, "bar", life.Alive, 1)
 	s.reserveCAASUnit(c, appUUID, "bar/0")
 
-	// Allow scaling.
-	err := s.state.SetApplicationScalingState(c.Context(), "bar", 1, true)
-	c.Assert(err, tc.ErrorIsNil)
-
 	fqdn := "controller-0.controller-service-endpoints.controller-foo.svc.cluster.local"
 	p := application.RegisterCAASUnitArg{
 		UnitUUID:     tc.Must(c, coreunit.NewUUID),
@@ -390,7 +379,7 @@ func (s *unitStateSuite) TestRegisterCAASUnitWithFQDN(c *tc.C) {
 		OrderedId:    0,
 		FQDN:         &fqdn,
 	}
-	err = s.state.RegisterCAASUnit(c.Context(), "bar", p)
+	err := s.state.RegisterCAASUnit(c.Context(), "bar", p)
 	c.Assert(err, tc.ErrorIsNil)
 
 	// The FQDN is persisted as a local-cloud fqdn_address row linked to the
@@ -421,13 +410,10 @@ func (s *unitStateSuite) TestRegisterCAASUnitDuplicateFQDN(c *tc.C) {
 	appUUID := s.createCAASScalingApplication(c, "bar", life.Alive, 1)
 	s.reserveCAASUnit(c, appUUID, "bar/0")
 
-	err := s.state.SetApplicationScalingState(c.Context(), "bar", 1, true)
-	c.Assert(err, tc.ErrorIsNil)
-
 	fqdn := "controller-0.controller-service-endpoints.controller-foo.svc.cluster.local"
 
 	// Seed a pre-existing fqdn_address row with the same address.
-	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			"INSERT INTO fqdn_address (uuid, address, scope_id) VALUES (?, ?, ?)",
 			"existing-fqdn-uuid", fqdn, 1,
@@ -528,10 +514,6 @@ func (s *unitStateSuite) TestRegisterCAASUnitErrorNotScaling(c *tc.C) {
 func (s *unitStateSuite) TestRegisterCAASUnitErrorOutsideTargetScale(c *tc.C) {
 	s.createCAASScalingApplication(c, "foo", life.Alive, 1)
 
-	// Allow scaling.
-	err := s.state.SetApplicationScalingState(c.Context(), "foo", 1, true)
-	c.Assert(err, tc.ErrorIsNil)
-
 	// Try to create a unit with a higher ordinal number than the desired scale.
 	p := application.RegisterCAASUnitArg{
 		UnitName:     "foo/2",
@@ -542,7 +524,7 @@ func (s *unitStateSuite) TestRegisterCAASUnitErrorOutsideTargetScale(c *tc.C) {
 		OrderedScale: true,
 		OrderedId:    2,
 	}
-	err = s.state.RegisterCAASUnit(c.Context(), "foo", p)
+	err := s.state.RegisterCAASUnit(c.Context(), "foo", p)
 	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotAssigned)
 
 	// Assert the unit does not exist.
@@ -688,18 +670,8 @@ func (s *unitStateSuite) TestRegisterCAASUnitApplicationNotAlive(c *tc.C) {
 	c.Assert(err, tc.ErrorIs, applicationerrors.ApplicationNotAlive)
 }
 
-func (s *unitStateSuite) TestRegisterCAASUnitExceedsScale(c *tc.C) {
-	appUUID, _ := s.createCAASApplicationWithNUnits(c, "foo", life.Alive, 1)
-
-	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-UPDATE application_scale
-SET scale = ?, scale_target = ?
-WHERE application_uuid = ?`, 1, 3, appUUID)
-		return err
-	})
-	c.Assert(err, tc.ErrorIsNil)
-
+func (s *unitStateSuite) TestRegisterCAASUnitUnreservedIdentity(c *tc.C) {
+	s.createCAASApplicationWithNUnits(c, "foo", life.Alive, 1)
 	p := application.RegisterCAASUnitArg{
 		UnitUUID:     tc.Must(c, coreunit.NewUUID),
 		UnitName:     "foo/2",
@@ -711,22 +683,13 @@ WHERE application_uuid = ?`, 1, 3, appUUID)
 		OrderedId:    2,
 	}
 
-	err = s.state.RegisterCAASUnit(c.Context(), "foo", p)
+	err := s.state.RegisterCAASUnit(c.Context(), "foo", p)
 	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotAssigned)
 }
 
-func (s *unitStateSuite) TestRegisterCAASUnitExceedsScaleWhileScalingWithoutError(c *tc.C) {
+func (s *unitStateSuite) TestRegisterCAASUnitCanAttachReservedPendingIdentity(c *tc.C) {
 	appUUID, _ := s.createCAASApplicationWithNUnits(c, "foo", life.Alive, 1)
 	s.reserveCAASUnit(c, appUUID, "foo/2")
-
-	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-UPDATE application_scale
-SET scaling = ?, scale = ?, scale_target = ?
-WHERE application_uuid = ?`, true, 1, 3, appUUID)
-		return err
-	})
-	c.Assert(err, tc.ErrorIsNil)
 
 	p := application.RegisterCAASUnitArg{
 		UnitUUID:     tc.Must(c, coreunit.NewUUID),
@@ -739,22 +702,12 @@ WHERE application_uuid = ?`, true, 1, 3, appUUID)
 		OrderedId:    2,
 	}
 
-	err = s.state.RegisterCAASUnit(c.Context(), "foo", p)
+	err := s.state.RegisterCAASUnit(c.Context(), "foo", p)
 	c.Assert(err, tc.ErrorIsNil)
 }
 
-func (s *unitStateSuite) TestRegisterCAASUnitExceedsScaleTarget(c *tc.C) {
-	appUUID, _ := s.createCAASApplicationWithNUnits(c, "foo", life.Alive, 1)
-
-	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-UPDATE application_scale
-SET scaling = ?, scale = ?, scale_target = ?
-WHERE application_uuid = ?`, true, 3, 1, appUUID)
-		return err
-	})
-	c.Assert(err, tc.ErrorIsNil)
-
+func (s *unitStateSuite) TestRegisterCAASUnitCannotAttachUnreservedIdentity(c *tc.C) {
+	s.createCAASApplicationWithNUnits(c, "foo", life.Alive, 1)
 	p := application.RegisterCAASUnitArg{
 		UnitUUID:     tc.Must(c, coreunit.NewUUID),
 		UnitName:     "foo/2",
@@ -766,7 +719,7 @@ WHERE application_uuid = ?`, true, 3, 1, appUUID)
 		OrderedId:    2,
 	}
 
-	err = s.state.RegisterCAASUnit(c.Context(), "foo", p)
+	err := s.state.RegisterCAASUnit(c.Context(), "foo", p)
 	c.Assert(err, tc.ErrorIs, applicationerrors.UnitNotAssigned)
 }
 

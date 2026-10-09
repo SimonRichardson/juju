@@ -10,6 +10,7 @@ import (
 
 	"github.com/juju/juju/core/database"
 	coremodel "github.com/juju/juju/core/model"
+	"github.com/juju/juju/domain/application"
 	applicationservice "github.com/juju/juju/domain/application/service"
 	applicationstate "github.com/juju/juju/domain/application/state"
 	"github.com/juju/juju/domain/export/types/latest"
@@ -114,7 +115,25 @@ func (i *Importer) applyPostImportFixups(ctx context.Context, payload latest.Mod
 		if !ok {
 			return errors.Errorf("imported scale has no application %q", scale.ApplicationUUID)
 		}
-		if err := appService.ReconcileImportedCAASUnits(ctx, name, true); err != nil {
+		legacyScale := 0
+		if scale.Scale != nil {
+			legacyScale = int(*scale.Scale)
+		}
+		scaleTarget := legacyScale
+		if scale.ScaleTarget != nil {
+			scaleTarget = int(*scale.ScaleTarget)
+		}
+		scaling := scale.Scaling != nil && *scale.Scaling
+		if !scaling {
+			scaleTarget = legacyScale
+		}
+		legacyState := application.ScaleState{
+			StartOrdinal: int(scale.StartOrdinal),
+			Scaling:      scaling,
+			Scale:        legacyScale,
+			ScaleTarget:  scaleTarget,
+		}
+		if err := appService.ReconcileImportedCAASUnits(ctx, name, legacyState, true); err != nil {
 			return errors.Errorf("reconciling imported application %q: %w", name, err)
 		}
 	}
