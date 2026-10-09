@@ -107,14 +107,6 @@ type CharmOrigin struct {
 	CharmhubIdentifier string
 }
 
-// ScaleState contains legacy scale metadata used while importing old models.
-type ScaleState struct {
-	StartOrdinal int
-	Scaling      bool
-	Scale        int
-	ScaleTarget  int
-}
-
 // K8sService contains parameters for an application's cloud service.
 type K8sService struct {
 	ProviderID string

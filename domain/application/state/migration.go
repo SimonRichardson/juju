@@ -342,7 +342,7 @@ WHERE s.namespace = $importedUnitSequence.namespace
 }
 
 // EnsureApplicationUnitSequenceAtLeast preserves the highest ordinal seen in
-// imported scale state, unit identities, or pod identities.
+// imported unit or pod identities.
 func (st *State) EnsureApplicationUnitSequenceAtLeast(ctx context.Context, appName string, ordinal uint64) error {
 	db, err := st.DB(ctx)
 	if err != nil {
