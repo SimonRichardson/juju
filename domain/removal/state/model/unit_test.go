@@ -328,21 +328,33 @@ func (s *unitSuite) TestEnsureUnitNotAliveCascadeNormalSuccess(c *tc.C) {
 	s.checkMachineLife(c, unitMachineUUID.String(), life.Alive)
 }
 
-func (s *unitSuite) TestEnsureUnitNotAliveCascadeDyingSuccess(c *tc.C) {
+func (s *unitSuite) TestEnsureUnitNotAliveCascadeDyingUnitCascadesDependents(c *tc.C) {
 	svc := s.setupApplicationService(c)
 	appUUID := s.createIAASApplication(c, svc, "some-app", applicationservice.AddIAASUnitArg{})
 
 	unitUUIDs := s.getAllUnitUUIDs(c, appUUID)
 	c.Assert(len(unitUUIDs), tc.Equals, 1)
 	unitUUID := unitUUIDs[0]
+	unitMachineUUID := s.getUnitMachineUUID(c, unitUUID)
+	storageInstanceUUID, storageAttachmentUUID := s.addUnitStorageAttachment(c, unitUUID, true)
+
+	// Simulate another workflow having already advanced the unit life.
+	s.advanceUnitLife(c, unitUUID, life.Dying)
 
 	st := NewState(s.TxnRunnerFactory(), loggertesting.WrapCheckLog(c))
 
-	_, err := st.EnsureUnitNotAliveCascade(c.Context(), unitUUID.String(), false)
+	cascade, err := st.EnsureUnitNotAliveCascade(c.Context(), unitUUID.String(), true)
 	c.Assert(err, tc.ErrorIsNil)
 
-	// Unit was already "dying" and should be unchanged.
 	s.checkUnitLife(c, unitUUID.String(), life.Dying)
+	s.checkMachineLife(c, unitMachineUUID.String(), life.Dying)
+	s.checkStorageAttachmentLife(c, storageAttachmentUUID, life.Dying)
+	s.checkStorageInstanceLife(c, storageInstanceUUID, life.Dying)
+
+	c.Assert(cascade.MachineUUID, tc.NotNil)
+	c.Check(*cascade.MachineUUID, tc.Equals, unitMachineUUID.String())
+	c.Check(cascade.StorageAttachmentUUIDs, tc.DeepEquals, []string{storageAttachmentUUID})
+	c.Check(cascade.StorageInstanceUUIDs, tc.DeepEquals, []string{storageInstanceUUID})
 }
 
 func (s *unitSuite) TestEnsureUnitNotAliveCascadeRetryReturnsDyingArtifacts(c *tc.C) {
