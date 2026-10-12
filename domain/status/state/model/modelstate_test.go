@@ -2370,6 +2370,29 @@ func (s *modelStateSuite) TestGetApplicationAndUnitModelStatuses(c *tc.C) {
 	})
 }
 
+func (s *modelStateSuite) TestGetApplicationAndUnitModelStatusesExcludesNonAliveUnits(c *tc.C) {
+	s.createIAASApplicationWithNUnits(c, "foo", 3)
+
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+UPDATE unit
+SET    life_id = CASE name
+    WHEN 'foo/1' THEN ?
+    WHEN 'foo/2' THEN ?
+    ELSE life_id
+END
+WHERE  name IN ('foo/1', 'foo/2')`, life.Dying, life.Dead)
+		return err
+	})
+	c.Assert(err, tc.ErrorIsNil)
+
+	appUnitCount, err := s.state.GetApplicationAndUnitModelStatuses(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(appUnitCount, tc.DeepEquals, map[string]int{
+		"foo": 1,
+	})
+}
+
 func (s *modelStateSuite) TestGetApplicationAndUnitModelStatusesMultiple(c *tc.C) {
 	s.createIAASApplicationWithNUnits(c, "foo", 2)
 	s.createIAASApplicationWithNUnits(c, "bar", 1)
