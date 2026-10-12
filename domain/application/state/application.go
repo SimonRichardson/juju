@@ -844,6 +844,10 @@ AND u.life_id = 0
 	if err != nil {
 		return nil, errors.Capture(err)
 	}
+	// Scale down changes desired unit membership atomically with additions. The
+	// provisioner observes this Dying unit and calls removal.RemoveUnit, whose
+	// cascade is intentionally safe for an already-Dying unit: it schedules
+	// removal and advances dependent storage without moving the unit life back.
 	setDying, err := st.Prepare(`
 UPDATE unit
 SET life_id = 1
