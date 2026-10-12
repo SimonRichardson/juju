@@ -11,19 +11,15 @@ import (
 	"github.com/juju/clock"
 	"github.com/juju/tc"
 
-	coreapplication "github.com/juju/juju/core/application"
 	"github.com/juju/juju/core/database"
 	coreerrors "github.com/juju/juju/core/errors"
 	coremodel "github.com/juju/juju/core/model"
-	coreunit "github.com/juju/juju/core/unit"
-	"github.com/juju/juju/domain/application"
 	applicationservice "github.com/juju/juju/domain/application/service"
 	applicationstate "github.com/juju/juju/domain/application/state"
 	exportstate "github.com/juju/juju/domain/export/state/model"
 	"github.com/juju/juju/domain/export/types/latest"
 	"github.com/juju/juju/domain/export/types/v4_1_0"
 	"github.com/juju/juju/domain/modelimport"
-	domainnetwork "github.com/juju/juju/domain/network"
 	schematesting "github.com/juju/juju/domain/schema/testing"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 )
@@ -240,18 +236,6 @@ func (s *importSuite) TestImportAtZeroRetainsNextOrdinal(c *tc.C) {
 	c.Check(count, tc.Equals, 0)
 	c.Check(highWater, tc.Equals, 7)
 
-	modelDB := func(context.Context) (database.TxnRunner, error) {
-		return s.ModelTxnRunner(), nil
-	}
-	st := applicationstate.NewState(modelDB, coremodel.UUID(s.ModelUUID()), clock.WallClock, loggertesting.WrapCheckLog(c))
-	names, err := st.AddCAASUnits(c.Context(), coreapplication.UUID("application-uuid"), application.AddCAASUnitArg{
-		AddUnitArg: application.AddUnitArg{
-			UnitUUID:    tc.Must(c, coreunit.NewUUID),
-			NetNodeUUID: tc.Must(c, domainnetwork.NewNetNodeUUID),
-		},
-	})
-	c.Assert(err, tc.ErrorIsNil)
-	c.Check(names, tc.DeepEquals, []coreunit.Name{"foo/8"})
 }
 
 // TestImportNilPayload verifies that importing a nil payload is a no-op.

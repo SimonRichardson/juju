@@ -34,6 +34,7 @@ import (
 	"github.com/juju/juju/domain/application/architecture"
 	"github.com/juju/juju/domain/application/charm"
 	applicationerrors "github.com/juju/juju/domain/application/errors"
+	applicationinternal "github.com/juju/juju/domain/application/internal"
 	"github.com/juju/juju/domain/constraints"
 	"github.com/juju/juju/domain/deployment"
 	internalcharm "github.com/juju/juju/domain/deployment/charm"
@@ -459,7 +460,14 @@ func (st *State) insertCAASApplicationUnits(
 	units []application.AddCAASUnitArg,
 ) error {
 	for i, unit := range units {
-		if _, err := st.insertCAASUnit(ctx, tx, appUUID, charmUUID, unit); err != nil {
+		if _, err := st.insertCAASUnit(ctx, tx, appUUID, charmUUID, applicationinternal.AddCAASUnitArg{
+			UnitUUID:    unit.UnitUUID.String(),
+			NetNodeUUID: unit.NetNodeUUID.String(),
+			UnitStorage: unit.CreateUnitStorageArg,
+			UnitStatus:  unit.UnitStatusArg,
+			Constraints: unit.Constraints,
+			K8sPod:      unit.K8sPod,
+		}); err != nil {
 			return errors.Errorf(
 				"inserting CAAS unit %d for application: %w", i, err,
 			)
@@ -816,22 +824,17 @@ WHERE  a.name = $applicationDetails.name;
 	return app, nil
 }
 
-// SetCAASApplicationUnitScale atomically changes the Alive unit set.
-// New units are pending; the provisioner completes their storage before pods
-// start. The application row lock makes concurrent relative requests retry
-// safely against the latest unit membership.
+// SetCAASApplicationUnitScale applies a service-validated CAAS unit mutation
+// plan when the Alive membership has not changed since that plan was read.
 func (st *State) SetCAASApplicationUnitScale(
-	ctx context.Context, appUUID coreapplication.UUID, expected, target int,
-	newUnits []application.AddCAASUnitArg,
-) ([]coreunit.Name, error) {
-	if target < 0 {
-		return nil, applicationerrors.ScaleChangeInvalid
-	}
+	ctx context.Context, appUUID string, expected int, leaving []string,
+	newUnits []applicationinternal.AddCAASUnitArg,
+) ([]string, error) {
 	db, err := st.DB(ctx)
 	if err != nil {
 		return nil, errors.Capture(err)
 	}
-	input := entityUUID{UUID: appUUID.String()}
+	input := entityUUID{UUID: appUUID}
 	getAlive, err := st.Prepare(`
 SELECT u.name AS &unitName.name
 FROM unit AS u
@@ -849,12 +852,9 @@ WHERE name = $unitName.name AND life_id = 0
 	if err != nil {
 		return nil, errors.Capture(err)
 	}
-	var inserted []coreunit.Name
+	var inserted []string
 	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
-		var txnInserted []coreunit.Name
-		if err := st.checkApplicationAlive(ctx, tx, appUUID.String()); err != nil {
-			return errors.Capture(err)
-		}
+		var txnInserted []string
 		var alive []unitName
 		if err := tx.Query(ctx, getAlive, input).GetAll(&alive); err != nil && !errors.Is(err, sqlair.ErrNoRows) {
 			return errors.Capture(err)
@@ -862,42 +862,22 @@ WHERE name = $unitName.name AND life_id = 0
 		if len(alive) != expected {
 			return applicationerrors.ScalingStateInconsistent
 		}
-		needed := max(target-expected, 0)
-		if len(newUnits) != needed {
-			return errors.Errorf("expected %d new units, got %d", needed, len(newUnits))
+		for _, name := range leaving {
+			if err := tx.Query(ctx, setDying, unitName{Name: name}).Run(); err != nil {
+				return errors.Errorf("marking unit as dying: %w", err)
+			}
 		}
-		if target < expected {
-			sort.Slice(alive, func(i, j int) bool {
-				return coreunit.Name(alive[i].Name).Number() < coreunit.Name(alive[j].Name).Number()
-			})
-			for _, unit := range alive[:expected-target] {
-				if err := tx.Query(ctx, setDying, unit).Run(); err != nil {
-					return errors.Errorf("marking unit as dying: %w", err)
-				}
-			}
-		} else if needed > 0 {
-			sort.Slice(alive, func(i, j int) bool {
-				return coreunit.Name(alive[i].Name).Number() < coreunit.Name(alive[j].Name).Number()
-			})
-			for i := 1; i < len(alive); i++ {
-				if coreunit.Name(alive[i].Name).Number() != coreunit.Name(alive[i-1].Name).Number()+1 {
-					return errors.Errorf("cannot scale a non-contiguous unit range: %w", applicationerrors.ScaleChangeInvalid)
-				}
-			}
-			charmUUID, err := st.getCharmIDByApplicationUUID(ctx, tx, appUUID.String())
+		if len(newUnits) > 0 {
+			charmUUID, err := st.getCharmIDByApplicationUUID(ctx, tx, appUUID)
 			if err != nil {
 				return errors.Capture(err)
 			}
 			for _, unit := range newUnits {
-				name, err := st.insertCAASUnit(ctx, tx, appUUID.String(), charmUUID, unit)
+				name, err := st.insertCAASUnit(ctx, tx, appUUID, charmUUID, unit)
 				if err != nil {
 					return errors.Errorf("inserting pending unit: %w", err)
 				}
-				if len(alive) > 0 && len(txnInserted) == 0 &&
-					coreunit.Name(name).Number() != coreunit.Name(alive[len(alive)-1].Name).Number()+1 {
-					return errors.Errorf("cannot extend unit range without reusing ordinals: %w", applicationerrors.ScaleChangeInvalid)
-				}
-				txnInserted = append(txnInserted, coreunit.Name(name))
+				txnInserted = append(txnInserted, name)
 			}
 		}
 		inserted = txnInserted

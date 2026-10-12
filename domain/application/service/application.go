@@ -7,6 +7,7 @@ import (
 	"context"
 	"maps"
 	"math"
+	"sort"
 	"strconv"
 
 	"github.com/juju/collections/set"
@@ -149,7 +150,7 @@ type ApplicationState interface {
 	// SetCAASApplicationUnitScale atomically updates the Alive unit set.
 	// The expected count protects relative requests against concurrent scale
 	// changes.
-	SetCAASApplicationUnitScale(context.Context, coreapplication.UUID, int, int, []application.AddCAASUnitArg) ([]coreunit.Name, error)
+	SetCAASApplicationUnitScale(context.Context, string, int, []string, []internal.AddCAASUnitArg) ([]string, error)
 
 	// GetCharmByApplicationUUID returns the charm, charm origin and charm
 	// platform for the specified application UUID.
@@ -337,7 +338,6 @@ type ApplicationState interface {
 	// NamespaceForWatchApplicationSetting returns the namespace string identifier
 	// for application setting changes.
 	NamespaceForWatchApplicationSetting() string
-
 
 	// IsApplicationExposed returns whether the provided application is exposed or
 	// not.
@@ -1096,67 +1096,94 @@ func (s *Service) ChangeApplicationScale(ctx context.Context, appName string, sc
 	return s.changeCAASApplicationUnitScale(ctx, appUUID, nil, scaleChange)
 }
 
-// changeCAASApplicationUnitScale retries when another request changes the
-// Alive set between the read and the atomic state transaction.
+// changeCAASApplicationUnitScale applies a plan when the Alive set has not
+// changed between the read and the atomic state transaction.
 func (s *Service) changeCAASApplicationUnitScale(
 	ctx context.Context, appUUID coreapplication.UUID, absolute *int, delta int,
 ) (int, error) {
-	for range 10 {
-		lives, err := s.st.GetAllUnitLifeForApplication(ctx, appUUID)
+	lives, err := s.st.GetAllUnitLifeForApplication(ctx, appUUID)
+	if err != nil {
+		return -1, errors.Capture(err)
+	}
+	current := aliveUnitCount(lives)
+	var target int
+	if absolute != nil {
+		target = *absolute
+	} else {
+		if delta > 0 && current > math.MaxInt-delta {
+			return -1, applicationerrors.ScaleChangeInvalid
+		}
+		target = delta + current
+	}
+	if target < 0 {
+		return -1, errors.Errorf("%w: cannot remove more units than currently exist", applicationerrors.ScaleChangeInvalid)
+	}
+	if target == 0 {
+		isController, err := s.st.IsControllerApplication(ctx, appUUID)
 		if err != nil {
 			return -1, errors.Capture(err)
 		}
-		current := aliveUnitCount(lives)
-		var target int
-		if absolute != nil {
-			target = *absolute
-		} else {
-			if delta > 0 && current > math.MaxInt-delta {
+		if isController {
+			return -1, errors.Errorf("cannot scale controller application to 0 units")
+		}
+	}
+	alive := make([]coreunit.Name, 0, current)
+	for name, unitLife := range lives {
+		if unitLife == int(life.Alive) {
+			alive = append(alive, coreunit.Name(name))
+		}
+	}
+	sort.Slice(alive, func(i, j int) bool { return alive[i].Number() < alive[j].Number() })
+
+	if target > current {
+		for i := 1; i < len(alive); i++ {
+			if alive[i].Number() != alive[i-1].Number()+1 {
 				return -1, applicationerrors.ScaleChangeInvalid
 			}
-			target = delta + current
 		}
-		if target < 0 {
-			return -1, errors.Errorf("%w: cannot remove more units than currently exist", applicationerrors.ScaleChangeInvalid)
-		}
-		if target == 0 {
-			isController, err := s.st.IsControllerApplication(ctx, appUUID)
-			if err != nil {
-				return -1, errors.Capture(err)
-			}
-			if isController {
-				return -1, errors.Errorf("cannot scale controller application to 0 units")
-			}
-		}
-		args := make([]application.AddCAASUnitArg, max(target-current, 0))
-		for i := range args {
-			unitUUID, err := coreunit.NewUUID()
-			if err != nil {
-				return -1, errors.Capture(err)
-			}
-			netNodeUUID, err := domainnetwork.NewNetNodeUUID()
-			if err != nil {
-				return -1, errors.Capture(err)
-			}
-			args[i].AddUnitArg = application.AddUnitArg{
-				UnitUUID: unitUUID, NetNodeUUID: netNodeUUID,
-				UnitStatusArg: s.makeCAASUnitStatusArgs(),
-			}
-		}
-		inserted, err := s.st.SetCAASApplicationUnitScale(ctx, appUUID, current, target, args)
-		if errors.Is(err, applicationerrors.ScalingStateInconsistent) {
-			continue
-		} else if err != nil {
-			return -1, errors.Errorf("setting unit scale: %w", err)
-		}
-		for i, name := range inserted {
-			if err := s.recordUnitStatusHistory(ctx, name, args[i].UnitStatusArg); err != nil {
-				return -1, errors.Errorf("recording status history: %w", err)
-			}
-		}
-		return target, nil
 	}
-	return -1, applicationerrors.ScalingStateInconsistent
+
+	leaving := make([]string, max(current-target, 0))
+	for i := range leaving {
+		leaving[i] = alive[i].String()
+	}
+	args := make([]application.AddCAASUnitArg, max(target-current, 0))
+	for i := range args {
+		unitUUID, err := coreunit.NewUUID()
+		if err != nil {
+			return -1, errors.Capture(err)
+		}
+		netNodeUUID, err := domainnetwork.NewNetNodeUUID()
+		if err != nil {
+			return -1, errors.Capture(err)
+		}
+		args[i].AddUnitArg = application.AddUnitArg{
+			UnitUUID: unitUUID, NetNodeUUID: netNodeUUID,
+			UnitStatusArg: s.makeCAASUnitStatusArgs(),
+		}
+	}
+	stateArgs := make([]internal.AddCAASUnitArg, len(args))
+	for i, arg := range args {
+		stateArgs[i] = internal.AddCAASUnitArg{
+			UnitUUID:    arg.UnitUUID.String(),
+			NetNodeUUID: arg.NetNodeUUID.String(),
+			UnitStorage: arg.CreateUnitStorageArg,
+			UnitStatus:  arg.UnitStatusArg,
+			Constraints: arg.Constraints,
+			K8sPod:      arg.K8sPod,
+		}
+	}
+	inserted, err := s.st.SetCAASApplicationUnitScale(ctx, appUUID.String(), current, leaving, stateArgs)
+	if err != nil {
+		return -1, errors.Errorf("setting unit scale: %w", err)
+	}
+	for i, name := range inserted {
+		unitName := coreunit.Name(name)
+		if err := s.recordUnitStatusHistory(ctx, unitName, args[i].UnitStatusArg); err != nil {
+			return -1, errors.Errorf("recording status history: %w", err)
+		}
+	}
+	return target, nil
 }
 
 func aliveUnitCount(lives map[string]int) int {
