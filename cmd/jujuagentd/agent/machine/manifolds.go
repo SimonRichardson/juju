@@ -59,6 +59,7 @@ import (
 	"github.com/juju/juju/internal/worker/apiserver"
 	"github.com/juju/juju/internal/worker/apiservercertwatcher"
 	"github.com/juju/juju/internal/worker/auditconfigupdater"
+	"github.com/juju/juju/internal/worker/backupcreation"
 	"github.com/juju/juju/internal/worker/bootstrap"
 	"github.com/juju/juju/internal/worker/caasupgrader"
 	"github.com/juju/juju/internal/worker/certupdater"
@@ -767,7 +768,22 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			NonControllerLogSinkName: nonControllerLogSinkName,
 		}),
 
+		backupCreationName: ifController(backupcreation.Manifold(backupcreation.ManifoldConfig{
+			DBAccessorName:      dbAccessorName,
+			DomainServicesName:  domainServicesName,
+			ObjectStoreName:     objectStoreFacadeName,
+			ControllerUUID:      config.ControllerUUID,
+			ControllerModelUUID: config.ControllerModelUUID,
+			ControllerTag:       config.ControllerAgentTag,
+			LocalConfigReader:   config.StartupValueProvider,
+			Clock:               config.Clock,
+			Logger:              internallogger.GetLogger("juju.worker.backupcreation"),
+			NewLeaseService:     backupcreation.NewLeaseService,
+			NewWorker:           backupcreation.NewWorker,
+		})),
+
 		apiServerName: apiserver.Manifold(apiserver.ManifoldConfig{
+			BackupCreationName:     backupCreationName,
 			AuthenticatorName:      httpServerArgsName,
 			Clock:                  clock.WallClock,
 			ControllerTag:          config.ControllerAgentTag,
@@ -1639,6 +1655,7 @@ var ifControllerAgentConfigNeededAndReady = engine.Housing{
 // startup values to controller-only workers. This is implemented by the
 // config.StartupValueProvider, which is passed to the manifolds in the config.
 type ControllerStartupValueProvider interface {
+	backupcreation.LocalConfigReader
 	objectstore.RootDirReader
 	dbaccessor.ControllerStartupValuesProvider
 	apiservercertwatcher.CertReader
@@ -1648,6 +1665,7 @@ type ControllerStartupValueProvider interface {
 }
 
 const (
+	backupCreationName     = "backup-creation"
 	agentName              = "agent"
 	agentConfigUpdaterName = "agent-config-updater"
 	terminationName        = "termination-signal-handler"
