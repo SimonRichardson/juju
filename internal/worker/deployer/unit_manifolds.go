@@ -36,6 +36,7 @@ import (
 	"github.com/juju/juju/internal/worker/lokiendpointupdater"
 	"github.com/juju/juju/internal/worker/migrationflag"
 	"github.com/juju/juju/internal/worker/migrationminion"
+	"github.com/juju/juju/internal/worker/ociworkload"
 	"github.com/juju/juju/internal/worker/retrystrategy"
 	"github.com/juju/juju/internal/worker/secretsdrainworker"
 	"github.com/juju/juju/internal/worker/trace"
@@ -288,6 +289,14 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			PebbleSocketDir:       config.PebbleSocketDir,
 		})),
 
+		ociWorkloadName: ifNotMigrating(ociworkload.Manifold(ociworkload.ManifoldConfig{
+			AgentName:     agentName,
+			APICallerName: apiCallerName,
+			CharmDirName:  charmDirName,
+			Clock:         config.Clock,
+			Logger:        config.LoggerContext.GetLogger("juju.worker.ociworkload"),
+		})),
+
 		traceName: trace.Manifold(trace.ManifoldConfig{
 			AgentName:          agentName,
 			AgentConfigChanged: config.AgentConfigChanged,
@@ -346,6 +355,7 @@ const (
 	leadershipTrackerName = "leadership-tracker"
 	hookRetryStrategyName = "hook-retry-strategy"
 	uniterName            = "uniter"
+	ociWorkloadName       = "oci-workload"
 	upgraderName          = "upgrader"
 	traceName             = "trace"
 
