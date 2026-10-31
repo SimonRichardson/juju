@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -15,9 +16,13 @@ import (
 
 	"github.com/canonical/gomock/gomock"
 	"github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/errdefs"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/juju/tc"
 
 	coretesting "github.com/juju/juju/internal/testing"
@@ -221,4 +226,46 @@ func (s *runtimeSuite) TestSpecFingerprintChanges(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(changed[imageLabel] == otherImage[imageLabel], tc.IsFalse)
 	c.Check(strings.HasPrefix(workloadID(f.spec.UnitName, f.spec.Name), "juju-"), tc.IsTrue)
+}
+
+// TestPebbleSpecMatchesKubernetesWorkload checks that OCI image entrypoints
+// cannot replace Pebble, sockets and state are bind-mounted, and network
+// identity matches the assigned machine rather than a private unconfigured NS.
+func (s *runtimeSuite) TestPebbleSpecMatchesKubernetesWorkload(c *tc.C) {
+	f := newRuntimeFixture(c)
+	uid, gid := 10001, 10002
+	f.spec.UID, f.spec.GID = &uid, &gid
+
+	options := append([]oci.SpecOpts{oci.WithDefaultSpec()}, pebbleSpecOptions(f.spec)...)
+	got, err := oci.GenerateSpec(namespaces.WithNamespace(c.Context(), namespace), nil, &containers.Container{ID: "redis"}, options...)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(got.Process, tc.NotNil)
+	c.Check(got.Process.Args, tc.DeepEquals, []string{
+		"/charm/bin/pebble", "run", "--create-dirs", "--hold", "--verbose",
+	})
+	c.Check(got.Process.User.UID, tc.Equals, uint32(uid))
+	c.Check(got.Process.User.GID, tc.Equals, uint32(gid))
+	for _, env := range []string{
+		"JUJU_CONTAINER_NAME=redis",
+		"PEBBLE_SOCKET=/charm/container/pebble.socket",
+		"PEBBLE_COPY_ONCE=/var/lib/pebble/default",
+	} {
+		c.Check(slices.Contains(got.Process.Env, env), tc.IsTrue)
+	}
+	for _, mount := range []struct {
+		path string
+		source string
+	}{
+		{path: "/charm/bin/pebble", source: f.spec.PebbleBinary},
+		{path: "/charm/container", source: filepath.Join(f.spec.ContainersDir, f.spec.Name)},
+		{path: "/var/lib/pebble/default", source: filepath.Join(f.spec.StateDir, f.spec.Name, "pebble")},
+	} {
+		c.Check(slices.ContainsFunc(got.Mounts, func(m specs.Mount) bool {
+			return m.Destination == mount.path && m.Source == mount.source
+		}), tc.IsTrue)
+	}
+	c.Assert(got.Linux, tc.NotNil)
+	c.Check(slices.ContainsFunc(got.Linux.Namespaces, func(ns specs.LinuxNamespace) bool {
+		return ns.Type == specs.NetworkNamespace
+	}), tc.IsFalse)
 }
