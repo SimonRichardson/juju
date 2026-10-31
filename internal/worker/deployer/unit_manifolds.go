@@ -88,6 +88,10 @@ type UnitManifoldsConfig struct {
 
 	// PrometheusRegisterer registers metrics for unit-scoped workers.
 	PrometheusRegisterer prometheus.Registerer
+
+	// PebbleSocketDir is the host directory shared with the unit's OCI
+	// workload containers.
+	PebbleSocketDir string
 }
 
 // UnitManifolds returns a set of co-configured manifolds covering the various
@@ -281,6 +285,7 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			HookRetryStrategyName: hookRetryStrategyName,
 			TranslateResolverErr:  uniter.TranslateFortressErrors,
 			Logger:                config.LoggerContext.GetLogger("juju.worker.uniter"),
+			PebbleSocketDir:       config.PebbleSocketDir,
 		})),
 
 		traceName: trace.Manifold(trace.ManifoldConfig{

@@ -122,6 +122,9 @@ type Uniter struct {
 	// containerNames will have a list of the workload containers created alongside this
 	// unit agent.
 	containerNames []string
+	// pebbleSocketDir is shared between the unit agent and its workload
+	// containers. It is empty for the Kubernetes default layout.
+	pebbleSocketDir string
 
 	workloadEvents       container.WorkloadEvents
 	workloadEventChannel chan string
@@ -179,6 +182,7 @@ type UniterParams struct {
 	Sidecar                      bool
 	EnforcedCharmModifiedVersion int
 	ContainerNames               []string
+	PebbleSocketDir              string
 	NewPebbleClient              NewPebbleClientFunc
 	Tracer                       coretrace.Tracer
 }
@@ -232,6 +236,7 @@ func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
 			sidecar:                      uniterParams.Sidecar,
 			enforcedCharmModifiedVersion: uniterParams.EnforcedCharmModifiedVersion,
 			containerNames:               uniterParams.ContainerNames,
+			pebbleSocketDir:              uniterParams.PebbleSocketDir,
 			newPebbleClient:              uniterParams.NewPebbleClient,
 			shutdownChannel:              make(chan bool, 1),
 		}
@@ -301,8 +306,9 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 	}
 	u.logger.Infof(ctx, "unit %q started", u.unit)
 
-	// Check we are running the correct charm version.
-	if u.sidecar && u.enforcedCharmModifiedVersion != -1 {
+	// Kubernetes replaces the unit when a sidecar charm version changes.
+	// Machine units upgrade their charms in place.
+	if u.modelType == model.CAAS && u.sidecar && u.enforcedCharmModifiedVersion != -1 {
 		app, err := u.unit.Application(ctx)
 		if err != nil {
 			return errors.Trace(err)
@@ -833,11 +839,11 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 	u.workloadEvents = container.NewWorkloadEvents()
 	u.workloadEventChannel = make(chan string)
 	if len(u.containerNames) > 0 {
-		poller := NewPebblePoller(u.logger, u.clock, u.containerNames, u.workloadEventChannel, u.workloadEvents, u.newPebbleClient)
+		poller := NewPebblePoller(u.logger, u.clock, u.containerNames, u.pebbleSocketDir, u.workloadEventChannel, u.workloadEvents, u.newPebbleClient)
 		if err := u.catacomb.Add(poller); err != nil {
 			return errors.Trace(err)
 		}
-		noticer := NewPebbleNoticer(u.logger, u.clock, u.containerNames, u.workloadEventChannel, u.workloadEvents, u.newPebbleClient)
+		noticer := NewPebbleNoticer(u.logger, u.clock, u.containerNames, u.pebbleSocketDir, u.workloadEventChannel, u.workloadEvents, u.newPebbleClient)
 		if err := u.catacomb.Add(noticer); err != nil {
 			return errors.Trace(err)
 		}

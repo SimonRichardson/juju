@@ -71,7 +71,7 @@ func (s *pebblePollerSuite) TestStart(c *tc.C) {
 	}
 	workloadEventChan := make(chan string)
 	workloadEvents := container.NewWorkloadEvents()
-	worker := uniter.NewPebblePoller(loggertesting.WrapCheckLog(c), clock, containerNames, workloadEventChan, workloadEvents, newClient)
+	worker := uniter.NewPebblePoller(loggertesting.WrapCheckLog(c), clock, containerNames, "", workloadEventChan, workloadEvents, newClient)
 
 	doRestart := func(containerName string) {
 		client := clients[containerName]
@@ -114,6 +114,27 @@ func (s *pebblePollerSuite) TestStart(c *tc.C) {
 
 	for k, v := range clients {
 		c.Assert(v.closed, tc.IsTrue, tc.Commentf("client %s not closed", k))
+	}
+}
+
+func (s *pebblePollerSuite) TestMachineWorkloadSocket(c *tc.C) {
+	clock := testclock.NewClock(time.Time{})
+	sockets := make(chan string, 1)
+	newClient := func(cfg *pebbleclient.Config) (uniter.PebbleClient, error) {
+		sockets <- cfg.Socket
+		return &fakePebbleClient{err: errors.New("not started")}, nil
+	}
+	worker := uniter.NewPebblePoller(loggertesting.WrapCheckLog(c), clock,
+		[]string{"redis"}, "/var/lib/juju/units/redis-0/containers",
+		make(chan string), container.NewWorkloadEvents(), newClient)
+	defer workertest.CleanKill(c, worker)
+
+	c.Assert(clock.WaitAdvance(5*time.Second, testing.ShortWait, 1), tc.ErrorIsNil)
+	select {
+	case socket := <-sockets:
+		c.Check(socket, tc.Equals, "/var/lib/juju/units/redis-0/containers/redis/pebble.socket")
+	case <-c.Context().Done():
+		c.Fatal("Pebble client was not created")
 	}
 }
 
