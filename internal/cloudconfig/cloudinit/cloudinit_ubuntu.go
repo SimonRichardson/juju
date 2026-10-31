@@ -267,6 +267,7 @@ func (cfg *ubuntuCloudConfig) getCommandsForAddingPackages() ([]string, error) {
 // addRequiredPackages is defined on the AdvancedPackagingConfig interface.
 func (cfg *ubuntuCloudConfig) addRequiredPackages() {
 	packages := []string{
+		"containerd",
 		"curl",
 		"tmux",
 	}
