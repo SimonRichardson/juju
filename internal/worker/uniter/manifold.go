@@ -58,6 +58,7 @@ type ManifoldConfig struct {
 	Sidecar                      bool
 	EnforcedCharmModifiedVersion int
 	ContainerNames               []string
+	PebbleSocketDir              string
 }
 
 // Validate ensures all the required values for the config are set.
@@ -217,6 +218,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				Sidecar:                      config.Sidecar,
 				EnforcedCharmModifiedVersion: config.EnforcedCharmModifiedVersion,
 				ContainerNames:               config.ContainerNames,
+				PebbleSocketDir:              config.PebbleSocketDir,
 				Tracer:                       tracer,
 			})
 			if err != nil {

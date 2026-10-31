@@ -959,7 +959,7 @@ func (s *WatcherSuiteSidecar) TestWatcherConfig(c *tc.C) {
 		Sidecar:   true,
 		Logger:    loggertesting.WrapCheckLog(c),
 	})
-	c.Assert(err, tc.ErrorMatches, `sidecar mode is only for "caas" model`)
+	c.Assert(err, tc.ErrorIsNil)
 
 	_, err = remotestate.NewWatcher(remotestate.WatcherConfig{
 		ModelType: model.CAAS,

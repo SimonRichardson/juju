@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	stdtesting "testing"
 	"time"
@@ -601,6 +602,8 @@ func (s *cloudinitSuite) TestCloudInit(c *tc.C) {
 
 		// curl should always be installed, since it's required by jujud.
 		checkPackage(c, configKeyValues, "curl", true)
+		checkPackage(c, configKeyValues, "containerd", true)
+		c.Check(slices.Contains(scripts, "systemctl enable --now containerd"), tc.IsTrue)
 
 		tag := names.NewMachineTag(testConfig.MachineId).String()
 		acfg := getAgentConfig(c, tag, scripts)

@@ -5,7 +5,6 @@ package remotestate
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -82,16 +81,18 @@ type RemoteStateWatcher struct {
 // WatcherConfig holds configuration parameters for the
 // remote state watcher.
 type WatcherConfig struct {
-	UniterClient                 UniterClient
-	LeadershipTracker            leadership.Tracker
-	SecretRotateWatcherFunc      SecretTriggerWatcherFunc
-	SecretExpiryWatcherFunc      SecretTriggerWatcherFunc
-	SecretsClient                api.SecretsWatcher
-	UpdateStatusChannel          UpdateStatusTimerFunc
-	CommandChannel               <-chan string
-	RetryHookChannel             watcher.NotifyChannel
-	UnitTag                      names.UnitTag
-	ModelType                    model.ModelType
+	UniterClient            UniterClient
+	LeadershipTracker       leadership.Tracker
+	SecretRotateWatcherFunc SecretTriggerWatcherFunc
+	SecretExpiryWatcherFunc SecretTriggerWatcherFunc
+	SecretsClient           api.SecretsWatcher
+	UpdateStatusChannel     UpdateStatusTimerFunc
+	CommandChannel          <-chan string
+	RetryHookChannel        watcher.NotifyChannel
+	UnitTag                 names.UnitTag
+	ModelType               model.ModelType
+	// Sidecar enables workload event handling independently of the model type.
+	// Kubernetes-only upgrade behaviour is selected using ModelType.
 	Sidecar                      bool
 	EnforcedCharmModifiedVersion int
 	Logger                       logger.Logger
@@ -101,9 +102,6 @@ type WatcherConfig struct {
 }
 
 func (w WatcherConfig) validate() error {
-	if w.ModelType == model.IAAS && w.Sidecar {
-		return errors.NewNotValid(nil, fmt.Sprintf("sidecar mode is only for %q model", model.CAAS))
-	}
 	if w.Logger == nil {
 		return errors.NotValidf("nil Logger")
 	}
@@ -787,7 +785,7 @@ func (w *RemoteStateWatcher) applicationChanged(ctx context.Context) error {
 
 	// CAAS sidecar charms will wait for the provider to restart/recreate
 	// the unit before performing an upgrade.
-	if w.sidecar && ver != w.enforcedCharmModifiedVersion {
+	if w.modelType == model.CAAS && w.sidecar && ver != w.enforcedCharmModifiedVersion {
 		return nil
 	}
 
