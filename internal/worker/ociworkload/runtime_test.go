@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/canonical/gomock/gomock"
 	"github.com/containerd/containerd/v2/client"
@@ -119,6 +120,84 @@ func (s *runtimeSuite) TestEnsureStartsMissingTask(c *tc.C) {
 	newTask.EXPECT().Start(gomock.Any()).Return(nil)
 
 	c.Assert(f.runtime.Ensure(c.Context(), f.spec), tc.ErrorIsNil)
+}
+
+// TestEnsureCreatesNewContainer checks the initial containerd provisioning
+// path after an assigned unit's OCI resource has been downloaded.
+func (s *runtimeSuite) TestEnsureCreatesNewContainer(c *tc.C) {
+	f := newRuntimeFixture(c)
+	f.expectImage()
+	f.client.EXPECT().LoadContainer(gomock.Any(), gomock.Any()).Return(nil, errdefs.ErrNotFound)
+	container := NewMockContainer(f.ctrl)
+	task := NewMockTask(f.ctrl)
+	f.client.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(container, nil)
+	container.EXPECT().Task(gomock.Any(), nil).Return(nil, errdefs.ErrNotFound)
+	container.EXPECT().NewTask(gomock.Any(), gomock.Any()).Return(task, nil)
+	task.EXPECT().Start(gomock.Any()).Return(nil)
+
+	c.Assert(f.runtime.Ensure(c.Context(), f.spec), tc.ErrorIsNil)
+}
+
+// TestEnsureRefreshReplacesTask checks image digest changes stop the old
+// Pebble task before starting the new OCI image for that same unit.
+func (s *runtimeSuite) TestEnsureRefreshReplacesTask(c *tc.C) {
+	f := newRuntimeFixture(c)
+	f.expectImage()
+	oldContainer := NewMockContainer(f.ctrl)
+	oldTask := NewMockTask(f.ctrl)
+	f.client.EXPECT().LoadContainer(gomock.Any(), gomock.Any()).Return(oldContainer, nil)
+	oldContainer.EXPECT().Labels(gomock.Any()).Return(map[string]string{
+		unitLabel: f.spec.UnitName,
+		containerLabel: f.spec.Name,
+		imageLabel: "old digest",
+	}, nil)
+	oldContainer.EXPECT().Task(gomock.Any(), nil).Return(oldTask, nil)
+	oldTask.EXPECT().Status(gomock.Any()).Return(client.Status{Status: client.Running}, nil)
+	stop := make(chan client.ExitStatus, 1)
+	stop <- *client.NewExitStatus(0, time.Time{}, nil)
+	oldTask.EXPECT().Wait(gomock.Any()).Return(stop, nil)
+	oldTask.EXPECT().Kill(gomock.Any(), syscall.SIGTERM).Return(nil)
+	oldTask.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil, nil)
+	oldContainer.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
+
+	newContainer := NewMockContainer(f.ctrl)
+	newTask := NewMockTask(f.ctrl)
+	f.client.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(newContainer, nil)
+	newContainer.EXPECT().Task(gomock.Any(), nil).Return(nil, errdefs.ErrNotFound)
+	newContainer.EXPECT().NewTask(gomock.Any(), gomock.Any()).Return(newTask, nil)
+	newTask.EXPECT().Start(gomock.Any()).Return(nil)
+
+	c.Assert(f.runtime.Ensure(c.Context(), f.spec), tc.ErrorIsNil)
+}
+
+// TestEnsureTaskStartFailureCleansUp ensures a failed Pebble process does
+// not leave a task or snapshot that prevents the worker from retrying.
+func (s *runtimeSuite) TestEnsureTaskStartFailureCleansUp(c *tc.C) {
+	f := newRuntimeFixture(c)
+	f.expectImage()
+	f.client.EXPECT().LoadContainer(gomock.Any(), gomock.Any()).Return(nil, errdefs.ErrNotFound)
+	container := NewMockContainer(f.ctrl)
+	task := NewMockTask(f.ctrl)
+	f.client.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(container, nil)
+	container.EXPECT().Task(gomock.Any(), nil).Return(nil, errdefs.ErrNotFound)
+	container.EXPECT().NewTask(gomock.Any(), gomock.Any()).Return(task, nil)
+	task.EXPECT().Start(gomock.Any()).Return(errors.New("cannot start Pebble"))
+	task.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil, nil)
+	container.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
+
+	err := f.runtime.Ensure(c.Context(), f.spec)
+	c.Check(err, tc.ErrorMatches, `starting Pebble task: cannot start Pebble`)
+}
+
+// TestEnsureConnectionFailure reports an unavailable containerd daemon
+// without attempting to create a workload task.
+func (s *runtimeSuite) TestEnsureConnectionFailure(c *tc.C) {
+	f := newRuntimeFixture(c)
+	f.runtime.NewClient = func() (ContainerdClient, error) {
+		return nil, errors.New("containerd unavailable")
+	}
+	err := f.runtime.Ensure(c.Context(), f.spec)
+	c.Check(err, tc.ErrorMatches, `connecting to containerd: containerd unavailable`)
 }
 
 // TestEnsureRefusesForeignContainer checks that a workload ID collision
