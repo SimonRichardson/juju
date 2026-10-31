@@ -5,6 +5,7 @@ package ociworkload
 
 import (
 	"encoding/base64"
+	"errors"
 	"testing"
 
 	"github.com/juju/tc"
@@ -80,8 +81,14 @@ func (s *pullerSuite) TestCredentials(c *tc.C) {
 // TestInvalidImageDoesNotConnect ensures a malformed image reference fails
 // before opening a containerd connection or attempting any image pull.
 func (s *pullerSuite) TestInvalidImageDoesNotConnect(c *tc.C) {
-	err := (Puller{Socket: "/not-a-containerd-socket"}).Pull(c.Context(), docker.DockerImageDetails{
+	called := false
+	puller := Puller{NewClient: func() (ContainerdClient, error) {
+		called = true
+		return nil, errors.New("unexpected connection")
+	}}
+	err := puller.Pull(c.Context(), docker.DockerImageDetails{
 		RegistryPath: "bad image ref",
 	})
 	c.Check(err, tc.ErrorMatches, `.*docker image path.*not valid.*`)
+	c.Check(called, tc.IsFalse)
 }

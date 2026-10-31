@@ -57,6 +57,7 @@ type workerFixture struct {
 	application *MockApplication
 	resources   *MockResourceReader
 	puller      *MockImagePuller
+	runtime     *MockContainerRuntime
 	guest       *MockGuest
 	changes     chan struct{}
 	watch       *watchertest.MockNotifyWatcher
@@ -65,6 +66,7 @@ type workerFixture struct {
 	charmDir    string
 	worker      worker.Worker
 	customGuest bool
+	customRuntime bool
 	logger      logger.Logger
 }
 
@@ -74,6 +76,7 @@ func newWorkerFixture(c *tc.C, metadata string) *workerFixture {
 		application: NewMockApplication(ctrl),
 		resources:   NewMockResourceReader(ctrl),
 		puller:      NewMockImagePuller(ctrl),
+		runtime:     NewMockContainerRuntime(ctrl),
 		guest:       NewMockGuest(ctrl),
 		clock:       clock.WallClock,
 		charmDir:    c.MkDir(),
@@ -104,6 +107,10 @@ func (f *workerFixture) startWorker() error {
 			return visit()
 		}).AnyTimes()
 	}
+	if !f.customRuntime {
+		f.runtime.EXPECT().Ensure(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		f.runtime.EXPECT().RemoveUnit(gomock.Any(), "redis/0").Return(nil).AnyTimes()
+	}
 
 	w, err := ociworkload.NewWorker(ociworkload.WorkerConfig{
 		Application:   f.application,
@@ -111,6 +118,11 @@ func (f *workerFixture) startWorker() error {
 		CharmDir:      f.charmDir,
 		CharmDirGuest: f.guest,
 		Puller:        f.puller,
+		Runtime:       f.runtime,
+		UnitName:      "redis/0",
+		PebbleBinary:  filepath.Join(f.charmDir, "pebble"),
+		ContainersDir: filepath.Join(f.charmDir, "containers"),
+		StateDir:      filepath.Join(f.charmDir, "oci"),
 		Clock:         f.clock,
 		Logger:        f.logger,
 	})

@@ -295,6 +295,8 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			CharmDirName:  charmDirName,
 			Clock:         config.Clock,
 			Logger:        config.LoggerContext.GetLogger("juju.worker.ociworkload"),
+			Puller:        ociworkload.Puller{NewClient: ociworkload.NewContainerdClient},
+			Runtime:       ociworkload.ContainerdRuntime{NewClient: ociworkload.NewContainerdClient},
 		})),
 
 		traceName: trace.Manifold(trace.ManifoldConfig{
