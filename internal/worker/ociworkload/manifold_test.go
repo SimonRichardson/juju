@@ -55,6 +55,42 @@ func (s *manifoldSuite) TestRejectsInvalidConfigBeforeGettingDependencies(c *tc.
 	c.Assert(err, tc.ErrorMatches, "missing Clock")
 }
 
+// TestValidateRequiredDependencies checks each required manifold dependency,
+// including its non-nil runtime and puller construction contracts.
+func (s *manifoldSuite) TestValidateRequiredDependencies(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	valid := ociworkload.ManifoldConfig{
+		AgentName: "agent",
+		APICallerName: "api-caller",
+		CharmDirName: "charm-dir",
+		Clock: clock.WallClock,
+		Logger: loggertesting.WrapCheckLog(c),
+		Puller: NewMockImagePuller(ctrl),
+		Runtime: NewMockContainerRuntime(ctrl),
+	}
+	c.Check(valid.Validate(), tc.ErrorIsNil)
+
+	cases := []struct {
+		name string
+		missing string
+		change func(*ociworkload.ManifoldConfig)
+	}{
+		{"agent", "AgentName", func(cfg *ociworkload.ManifoldConfig) { cfg.AgentName = "" }},
+		{"API", "APICallerName", func(cfg *ociworkload.ManifoldConfig) { cfg.APICallerName = "" }},
+		{"charm directory", "CharmDirName", func(cfg *ociworkload.ManifoldConfig) { cfg.CharmDirName = "" }},
+		{"clock", "Clock", func(cfg *ociworkload.ManifoldConfig) { cfg.Clock = nil }},
+		{"logger", "Logger", func(cfg *ociworkload.ManifoldConfig) { cfg.Logger = nil }},
+		{"puller", "Puller", func(cfg *ociworkload.ManifoldConfig) { cfg.Puller = nil }},
+		{"runtime", "Runtime", func(cfg *ociworkload.ManifoldConfig) { cfg.Runtime = nil }},
+	}
+	for _, test := range cases {
+		c.Logf("missing %s", test.name)
+		cfg := valid
+		test.change(&cfg)
+		c.Check(cfg.Validate(), tc.ErrorMatches, "missing " + test.missing)
+	}
+}
+
 // TestStartsForAssignedUnit checks that a unit-scoped API is constructed and
 // that the worker subscribes to its application's changes.
 func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
