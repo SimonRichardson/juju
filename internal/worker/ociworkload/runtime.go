@@ -263,13 +263,35 @@ func ensureWorkloadDirs(spec ContainerSpec) error {
 }
 
 func createWorkload(ctx context.Context, conn ContainerdClient, id string, spec ContainerSpec, image client.Image, labels map[string]string) error {
+	options := append([]oci.SpecOpts{oci.WithImageConfig(image)}, pebbleSpecOptions(spec)...)
+
+	container, err := conn.NewContainer(ctx, id,
+		client.WithImage(image),
+		client.WithNewSnapshot(id+"-rootfs", image),
+		client.WithNewSpec(options...),
+		client.WithContainerLabels(labels))
+	if err != nil {
+		return fmt.Errorf("creating workload container: %w", err)
+	}
+	if err := startPebbleTask(ctx, container, spec); err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopDelay)
+		defer cancel()
+		_ = container.Delete(cleanupCtx, client.WithSnapshotCleanup)
+		return err
+	}
+	return nil
+}
+
+// pebbleSpecOptions mirror the K8s workload's command, environment and
+// shared mounts. The caller applies image configuration first, then these
+// overrides, so the image entrypoint cannot replace Pebble as PID 1.
+func pebbleSpecOptions(spec ContainerSpec) []oci.SpecOpts {
 	mounts := []specs.Mount{
 		{Destination: "/charm/bin/pebble", Type: "bind", Source: spec.PebbleBinary, Options: []string{"rbind", "ro"}},
 		{Destination: "/charm/container", Type: "bind", Source: filepath.Join(spec.ContainersDir, spec.Name), Options: []string{"rbind", "rw"}},
 		{Destination: "/var/lib/pebble/default", Type: "bind", Source: filepath.Join(spec.StateDir, spec.Name, "pebble"), Options: []string{"rbind", "rw"}},
 	}
 	options := []oci.SpecOpts{
-		oci.WithImageConfig(image),
 		oci.WithProcessArgs("/charm/bin/pebble", "run", "--create-dirs", "--hold", "--verbose"),
 		oci.WithEnv([]string{
 			"JUJU_CONTAINER_NAME=" + spec.Name,
@@ -291,22 +313,7 @@ func createWorkload(ctx context.Context, conn ContainerdClient, id string, spec 
 			return nil
 		})
 	}
-
-	container, err := conn.NewContainer(ctx, id,
-		client.WithImage(image),
-		client.WithNewSnapshot(id+"-rootfs", image),
-		client.WithNewSpec(options...),
-		client.WithContainerLabels(labels))
-	if err != nil {
-		return fmt.Errorf("creating workload container: %w", err)
-	}
-	if err := startPebbleTask(ctx, container, spec); err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopDelay)
-		defer cancel()
-		_ = container.Delete(cleanupCtx, client.WithSnapshotCleanup)
-		return err
-	}
-	return nil
+	return options
 }
 
 func startPebbleTask(ctx context.Context, container client.Container, spec ContainerSpec) error {
