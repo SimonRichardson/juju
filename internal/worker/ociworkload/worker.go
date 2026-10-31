@@ -32,6 +32,8 @@ const (
 	maxImageResourceSize = 1 << 20
 	retryInterval        = 5 * time.Second
 	refreshInterval      = 5 * time.Minute
+	workloadInterval     = 30 * time.Second
+	cleanupTimeout       = 30 * time.Second
 )
 
 var errCharmNotReady = errors.New("charm directory not ready")
@@ -67,6 +69,16 @@ type WorkerConfig struct {
 	CharmDirGuest fortress.Guest
 	// Puller performs downloads using the host container runtime.
 	Puller ImagePuller
+	// Runtime converges Pebble PID 1 tasks after images have been pulled.
+	Runtime ContainerRuntime
+	// UnitName scopes containers and runtime cleanup to the assigned unit.
+	UnitName string
+	// PebbleBinary is the executable in this unit's agent tools directory.
+	PebbleBinary string
+	// ContainersDir is shared with the machine uniter for Pebble sockets.
+	ContainersDir string
+	// StateDir stores persistent Pebble data and workload logs for this unit.
+	StateDir string
 	// Clock schedules retries and periodic resource reconciliation.
 	Clock clock.Clock
 	// Logger reports failures without logging image credentials.
@@ -85,6 +97,10 @@ func (c WorkerConfig) validate() error {
 		return errors.New("missing CharmDirGuest")
 	case c.Puller == nil:
 		return errors.New("missing Puller")
+	case c.Runtime == nil:
+		return errors.New("missing Runtime")
+	case c.UnitName == "" || c.PebbleBinary == "" || c.ContainersDir == "" || c.StateDir == "":
+		return errors.New("missing OCI workload runtime paths or unit name")
 	case c.Clock == nil:
 		return errors.New("missing Clock")
 	case c.Logger == nil:
@@ -99,6 +115,7 @@ type workloadWorker struct {
 
 	// Successful pulls are remembered for the lifetime of this worker.
 	pulled map[string][sha256.Size]byte
+	seenWorkloads bool
 }
 
 // NewWorker starts a reconciler for one already-assigned machine unit. A
@@ -126,6 +143,16 @@ func (w *workloadWorker) Wait() error {
 
 func (w *workloadWorker) run() (err error) {
 	ctx := w.tomb.Context(context.Background())
+	defer func() {
+		if !w.seenWorkloads {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		if cleanupErr := w.config.Runtime.RemoveUnit(cleanupCtx, w.config.UnitName); err == nil {
+			err = cleanupErr
+		}
+	}()
 
 	// Establish the subscription before querying the charm or the resources.
 	watch, err := w.config.Application.Watch(ctx)
@@ -193,6 +220,9 @@ func (w *workloadWorker) reconcile(ctx context.Context) time.Duration {
 		}
 		return retryInterval
 	}
+	if w.seenWorkloads {
+		return workloadInterval
+	}
 
 	return refreshInterval
 }
@@ -237,25 +267,47 @@ func (w *workloadWorker) pullImages(ctx context.Context) error {
 		containerNames = append(containerNames, name)
 	}
 	slices.Sort(containerNames)
+	if len(containerNames) == 0 && w.seenWorkloads {
+		if err := w.config.Runtime.RemoveUnit(ctx, w.config.UnitName); err != nil {
+			return fmt.Errorf("removing obsolete unit workloads: %w", err)
+		}
+		w.seenWorkloads = false
+	}
 
 	for _, name := range containerNames {
-		resourceName := meta.Containers[name].Resource
+		container := meta.Containers[name]
+		resourceName := container.Resource
 		if resourceName == "" {
 			return fmt.Errorf("container %q has no OCI image resource", name)
 		}
+		if len(container.Mounts) > 0 {
+			return fmt.Errorf("storage mounts for OCI container %q are not yet supported on machines", name)
+		}
+		w.seenWorkloads = true
 
 		image, fingerprint, err := w.imageResource(ctx, resourceName)
 		if err != nil {
 			return fmt.Errorf("loading image resource %q: %w", resourceName, err)
 		}
-		if w.pulled[resourceName] == fingerprint {
-			continue
+		if w.pulled[resourceName] != fingerprint {
+			if err := w.config.Puller.Pull(ctx, image); err != nil {
+				return fmt.Errorf("pulling image for container %q: %w", name, err)
+			}
+			w.pulled[resourceName] = fingerprint
 		}
 
-		if err := w.config.Puller.Pull(ctx, image); err != nil {
-			return fmt.Errorf("pulling image for container %q: %w", name, err)
+		if err := w.config.Runtime.Ensure(ctx, ContainerSpec{
+			UnitName:      w.config.UnitName,
+			Name:          name,
+			Image:         image.RegistryPath,
+			PebbleBinary:  w.config.PebbleBinary,
+			ContainersDir: w.config.ContainersDir,
+			StateDir:      w.config.StateDir,
+			UID:           container.Uid,
+			GID:           container.Gid,
+		}); err != nil {
+			return fmt.Errorf("ensuring Pebble for container %q: %w", name, err)
 		}
-		w.pulled[resourceName] = fingerprint
 	}
 
 	return nil

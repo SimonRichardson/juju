@@ -8,9 +8,8 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/remotes/docker"
-	"github.com/containerd/containerd/v2/defaults"
+	"github.com/containerd/containerd/v2/client"
 	"github.com/distribution/reference"
 	"github.com/juju/errors"
 
@@ -23,9 +22,9 @@ const namespace = "juju"
 // It creates and closes a connection for each pull, so failed deployments do
 // not leave connections behind.
 type Puller struct {
-	// Socket is the machine containerd socket. An empty value selects the
-	// standard containerd socket on the host.
-	Socket string
+	// NewClient is provided by the unit manifold. Each pull closes the
+	// connection it creates, including when authentication or download fails.
+	NewClient ContainerdClientFactory
 }
 
 // Pull downloads and unpacks an image, including images from private
@@ -35,11 +34,7 @@ func (p Puller) Pull(ctx context.Context, image jujudocker.DockerImageDetails) e
 	if err := jujudocker.ValidateDockerRegistryPath(image.RegistryPath); err != nil {
 		return errors.Trace(err)
 	}
-	address := p.Socket
-	if address == "" {
-		address = defaults.DefaultAddress
-	}
-	conn, err := client.New(address, client.WithDefaultNamespace(namespace))
+	conn, err := p.NewClient()
 	if err != nil {
 		return errors.Annotate(err, "connecting to containerd")
 	}

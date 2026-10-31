@@ -52,7 +52,7 @@ func (s *manifoldSuite) TestRejectsInvalidConfigBeforeGettingDependencies(c *tc.
 		CharmDirName:  "charm-dir",
 	})
 	_, err := manifold.Start(c.Context(), nil)
-	c.Assert(err, tc.ErrorMatches, "OCI workload manifold requires a clock and logger")
+	c.Assert(err, tc.ErrorMatches, "missing Clock")
 }
 
 // TestStartsForAssignedUnit checks that a unit-scoped API is constructed and
@@ -62,7 +62,7 @@ func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
 	unitTag := names.NewUnitTag("redis/0")
 	config := NewMockConfig(ctrl)
 	config.EXPECT().Tag().Return(unitTag)
-	config.EXPECT().DataDir().Return(c.MkDir())
+	config.EXPECT().DataDir().Return(c.MkDir()).Times(2)
 
 	a := NewMockAgent(ctrl)
 	a.EXPECT().CurrentConfig().Return(config)
@@ -91,6 +91,7 @@ func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
 	})
 	resources := NewMockResourceReader(ctrl)
 	puller := NewMockImagePuller(ctrl)
+	runtime := NewMockContainerRuntime(ctrl)
 	constructed := false
 	manifold := ociworkload.Manifold(ociworkload.ManifoldConfig{
 		AgentName:     "agent",
@@ -99,6 +100,7 @@ func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
 		Clock:         clock.WallClock,
 		Logger:        loggertesting.WrapCheckLog(c),
 		Puller:        puller,
+		Runtime:       runtime,
 		NewClients: func(_ context.Context, _ api.Connection, tag names.UnitTag) (ociworkload.Application, ociworkload.ResourceReader, error) {
 			c.Check(tag, tc.Equals, unitTag)
 			constructed = true
@@ -146,6 +148,8 @@ func (s *manifoldSuite) TestRejectsMachineIdentity(c *tc.C) {
 		CharmDirName:  "charm-dir",
 		Clock:         clock.WallClock,
 		Logger:        loggertesting.WrapCheckLog(c),
+		Puller:        NewMockImagePuller(ctrl),
+		Runtime:       NewMockContainerRuntime(ctrl),
 	})
 	_, err := manifold.Start(c.Context(), getter)
 	c.Assert(err, tc.ErrorMatches, "OCI workload worker requires a unit agent")
