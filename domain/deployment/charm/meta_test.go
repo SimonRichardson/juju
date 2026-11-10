@@ -39,7 +39,7 @@ func TestMetaSuite(t *testing.T) {
 }
 
 func (s *MetaSuite) TestIsSidecar(c *tc.C) {
-	// A charm that declares a workload container is a Kubernetes/sidecar charm.
+	// A charm that declares a workload container is a sidecar charm.
 	withContainer := charm.Meta{Containers: map[string]charm.Container{"workload": {}}}
 	c.Check(withContainer.IsSidecar(), tc.IsTrue)
 
@@ -53,14 +53,13 @@ func (s *MetaSuite) TestIsSidecar(c *tc.C) {
 	c.Check(emptyContainers.IsSidecar(), tc.IsFalse)
 }
 
-func (s *MetaSuite) TestModelMismatchK8sCharmOnMachineModel(c *tc.C) {
-	// A sidecar charm deployed to a machine model is unambiguous: error.
+func (s *MetaSuite) TestModelMismatchSidecarCharmOnMachineModel(c *tc.C) {
+	// A sidecar charm's workloads run alongside the unit agent on machine
+	// models too, via containerd, so the placement is consistent.
 	meta := charm.Meta{Name: "redis-k8s", Containers: map[string]charm.Container{"redis": {}}}
 	warning, err := meta.ModelMismatch(false, "machinemodel")
+	c.Assert(err, tc.ErrorIsNil)
 	c.Check(warning, tc.Equals, "")
-	c.Check(err, tc.ErrorIs, coreerrors.NotSupported)
-	c.Check(err, tc.ErrorMatches,
-		`"redis-k8s" is a Kubernetes charm \(it declares containers\) but "machinemodel" is a machine model; its workload will not run`)
 }
 
 func (s *MetaSuite) TestModelMismatchMachineCharmOnK8sModel(c *tc.C) {
