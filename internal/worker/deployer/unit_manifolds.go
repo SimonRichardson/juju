@@ -272,7 +272,13 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 		// relations; creates subordinate units; runs all the hooks; sends
 		// metrics; etc etc etc. We expect to break it up further in the
 		// coming weeks, and to need one per unit in a consolidated agent
-		// (and probably one for each component broken out).
+		// (and probably one for each component broken out of it).
+		//
+		// Machine units host their workload containers beside the unit
+		// agent, so the container set follows the deployed charm rather
+		// than arriving with a pod: the uniter adopts the names from the
+		// charm directory and re-derives them on charm installs and
+		// upgrades.
 		uniterName: ifNotMigrating(uniter.Manifold(uniter.ManifoldConfig{
 			AgentName:             agentName,
 			ModelType:             model.IAAS,
@@ -286,6 +292,7 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			HookRetryStrategyName: hookRetryStrategyName,
 			TranslateResolverErr:  uniter.TranslateFortressErrors,
 			Logger:                config.LoggerContext.GetLogger("juju.worker.uniter"),
+			CharmContainerNames:   uniter.CharmDirContainerNames,
 			PebbleSocketDir:       config.PebbleSocketDir,
 		})),
 
