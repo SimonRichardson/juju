@@ -58,7 +58,11 @@ type ManifoldConfig struct {
 	Sidecar                      bool
 	EnforcedCharmModifiedVersion int
 	ContainerNames               []string
-	PebbleSocketDir              string
+	// CharmContainerNames, if non-nil, derives the unit's workload
+	// container names from the deployed charm; see
+	// UniterParams.CharmContainerNames.
+	CharmContainerNames func(charmDir string) ([]string, error)
+	PebbleSocketDir     string
 }
 
 // Validate ensures all the required values for the config are set.
@@ -218,6 +222,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				Sidecar:                      config.Sidecar,
 				EnforcedCharmModifiedVersion: config.EnforcedCharmModifiedVersion,
 				ContainerNames:               config.ContainerNames,
+				CharmContainerNames:          config.CharmContainerNames,
 				PebbleSocketDir:              config.PebbleSocketDir,
 				Tracer:                       tracer,
 			})

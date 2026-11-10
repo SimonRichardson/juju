@@ -122,6 +122,13 @@ type Uniter struct {
 	// containerNames will have a list of the workload containers created alongside this
 	// unit agent.
 	containerNames []string
+	// charmContainerNames, if non-nil, derives the workload container names
+	// from the deployed charm; see UniterParams.CharmContainerNames.
+	charmContainerNames func(charmDir string) ([]string, error)
+	// updateWorkloadContainers forwards container set changes of a deployed
+	// charm to the workload monitor. It is nil until the uniter finishes
+	// initialising, before which no charm can be deployed.
+	updateWorkloadContainers func([]string)
 	// pebbleSocketDir is shared between the unit agent and its workload
 	// containers. It is empty for the Kubernetes default layout.
 	pebbleSocketDir string
@@ -182,9 +189,16 @@ type UniterParams struct {
 	Sidecar                      bool
 	EnforcedCharmModifiedVersion int
 	ContainerNames               []string
-	PebbleSocketDir              string
-	NewPebbleClient              NewPebbleClientFunc
-	Tracer                       coretrace.Tracer
+	// CharmContainerNames, if non-nil, derives the unit's workload container
+	// names from the charm deployed at a charm directory. Units supplied
+	// with a fixed container set instead pass ContainerNames and leave this
+	// nil: machine manifolds use it so container names follow charm
+	// installs and upgrades, while pod-hosted units are replaced with
+	// their containers whenever the set changes.
+	CharmContainerNames func(charmDir string) ([]string, error)
+	PebbleSocketDir     string
+	NewPebbleClient     NewPebbleClientFunc
+	Tracer              coretrace.Tracer
 }
 
 // NewOperationExecutorFunc is a func which returns an operations.Executor.
@@ -236,6 +250,7 @@ func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
 			sidecar:                      uniterParams.Sidecar,
 			enforcedCharmModifiedVersion: uniterParams.EnforcedCharmModifiedVersion,
 			containerNames:               uniterParams.ContainerNames,
+			charmContainerNames:          uniterParams.CharmContainerNames,
 			pebbleSocketDir:              uniterParams.PebbleSocketDir,
 			newPebbleClient:              uniterParams.NewPebbleClient,
 			shutdownChannel:              make(chan bool, 1),
@@ -756,6 +771,24 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 	if err != nil {
 		return errors.Annotatef(err, "cannot create deployer")
 	}
+	if u.charmContainerNames != nil {
+		// This unit's container names follow the deployed charm, so adopt
+		// any charm that is already deployed before the first
+		// reconciliation, and re-derive the names after each deploy.
+		if names, namesErr := u.charmContainerNames(u.paths.State.CharmDir); namesErr != nil {
+			u.logger.Warningf(ctx, "%s", namesErr)
+		} else {
+			u.containerNames = names
+		}
+		deployer = &charmContainerDeployer{
+			Deployer:        deployer,
+			charmDir:        u.paths.State.CharmDir,
+			charmContainers: u.charmContainerNames,
+			containers:      func() []string { return u.containerNames },
+			onChange:        u.setCharmContainers,
+			logger:          u.logger.Child("charm"),
+		}
+	}
 	contextFactory, err := context.NewContextFactory(ctx, context.FactoryConfig{
 		Uniter:               u.client,
 		SecretsClient:        u.secretsClient,
@@ -767,6 +800,7 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 		Paths:                u.paths,
 		Clock:                u.clock,
 		Logger:               u.logger.Child("context"),
+		PebbleSocketDir:      u.pebbleSocketDir,
 	})
 	if err != nil {
 		return err
@@ -838,18 +872,39 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 
 	u.workloadEvents = container.NewWorkloadEvents()
 	u.workloadEventChannel = make(chan string)
-	if len(u.containerNames) > 0 {
-		poller := NewPebblePoller(u.logger, u.clock, u.containerNames, u.pebbleSocketDir, u.workloadEventChannel, u.workloadEvents, u.newPebbleClient)
-		if err := u.catacomb.Add(poller); err != nil {
-			return errors.Trace(err)
-		}
-		noticer := NewPebbleNoticer(u.logger, u.clock, u.containerNames, u.pebbleSocketDir, u.workloadEventChannel, u.workloadEvents, u.newPebbleClient)
-		if err := u.catacomb.Add(noticer); err != nil {
-			return errors.Trace(err)
-		}
+	// The monitor recreates the pebble poller and noticer whenever the
+	// deployed charm's container set changes, so container hooks keep
+	// working across charm installs and upgrades on machines.
+	monitor, update, err := newWorkloadMonitor(WorkloadMonitorConfig{
+		ContainerNames:       u.containerNames,
+		SocketDir:            u.pebbleSocketDir,
+		WorkloadEventChannel: u.workloadEventChannel,
+		WorkloadEvents:       u.workloadEvents,
+		NewPebbleClient:      u.newPebbleClient,
+		NewPoller:            NewPebblePoller,
+		NewNoticer:           NewPebbleNoticer,
+		Clock:                u.clock,
+		Logger:               u.logger,
+	})
+	if err != nil {
+		return errors.Trace(err)
 	}
+	if err := u.catacomb.Add(monitor); err != nil {
+		return errors.Trace(err)
+	}
+	u.updateWorkloadContainers = update
 
 	return nil
+}
+
+// setCharmContainers records the container set of the deployed charm so the
+// resolver wires workload hooks for those containers, and follows the change
+// with the workload monitor's pebble pollers and noticers.
+func (u *Uniter) setCharmContainers(names []string) {
+	u.containerNames = names
+	if u.updateWorkloadContainers != nil {
+		u.updateWorkloadContainers(names)
+	}
 }
 
 func (u *Uniter) Kill() {

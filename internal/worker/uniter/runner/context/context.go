@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -196,6 +197,11 @@ type HookContext struct {
 
 	// modelType
 	modelType model.ModelType
+
+	// pebbleSocketDir is the host directory holding the unit's workload
+	// container pebble sockets; it is empty for the Kubernetes default
+	// layout, where hooks run inside the workload container.
+	pebbleSocketDir string
 
 	// unitName is the human friendly name of the local unit.
 	unitName string
@@ -1465,6 +1471,13 @@ func (c *HookContext) HookVars(
 	}
 	if c.workloadName != "" {
 		vars = append(vars, "JUJU_WORKLOAD_NAME="+c.workloadName)
+		// On machine models the hook runs beside its workload container
+		// rather than inside it, so point charm code at the host side of
+		// the shared socket directory. The Kubernetes layout keeps its
+		// sockets inside the containers, so nothing is overridden there.
+		if c.pebbleSocketDir != "" {
+			vars = append(vars, "PEBBLE_SOCKET="+path.Join(c.pebbleSocketDir, c.workloadName, "pebble.socket"))
+		}
 		if c.noticeID != "" {
 			vars = append(vars,
 				"JUJU_NOTICE_ID="+c.noticeID,
