@@ -20,7 +20,6 @@ import (
 	"github.com/juju/juju/core/watcher/watchertest"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	coretesting "github.com/juju/juju/internal/testing"
-	"github.com/juju/juju/internal/worker/fortress"
 	"github.com/juju/juju/internal/worker/ociworkload"
 )
 
@@ -33,15 +32,14 @@ func TestManifoldSuite(t *testing.T) {
 	tc.Run(t, &manifoldSuite{})
 }
 
-// TestDependencies checks that assignment, API and charm-directory access are
-// required before starting the OCI workload worker.
+// TestDependencies checks that assignment and API access are required before
+// starting the OCI workload worker.
 func (s *manifoldSuite) TestDependencies(c *tc.C) {
 	manifold := ociworkload.Manifold(ociworkload.ManifoldConfig{
 		AgentName:     "agent",
 		APICallerName: "api-caller",
-		CharmDirName:  "charm-dir",
 	})
-	c.Check(manifold.Inputs, tc.DeepEquals, []string{"agent", "api-caller", "charm-dir"})
+	c.Check(manifold.Inputs, tc.DeepEquals, []string{"agent", "api-caller"})
 }
 
 // TestRejectsInvalidConfigBeforeGettingDependencies checks that the manifold
@@ -50,7 +48,6 @@ func (s *manifoldSuite) TestRejectsInvalidConfigBeforeGettingDependencies(c *tc.
 	manifold := ociworkload.Manifold(ociworkload.ManifoldConfig{
 		AgentName:     "agent",
 		APICallerName: "api-caller",
-		CharmDirName:  "charm-dir",
 	})
 	_, err := manifold.Start(c.Context(), nil)
 	c.Assert(err, tc.ErrorMatches, "missing Clock")
@@ -63,7 +60,6 @@ func (s *manifoldSuite) TestValidateRequiredDependencies(c *tc.C) {
 	valid := ociworkload.ManifoldConfig{
 		AgentName:     "agent",
 		APICallerName: "api-caller",
-		CharmDirName:  "charm-dir",
 		Clock:         clock.WallClock,
 		Logger:        loggertesting.WrapCheckLog(c),
 		NewClients: func(_ context.Context, _ api.Connection, _ names.UnitTag) (ociworkload.Application, ociworkload.ResourceReader, error) {
@@ -81,7 +77,6 @@ func (s *manifoldSuite) TestValidateRequiredDependencies(c *tc.C) {
 	}{
 		{"agent", "AgentName", func(cfg *ociworkload.ManifoldConfig) { cfg.AgentName = "" }},
 		{"API", "APICallerName", func(cfg *ociworkload.ManifoldConfig) { cfg.APICallerName = "" }},
-		{"charm directory", "CharmDirName", func(cfg *ociworkload.ManifoldConfig) { cfg.CharmDirName = "" }},
 		{"clock", "Clock", func(cfg *ociworkload.ManifoldConfig) { cfg.Clock = nil }},
 		{"logger", "Logger", func(cfg *ociworkload.ManifoldConfig) { cfg.Logger = nil }},
 		{"puller", "Puller", func(cfg *ociworkload.ManifoldConfig) { cfg.Puller = nil }},
@@ -108,7 +103,6 @@ func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
 	a := NewMockAgent(ctrl)
 	a.EXPECT().CurrentConfig().Return(config)
 	conn := NewMockConnection(ctrl)
-	guest := NewMockGuest(ctrl)
 	getter := NewMockGetter(ctrl)
 	getter.EXPECT().Get("agent", gomock.Any()).DoAndReturn(func(_ string, out any) error {
 		*(out.(*agent.Agent)) = a
@@ -118,11 +112,6 @@ func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
 		*(out.(*api.Connection)) = conn
 		return nil
 	})
-	getter.EXPECT().Get("charm-dir", gomock.Any()).DoAndReturn(func(_ string, out any) error {
-		*(out.(*fortress.Guest)) = guest
-		return nil
-	})
-
 	changes := make(chan struct{})
 	watching := make(chan struct{}, 1)
 	app := NewMockApplication(ctrl)
@@ -137,7 +126,6 @@ func (s *manifoldSuite) TestStartsForAssignedUnit(c *tc.C) {
 	manifold := ociworkload.Manifold(ociworkload.ManifoldConfig{
 		AgentName:     "agent",
 		APICallerName: "api-caller",
-		CharmDirName:  "charm-dir",
 		Clock:         clock.WallClock,
 		Logger:        loggertesting.WrapCheckLog(c),
 		Puller:        puller,
@@ -178,15 +166,9 @@ func (s *manifoldSuite) TestRejectsMachineIdentity(c *tc.C) {
 		*(out.(*api.Connection)) = NewMockConnection(ctrl)
 		return nil
 	})
-	getter.EXPECT().Get("charm-dir", gomock.Any()).DoAndReturn(func(_ string, out any) error {
-		*(out.(*fortress.Guest)) = NewMockGuest(ctrl)
-		return nil
-	})
-
 	manifold := ociworkload.Manifold(ociworkload.ManifoldConfig{
 		AgentName:     "agent",
 		APICallerName: "api-caller",
-		CharmDirName:  "charm-dir",
 		Clock:         clock.WallClock,
 		Logger:        loggertesting.WrapCheckLog(c),
 		NewClients: func(_ context.Context, _ api.Connection, _ names.UnitTag) (ociworkload.Application, ociworkload.ResourceReader, error) {

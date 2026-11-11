@@ -213,7 +213,6 @@ var expectedUnitManifoldsWithDependencies = map[string][]string{
 		"agent",
 		"api-caller",
 		"api-config-watcher",
-		"charm-dir",
 		"migration-fortress",
 		"migration-inactive-flag",
 	},

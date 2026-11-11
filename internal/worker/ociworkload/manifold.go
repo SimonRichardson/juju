@@ -18,7 +18,6 @@ import (
 	"github.com/juju/juju/api"
 	"github.com/juju/juju/api/agent/uniter"
 	"github.com/juju/juju/core/logger"
-	"github.com/juju/juju/internal/worker/fortress"
 )
 
 // ManifoldConfig identifies the unit-scoped dependencies used by the OCI
@@ -28,8 +27,6 @@ type ManifoldConfig struct {
 	AgentName string
 	// APICallerName supplies the unit-authorised Juju API connection.
 	APICallerName string
-	// CharmDirName supplies read access to the uniter's charm directory.
-	CharmDirName string
 	// Clock schedules retries and periodic resource checks.
 	Clock clock.Clock
 	// Logger reports reconciliation failures.
@@ -53,8 +50,6 @@ func (config ManifoldConfig) Validate() error {
 		return errors.New("missing AgentName")
 	case config.APICallerName == "":
 		return errors.New("missing APICallerName")
-	case config.CharmDirName == "":
-		return errors.New("missing CharmDirName")
 	case config.Clock == nil:
 		return errors.New("missing Clock")
 	case config.Logger == nil:
@@ -77,7 +72,7 @@ type ClientFactory func(context.Context, api.Connection, names.UnitTag) (Applica
 // Manifold starts one OCI image reconciler per assigned machine unit.
 func Manifold(config ManifoldConfig) dependency.Manifold {
 	return dependency.Manifold{
-		Inputs: []string{config.AgentName, config.APICallerName, config.CharmDirName},
+		Inputs: []string{config.AgentName, config.APICallerName},
 		Start: func(ctx context.Context, getter dependency.Getter) (worker.Worker, error) {
 			return startManifold(ctx, getter, config)
 		},
@@ -96,11 +91,6 @@ func startManifold(ctx context.Context, getter dependency.Getter, config Manifol
 
 	var conn api.Connection
 	if err := getter.Get(config.APICallerName, &conn); err != nil {
-		return nil, err
-	}
-
-	var guest fortress.Guest
-	if err := getter.Get(config.CharmDirName, &guest); err != nil {
 		return nil, err
 	}
 
@@ -123,7 +113,6 @@ func startManifold(ctx context.Context, getter dependency.Getter, config Manifol
 		Application:   application,
 		Resources:     resources,
 		CharmDir:      filepath.Join(unitDir, "charm"),
-		CharmDirGuest: guest,
 		Puller:        config.Puller,
 		Runtime:       config.Runtime,
 		UnitName:      unitTag.Id(),

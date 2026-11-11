@@ -28,7 +28,6 @@ import (
 	internallogger "github.com/juju/juju/internal/logger"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	coretesting "github.com/juju/juju/internal/testing"
-	"github.com/juju/juju/internal/worker/fortress"
 	"github.com/juju/juju/internal/worker/ociworkload"
 )
 
@@ -58,14 +57,12 @@ type workerFixture struct {
 	resources     *MockResourceReader
 	puller        *MockImagePuller
 	runtime       *MockContainerRuntime
-	guest         *MockGuest
 	changes       chan struct{}
 	watch         *watchertest.MockNotifyWatcher
 	queries       chan struct{}
 	clock         clock.Clock
 	charmDir      string
 	worker        worker.Worker
-	customGuest   bool
 	customRuntime bool
 	logger        logger.Logger
 }
@@ -77,7 +74,6 @@ func newWorkerFixture(c *tc.C, metadata string) *workerFixture {
 		resources:   NewMockResourceReader(ctrl),
 		puller:      NewMockImagePuller(ctrl),
 		runtime:     NewMockContainerRuntime(ctrl),
-		guest:       NewMockGuest(ctrl),
 		clock:       clock.WallClock,
 		charmDir:    c.MkDir(),
 		logger:      loggertesting.WrapCheckLog(c),
@@ -102,11 +98,6 @@ func (f *workerFixture) startWorker() error {
 		return "ch:redis-k8s-1", false, nil
 	}).AnyTimes()
 
-	if !f.customGuest {
-		f.guest.EXPECT().Visit(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, visit fortress.Visit) error {
-			return visit()
-		}).AnyTimes()
-	}
 	if !f.customRuntime {
 		f.runtime.EXPECT().Ensure(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		f.runtime.EXPECT().RemoveUnit(gomock.Any(), "redis/0").Return(nil).AnyTimes()
@@ -116,7 +107,6 @@ func (f *workerFixture) startWorker() error {
 		Application:   f.application,
 		Resources:     f.resources,
 		CharmDir:      f.charmDir,
-		CharmDirGuest: f.guest,
 		Puller:        f.puller,
 		Runtime:       f.runtime,
 		UnitName:      "redis/0",
@@ -305,19 +295,14 @@ func (s *workerSuite) TestPullFailureRetries(c *tc.C) {
 // request OCI resources or connect to containerd.
 func (s *workerSuite) TestOrdinaryMachineCharmDoesNotFetchImages(c *tc.C) {
 	f := newWorkerFixture(c, "name: redis\nsummary: Redis\ndescription: Redis\n")
-	f.customGuest = true
-	visited := make(chan struct{}, 1)
-	f.guest.EXPECT().Visit(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, visit fortress.Visit) error {
-		err := visit()
-		visited <- struct{}{}
-		return err
-	})
 
 	f.start(c)
 	defer f.stop(c)
 	f.changes <- struct{}{}
+	// The query proves the reconcile read past the charm URL; any
+	// attempted resource fetch or containerd call fails the strict mocks.
 	select {
-	case <-visited:
+	case <-f.queries:
 	case <-c.Context().Done():
 		c.Fatal("did not inspect the assigned charm")
 	}
@@ -331,26 +316,44 @@ func (s *workerSuite) TestCancellationBeforeInitialEvent(c *tc.C) {
 	f.stop(c)
 }
 
-// TestCancellationWhileFortressLocked checks shutdown while waiting for a
-// concurrent charm deployment to finish.
-func (s *workerSuite) TestCancellationWhileFortressLocked(c *tc.C) {
+// TestReconcilesOnceCharmDirAppears checks the worker does not block or die
+// while the uniter is still deploying the charm. The worker must retry
+// silently and converge the workloads as soon as the charm directory is
+// complete, so containers exist before the install hook runs.
+func (s *workerSuite) TestReconcilesOnceCharmDirAppears(c *tc.C) {
 	f := newWorkerFixture(c, imageMetadata)
-	f.customGuest = true
-	visiting := make(chan struct{}, 1)
-	f.guest.EXPECT().Visit(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, _ fortress.Visit) error {
-		visiting <- struct{}{}
-		<-ctx.Done()
-		return ctx.Err()
+	// A unit agent starts before the uniter has deployed any charm.
+	c.Assert(os.RemoveAll(f.charmDir), tc.ErrorIsNil)
+
+	f.resources.EXPECT().GetResource(gomock.Any(), "redis-image").DoAndReturn(func(context.Context, string) (resource.Resource, io.ReadCloser, error) {
+		return imageResource(`{"ImageName":"docker.io/library/redis:7"}`, charmresource.TypeContainerImage)
+	}).AnyTimes()
+	pulled := make(chan struct{}, 1)
+	f.puller.EXPECT().Pull(gomock.Any(), gomock.Any()).DoAndReturn(func(context.Context, docker.DockerImageDetails) error {
+		pulled <- struct{}{}
+		return nil
 	})
 
 	f.start(c)
+	defer f.stop(c)
 	f.changes <- struct{}{}
 	select {
-	case <-visiting:
-	case <-c.Context().Done():
-		c.Fatal("did not wait for the charm directory")
+	case <-pulled:
+		c.Fatal("pulled an image before the charm was deployed")
+	default:
 	}
-	f.stop(c)
+
+	// The uniter finishes deploying the charm, stamping it complete.
+	c.Assert(os.Mkdir(f.charmDir, 0755), tc.ErrorIsNil)
+	c.Assert(os.WriteFile(filepath.Join(f.charmDir, ".juju-charm"), []byte("ch:redis-k8s-1\n"), 0600), tc.ErrorIsNil)
+	c.Assert(os.WriteFile(filepath.Join(f.charmDir, "metadata.yaml"), []byte(imageMetadata), 0600), tc.ErrorIsNil)
+
+	f.changes <- struct{}{}
+	select {
+	case <-pulled:
+	case <-c.Context().Done():
+		c.Fatal("did not reconcile once the charm appeared")
+	}
 }
 
 // TestWatcherFailureStopsWorker checks that a watcher can terminate the worker

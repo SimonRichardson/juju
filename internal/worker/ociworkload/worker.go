@@ -25,7 +25,6 @@ import (
 	charmmeta "github.com/juju/juju/domain/deployment/charm"
 	charmresource "github.com/juju/juju/domain/deployment/charm/resource"
 	"github.com/juju/juju/internal/docker"
-	"github.com/juju/juju/internal/worker/fortress"
 )
 
 const (
@@ -64,9 +63,11 @@ type WorkerConfig struct {
 	// Resources provides the assigned unit's image resource contents.
 	Resources ResourceReader
 	// CharmDir is the directory into which the uniter deploys this charm.
+	// It is read directly rather than through the uniter's charm-dir
+	// fortress: the fortress stays locked until the install hook has run,
+	// but the hook needs the containers this worker creates, so blocking
+	// on the fortress deadlocks the unit.
 	CharmDir string
-	// CharmDirGuest guards reads while the uniter modifies CharmDir.
-	CharmDirGuest fortress.Guest
 	// Puller performs downloads using the host container runtime.
 	Puller ImagePuller
 	// Runtime converges Pebble PID 1 tasks after images have been pulled.
@@ -94,8 +95,6 @@ func (c WorkerConfig) validate() error {
 		return errors.New("missing Resources")
 	case c.CharmDir == "":
 		return errors.New("missing CharmDir")
-	case c.CharmDirGuest == nil:
-		return errors.New("missing CharmDirGuest")
 	case c.Puller == nil:
 		return errors.New("missing Puller")
 	case c.Runtime == nil:
@@ -248,28 +247,29 @@ func (w *workloadWorker) pullImages(ctx context.Context) error {
 		return errCharmNotReady
 	}
 
-	// The uniter locks this fortress while replacing the charm directory.
-	// Read only inside Visit so we never observe partially written metadata.
-	var meta *charmmeta.Meta
-	err = w.config.CharmDirGuest.Visit(ctx, func() error {
-		data, err := os.ReadFile(filepath.Join(w.config.CharmDir, ".juju-charm"))
-		if os.IsNotExist(err) {
-			return errCharmNotReady
-		} else if err != nil {
-			return err
-		}
-
-		var deployedURL string
-		if err := yaml.Unmarshal(data, &deployedURL); err != nil {
-			return err
-		}
-		if deployedURL != url {
-			return errCharmNotReady
-		}
-
-		meta, err = charmmeta.ReadCharmDirMetadata(w.config.CharmDir)
+	// The charm directory is read without the uniter's charm-dir fortress.
+	// The fortress stays locked until the install hook has run, and the
+	// hook needs the containers this reconcile creates, so waiting for it
+	// would deadlock the unit. The .juju-charm stamp is written once the
+	// deployed charm is complete, so a directory still being installed
+	// reads as not ready and is retried; a directory being replaced is
+	// either stamped with the old URL (skipped) or fully swapped.
+	data, err := os.ReadFile(filepath.Join(w.config.CharmDir, ".juju-charm"))
+	if os.IsNotExist(err) {
+		return errCharmNotReady
+	} else if err != nil {
 		return err
-	})
+	}
+
+	var deployedURL string
+	if err := yaml.Unmarshal(data, &deployedURL); err != nil {
+		return err
+	}
+	if deployedURL != url {
+		return errCharmNotReady
+	}
+
+	meta, err := charmmeta.ReadCharmDirMetadata(w.config.CharmDir)
 	if err != nil {
 		return err
 	}

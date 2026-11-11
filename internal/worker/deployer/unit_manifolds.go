@@ -299,7 +299,6 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 		ociWorkloadName: ifNotMigrating(ociworkload.Manifold(ociworkload.ManifoldConfig{
 			AgentName:     agentName,
 			APICallerName: apiCallerName,
-			CharmDirName:  charmDirName,
 			Clock:         config.Clock,
 			Logger:        config.LoggerContext.GetLogger("juju.worker.ociworkload"),
 			NewClients:    ociworkload.NewUnitClients,
