@@ -77,7 +77,8 @@ type WorkerConfig struct {
 	PebbleBinary string
 	// ContainersDir is shared with the machine uniter for Pebble sockets.
 	ContainersDir string
-	// StateDir stores persistent Pebble data and workload logs for this unit.
+	// StateDir stores workload task logs for this unit. Persistent Pebble
+	// state lives in the shared socket directory, seeded from the image.
 	StateDir string
 	// Clock schedules retries and periodic resource reconciliation.
 	Clock clock.Clock
@@ -115,7 +116,14 @@ type workloadWorker struct {
 
 	// Successful pulls are remembered for the lifetime of this worker.
 	pulled map[string][sha256.Size]byte
+	// seenWorkloads records whether any workload has been ensured, so the
+	// worker stops its unit's workloads on death only if it ever started
+	// any.
 	seenWorkloads bool
+	// ensuredContainers holds the sorted container names the runtime has
+	// converged to, so charm metadata changes retire workloads the new
+	// charm no longer declares.
+	ensuredContainers []string
 }
 
 // NewWorker starts a reconciler for one already-assigned machine unit. A
@@ -125,7 +133,11 @@ func NewWorker(config WorkerConfig) (worker.Worker, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	w := &workloadWorker{config: config, pulled: make(map[string][sha256.Size]byte)}
+	w := &workloadWorker{
+		config:            config,
+		pulled:            make(map[string][sha256.Size]byte),
+		ensuredContainers: []string{},
+	}
 	w.tomb.Go(w.run)
 
 	return w, nil
@@ -267,11 +279,19 @@ func (w *workloadWorker) pullImages(ctx context.Context) error {
 		containerNames = append(containerNames, name)
 	}
 	slices.Sort(containerNames)
-	if len(containerNames) == 0 && w.seenWorkloads {
-		if err := w.config.Runtime.RemoveUnit(ctx, w.config.UnitName); err != nil {
-			return fmt.Errorf("removing obsolete unit workloads: %w", err)
+	// The unit's workloads must match the deployed charm: retire any the
+	// metadata no longer declares, mirroring how Kubernetes recreates a pod
+	// with exactly the declared containers.
+	if !slices.Equal(w.ensuredContainers, containerNames) {
+		if len(w.ensuredContainers) > 0 {
+			if err := w.config.Runtime.RemoveContainers(ctx, w.config.UnitName, containerNames); err != nil {
+				return fmt.Errorf("removing obsolete unit workloads: %w", err)
+			}
+			if len(containerNames) == 0 {
+				w.seenWorkloads = false
+			}
 		}
-		w.seenWorkloads = false
+		w.ensuredContainers = containerNames
 	}
 
 	for _, name := range containerNames {

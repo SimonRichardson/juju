@@ -39,8 +39,8 @@ type ManifoldConfig struct {
 	// Runtime converges machine containerd tasks for the assigned unit.
 	Runtime ContainerRuntime
 
-	// NewClients builds unit-authorised clients from the shared API connection.
-	// If nil, the production uniter and resource clients are used.
+	// NewClients builds unit-authorised clients from the shared API
+	// connection. The machine manifold supplies NewUnitClients.
 	NewClients ClientFactory
 }
 
@@ -63,6 +63,8 @@ func (config ManifoldConfig) Validate() error {
 		return errors.New("missing Puller")
 	case config.Runtime == nil:
 		return errors.New("missing Runtime")
+	case config.NewClients == nil:
+		return errors.New("missing NewClients")
 	}
 
 	return nil
@@ -110,11 +112,7 @@ func startManifold(ctx context.Context, getter dependency.Getter, config Manifol
 		return nil, errors.New("OCI workload worker requires a unit agent")
 	}
 
-	newClients := config.NewClients
-	if newClients == nil {
-		newClients = newUnitClients
-	}
-	application, resources, err := newClients(ctx, conn, unitTag)
+	application, resources, err := config.NewClients(ctx, conn, unitTag)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +135,10 @@ func startManifold(ctx context.Context, getter dependency.Getter, config Manifol
 	})
 }
 
-func newUnitClients(ctx context.Context, conn api.Connection, tag names.UnitTag) (Application, ResourceReader, error) {
+// NewUnitClients builds the production uniter application and resource
+// clients scoped to the assigned unit. It does not take ownership of the
+// shared connection managed by the API caller manifold.
+func NewUnitClients(ctx context.Context, conn api.Connection, tag names.UnitTag) (Application, ResourceReader, error) {
 	appName, err := names.UnitApplication(tag.Id())
 	if err != nil {
 		return nil, nil, err

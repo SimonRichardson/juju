@@ -5,6 +5,7 @@ package ociworkload_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/canonical/gomock/gomock"
@@ -60,20 +61,23 @@ func (s *manifoldSuite) TestRejectsInvalidConfigBeforeGettingDependencies(c *tc.
 func (s *manifoldSuite) TestValidateRequiredDependencies(c *tc.C) {
 	ctrl := gomock.NewController(c)
 	valid := ociworkload.ManifoldConfig{
-		AgentName: "agent",
+		AgentName:     "agent",
 		APICallerName: "api-caller",
-		CharmDirName: "charm-dir",
-		Clock: clock.WallClock,
-		Logger: loggertesting.WrapCheckLog(c),
-		Puller: NewMockImagePuller(ctrl),
+		CharmDirName:  "charm-dir",
+		Clock:         clock.WallClock,
+		Logger:        loggertesting.WrapCheckLog(c),
+		NewClients: func(_ context.Context, _ api.Connection, _ names.UnitTag) (ociworkload.Application, ociworkload.ResourceReader, error) {
+			return nil, nil, errors.New("unexpected client construction")
+		},
+		Puller:  NewMockImagePuller(ctrl),
 		Runtime: NewMockContainerRuntime(ctrl),
 	}
 	c.Check(valid.Validate(), tc.ErrorIsNil)
 
 	cases := []struct {
-		name string
+		name    string
 		missing string
-		change func(*ociworkload.ManifoldConfig)
+		change  func(*ociworkload.ManifoldConfig)
 	}{
 		{"agent", "AgentName", func(cfg *ociworkload.ManifoldConfig) { cfg.AgentName = "" }},
 		{"API", "APICallerName", func(cfg *ociworkload.ManifoldConfig) { cfg.APICallerName = "" }},
@@ -82,12 +86,13 @@ func (s *manifoldSuite) TestValidateRequiredDependencies(c *tc.C) {
 		{"logger", "Logger", func(cfg *ociworkload.ManifoldConfig) { cfg.Logger = nil }},
 		{"puller", "Puller", func(cfg *ociworkload.ManifoldConfig) { cfg.Puller = nil }},
 		{"runtime", "Runtime", func(cfg *ociworkload.ManifoldConfig) { cfg.Runtime = nil }},
+		{"client factory", "NewClients", func(cfg *ociworkload.ManifoldConfig) { cfg.NewClients = nil }},
 	}
 	for _, test := range cases {
 		c.Logf("missing %s", test.name)
 		cfg := valid
 		test.change(&cfg)
-		c.Check(cfg.Validate(), tc.ErrorMatches, "missing " + test.missing)
+		c.Check(cfg.Validate(), tc.ErrorMatches, "missing "+test.missing)
 	}
 }
 
@@ -184,8 +189,11 @@ func (s *manifoldSuite) TestRejectsMachineIdentity(c *tc.C) {
 		CharmDirName:  "charm-dir",
 		Clock:         clock.WallClock,
 		Logger:        loggertesting.WrapCheckLog(c),
-		Puller:        NewMockImagePuller(ctrl),
-		Runtime:       NewMockContainerRuntime(ctrl),
+		NewClients: func(_ context.Context, _ api.Connection, _ names.UnitTag) (ociworkload.Application, ociworkload.ResourceReader, error) {
+			return nil, nil, errors.New("unexpected client construction")
+		},
+		Puller:  NewMockImagePuller(ctrl),
+		Runtime: NewMockContainerRuntime(ctrl),
 	})
 	_, err := manifold.Start(c.Context(), getter)
 	c.Assert(err, tc.ErrorMatches, "OCI workload worker requires a unit agent")

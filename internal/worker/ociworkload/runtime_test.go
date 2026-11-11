@@ -18,13 +18,13 @@ import (
 	"github.com/canonical/gomock/gomock"
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/errdefs"
+	"github.com/juju/tc"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/juju/tc"
 
 	coretesting "github.com/juju/juju/internal/testing"
 )
@@ -39,11 +39,12 @@ func TestRuntimeSuite(t *testing.T) {
 }
 
 type runtimeFixture struct {
-	spec    ContainerSpec
-	runtime ContainerdRuntime
-	client  *MockContainerdClient
-	image   *MockImage
-	ctrl    *gomock.Controller
+	spec           ContainerSpec
+	runtime        ContainerdRuntime
+	client         *MockContainerdClient
+	image          *MockImage
+	ctrl           *gomock.Controller
+	charmLayoutDir string
 }
 
 func newRuntimeFixture(c *tc.C) *runtimeFixture {
@@ -59,17 +60,23 @@ func newRuntimeFixture(c *tc.C) *runtimeFixture {
 		client: daemon,
 		image:  image,
 		spec: ContainerSpec{
-			UnitName:      "redis/0",
-			Name:          "redis",
-			Image:         "docker.io/library/redis:7",
-			PebbleBinary:  pebble,
-			ContainersDir: filepath.Join(dir, "containers"),
+			UnitName:     "redis/0",
+			Name:         "redis",
+			Image:        "docker.io/library/redis:7",
+			PebbleBinary: pebble,
+			// The shared socket directory follows the unit agent layout,
+			// which the mirrored socket ownership check validates.
+			ContainersDir: filepath.Join(dir, "agents", "unit-redis-0", "containers"),
 			StateDir:      filepath.Join(dir, "oci"),
 		},
+		charmLayoutDir: filepath.Join(dir, "charm"),
 	}
-	fixture.runtime = ContainerdRuntime{NewClient: func() (ContainerdClient, error) {
-		return daemon, nil
-	}}
+	fixture.runtime = ContainerdRuntime{
+		NewClient: func() (ContainerdClient, error) {
+			return daemon, nil
+		},
+		CharmLayoutDir: fixture.charmLayoutDir,
+	}
 	return fixture
 }
 
@@ -147,9 +154,9 @@ func (s *runtimeSuite) TestEnsureRefreshReplacesTask(c *tc.C) {
 	oldTask := NewMockTask(f.ctrl)
 	f.client.EXPECT().LoadContainer(gomock.Any(), gomock.Any()).Return(oldContainer, nil)
 	oldContainer.EXPECT().Labels(gomock.Any()).Return(map[string]string{
-		unitLabel: f.spec.UnitName,
+		unitLabel:      f.spec.UnitName,
 		containerLabel: f.spec.Name,
-		imageLabel: "old digest",
+		imageLabel:     "old digest",
 	}, nil)
 	oldContainer.EXPECT().Task(gomock.Any(), nil).Return(oldTask, nil)
 	oldTask.EXPECT().Status(gomock.Any()).Return(client.Status{Status: client.Running}, nil)
@@ -328,23 +335,151 @@ func (s *runtimeSuite) TestPebbleSpecMatchesKubernetesWorkload(c *tc.C) {
 		"JUJU_CONTAINER_NAME=redis",
 		"PEBBLE_SOCKET=/charm/container/pebble.socket",
 		"PEBBLE_COPY_ONCE=/var/lib/pebble/default",
+		// Nothing may be mounted over the image's baked-in Pebble layers:
+		// PEBBLE_COPY_ONCE seeds them from /var/lib/pebble/default into
+		// $PEBBLE, which points into the mounted socket directory.
 	} {
 		c.Check(slices.Contains(got.Process.Env, env), tc.IsTrue)
 	}
 	for _, mount := range []struct {
-		path string
+		path   string
 		source string
 	}{
 		{path: "/charm/bin/pebble", source: f.spec.PebbleBinary},
 		{path: "/charm/container", source: filepath.Join(f.spec.ContainersDir, f.spec.Name)},
-		{path: "/var/lib/pebble/default", source: filepath.Join(f.spec.StateDir, f.spec.Name, "pebble")},
 	} {
 		c.Check(slices.ContainsFunc(got.Mounts, func(m specs.Mount) bool {
 			return m.Destination == mount.path && m.Source == mount.source
 		}), tc.IsTrue)
 	}
+	// The image's baked-in Pebble layers must stay visible for
+	// PEBBLE_COPY_ONCE, so nothing may be mounted over /var/lib/pebble.
+	c.Check(slices.ContainsFunc(got.Mounts, func(m specs.Mount) bool {
+		return m.Destination == "/var/lib/pebble/default"
+	}), tc.IsFalse)
 	c.Assert(got.Linux, tc.NotNil)
 	c.Check(slices.ContainsFunc(got.Linux.Namespaces, func(ns specs.LinuxNamespace) bool {
 		return ns.Type == specs.NetworkNamespace
 	}), tc.IsFalse)
+}
+
+// TestEnsureMirrorsCharmContainerLayout checks the runtime presents the
+// paths a Kubernetes charm container would, so unmodified sidecar charms
+// resolve their workload sockets and the Pebble binary.
+func (s *runtimeSuite) TestEnsureMirrorsCharmContainerLayout(c *tc.C) {
+	f := newRuntimeFixture(c)
+	f.expectImage()
+	container := NewMockContainer(f.ctrl)
+	f.client.EXPECT().LoadContainer(gomock.Any(), gomock.Any()).Return(nil, errdefs.ErrNotFound)
+	f.client.EXPECT().NewContainer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(container, nil)
+	container.EXPECT().Task(gomock.Any(), nil).Return(nil, errdefs.ErrNotFound)
+	task := NewMockTask(f.ctrl)
+	container.EXPECT().NewTask(gomock.Any(), gomock.Any()).Return(task, nil)
+	task.EXPECT().Start(gomock.Any()).Return(nil)
+
+	c.Assert(f.runtime.Ensure(c.Context(), f.spec), tc.ErrorIsNil)
+
+	socketLink := filepath.Join(f.charmLayoutDir, "containers", f.spec.Name, "pebble.socket")
+	target, err := os.Readlink(socketLink)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(target, tc.Equals, filepath.Join(f.spec.ContainersDir, f.spec.Name, "pebble.socket"))
+
+	pebbleLink := filepath.Join(f.charmLayoutDir, "bin", "pebble")
+	target, err = os.Readlink(pebbleLink)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(target, tc.Equals, f.spec.PebbleBinary)
+
+	// Reconciling the mirrors again leaves them stable.
+	c.Assert(f.runtime.mirrorCharmContainerLayout(f.spec), tc.ErrorIsNil)
+	target, err = os.Readlink(socketLink)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(target, tc.Equals, filepath.Join(f.spec.ContainersDir, f.spec.Name, "pebble.socket"))
+}
+
+// TestEnsureRefusesForeignMirror checks a mirrored socket pointing at
+// another unit's workload is never repointed, so same-named containers of
+// different units cannot silently swap workloads. The mirror is created
+// before the containerd connection, so no containerd calls are expected.
+func (s *runtimeSuite) TestEnsureRefusesForeignMirror(c *tc.C) {
+	f := newRuntimeFixture(c)
+
+	link := filepath.Join(f.charmLayoutDir, "containers", f.spec.Name, "pebble.socket")
+	c.Assert(os.MkdirAll(filepath.Dir(link), 0700), tc.ErrorIsNil)
+	c.Assert(os.Symlink("/var/lib/juju/agents/unit-other-0/containers/redis/pebble.socket", link), tc.ErrorIsNil)
+
+	err := f.runtime.Ensure(c.Context(), f.spec)
+	c.Check(err, tc.ErrorMatches, `mirroring Pebble socket for container "redis": .*already points at.*`)
+}
+
+// TestRemoveContainersKeepsDeclaredContainers checks the container set is
+// reconciled against the charm metadata: kept containers and their mirrors
+// survive, undeclared ones are stopped and unmirrored.
+func (s *runtimeSuite) TestRemoveContainersKeepsDeclaredContainers(c *tc.C) {
+	f := newRuntimeFixture(c)
+	socketLink := filepath.Join(f.charmLayoutDir, "containers", f.spec.Name, "pebble.socket")
+	c.Assert(os.MkdirAll(filepath.Dir(socketLink), 0700), tc.ErrorIsNil)
+	c.Assert(os.Symlink(
+		filepath.Join(f.spec.ContainersDir, f.spec.Name, "pebble.socket"), socketLink), tc.ErrorIsNil)
+
+	stale := NewMockContainer(f.ctrl)
+	staleTask := NewMockTask(f.ctrl)
+	kept := NewMockContainer(f.ctrl)
+	f.client.EXPECT().Containers(gomock.Any()).Return([]client.Container{stale, kept}, nil)
+	f.client.EXPECT().Close().Return(nil)
+	stale.EXPECT().Labels(gomock.Any()).Return(map[string]string{
+		unitLabel:      f.spec.UnitName,
+		containerLabel: "mysql",
+	}, nil)
+	stale.EXPECT().Task(gomock.Any(), nil).Return(staleTask, nil)
+	staleTask.EXPECT().Status(gomock.Any()).Return(client.Status{Status: client.Running}, nil)
+	stop := make(chan client.ExitStatus, 1)
+	stop <- *client.NewExitStatus(0, time.Time{}, nil)
+	staleTask.EXPECT().Wait(gomock.Any()).Return(stop, nil)
+	staleTask.EXPECT().Kill(gomock.Any(), syscall.SIGTERM).Return(nil)
+	staleTask.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil, nil)
+	stale.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
+	kept.EXPECT().Labels(gomock.Any()).Return(map[string]string{
+		unitLabel:      f.spec.UnitName,
+		containerLabel: f.spec.Name,
+	}, nil)
+
+	c.Assert(f.runtime.RemoveContainers(c.Context(), f.spec.UnitName, []string{f.spec.Name}), tc.ErrorIsNil)
+
+	_, err := os.Lstat(socketLink)
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+// TestRemoveContainersRemovesMirror checks retiring a container also
+// retires its mirrored socket, but leaves mirrors of other units alone.
+func (s *runtimeSuite) TestRemoveContainersRemovesMirror(c *tc.C) {
+	f := newRuntimeFixture(c)
+	owned := filepath.Join(f.charmLayoutDir, "containers", f.spec.Name, "pebble.socket")
+	c.Assert(os.MkdirAll(filepath.Dir(owned), 0700), tc.ErrorIsNil)
+	c.Assert(os.Symlink(
+		filepath.Join(f.spec.ContainersDir, f.spec.Name, "pebble.socket"), owned), tc.ErrorIsNil)
+	foreign := filepath.Join(f.charmLayoutDir, "containers", "mysql", "pebble.socket")
+	c.Assert(os.MkdirAll(filepath.Dir(foreign), 0700), tc.ErrorIsNil)
+	// A container of another unit on the same machine; the link points
+	// into that unit's agents directory and must be left alone.
+	foreignTarget := "/var/lib/juju/agents/unit-other-0/containers/mysql/pebble.socket"
+	c.Assert(os.Symlink(foreignTarget, foreign), tc.ErrorIsNil)
+
+	container := NewMockContainer(f.ctrl)
+	f.client.EXPECT().Containers(gomock.Any()).Return([]client.Container{container}, nil)
+	f.client.EXPECT().Close().Return(nil)
+	container.EXPECT().Labels(gomock.Any()).Return(map[string]string{
+		unitLabel:      f.spec.UnitName,
+		containerLabel: f.spec.Name,
+	}, nil)
+	container.EXPECT().Task(gomock.Any(), nil).Return(nil, errdefs.ErrNotFound)
+	container.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
+
+	c.Assert(f.runtime.RemoveUnit(c.Context(), f.spec.UnitName), tc.ErrorIsNil)
+
+	_, err := os.Lstat(owned)
+	c.Check(os.IsNotExist(err), tc.IsTrue)
+
+	target, err := os.Readlink(foreign)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(target, tc.Equals, foreignTarget)
 }

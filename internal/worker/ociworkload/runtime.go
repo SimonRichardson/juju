@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/errdefs"
+	"github.com/juju/names/v6"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -30,6 +33,15 @@ const (
 	imageLabel     = "com.canonical.juju.image"
 	specLabel      = "com.canonical.juju.spec"
 	stopDelay      = 10 * time.Second
+
+	// charmLayoutSubdirs hold the paths a Kubernetes charm container
+	// presents below its root: charm code, notably the ops framework,
+	// resolves every workload's Pebble socket as
+	// <root>/containers/<name>/pebble.socket and the Pebble binary as
+	// <root>/bin/pebble.
+	charmLayoutContainersSubdir = "containers"
+	charmLayoutBinSubdir        = "bin"
+	pebbleSocketName            = "pebble.socket"
 )
 
 // ContainerSpec describes one Pebble-managed OCI workload on a Juju machine.
@@ -45,8 +57,10 @@ type ContainerSpec struct {
 	// PebbleBinary is the agent-tools Pebble binary mounted read-only into the
 	// image and launched as PID 1.
 	PebbleBinary string
-	// ContainersDir holds unit-scoped Unix sockets. StateDir holds persistent
-	// Pebble state and task logs across image refreshes and worker restarts.
+	// ContainersDir holds the unit's shared socket directory per container:
+	// the Pebble socket and the persistent Pebble state seeded from the
+	// image by PEBBLE_COPY_ONCE, like a Kubernetes charm volume. StateDir
+	// holds workload task logs.
 	ContainersDir string
 	StateDir      string
 	// UID and GID override the image's user when supplied by charm metadata.
@@ -55,11 +69,15 @@ type ContainerSpec struct {
 }
 
 // ContainerRuntime converges each declared workload to a running Pebble task.
-// Ensure is idempotent across worker and machine restarts. RemoveUnit stops
-// only containers owned by the named unit; it retains persistent Pebble state
-// so temporary agent restarts do not lose the charm's service plan.
+// Ensure is idempotent across worker and machine restarts, and mirrors the
+// Kubernetes charm container layout on the host. RemoveContainers stops the
+// unit's containers except those kept, so charm metadata changes retire the
+// workloads it no longer declares; an empty keep set stops all of them.
+// Persistent Pebble state is retained either way, so temporary agent
+// restarts do not lose the charm's service plan.
 type ContainerRuntime interface {
 	Ensure(context.Context, ContainerSpec) error
+	RemoveContainers(context.Context, string, []string) error
 	RemoveUnit(context.Context, string) error
 }
 
@@ -88,6 +106,13 @@ func NewContainerdClient() (ContainerdClient, error) {
 type ContainerdRuntime struct {
 	// NewClient is supplied by the unit manifold and owns each connection.
 	NewClient ContainerdClientFactory
+	// CharmLayoutDir is the root at which the runtime mirrors the paths a
+	// Kubernetes charm container presents, so unmodified sidecar charms
+	// resolve their workload sockets and the Pebble binary. The machine
+	// manifold supplies /charm; an empty root disables the mirror. The
+	// layout is per-machine like the host, not per-pod, so two units on
+	// one machine cannot declare same-named containers.
+	CharmLayoutDir string
 }
 
 // Ensure starts Pebble as PID 1, or adopts a healthy task from a previous
@@ -101,6 +126,9 @@ func (r ContainerdRuntime) Ensure(ctx context.Context, spec ContainerSpec) error
 		return fmt.Errorf("accessing Pebble binary: %w", err)
 	}
 	if err := ensureWorkloadDirs(spec); err != nil {
+		return err
+	}
+	if err := r.mirrorCharmContainerLayout(spec); err != nil {
 		return err
 	}
 
@@ -164,6 +192,14 @@ func (r ContainerdRuntime) Ensure(ctx context.Context, spec ContainerSpec) error
 // longer present in the current charm metadata. Images remain in the shared
 // content store for other units and for subsequent restarts.
 func (r ContainerdRuntime) RemoveUnit(ctx context.Context, unitName string) error {
+	return r.RemoveContainers(ctx, unitName, nil)
+}
+
+// RemoveContainers stops every task owned by the unit except those naming a
+// kept container, so containers no longer present in the current charm
+// metadata are removed while upgrades retain the rest. The mirrored
+// /charm/containers layout follows the unit's containers.
+func (r ContainerdRuntime) RemoveContainers(ctx context.Context, unitName string, keep []string) error {
 	if unitName == "" {
 		return errors.New("missing unit name")
 	}
@@ -177,15 +213,22 @@ func (r ContainerdRuntime) RemoveUnit(ctx context.Context, unitName string) erro
 	if err != nil {
 		return fmt.Errorf("listing Juju workload containers: %w", err)
 	}
+	keepSet := make(map[string]bool, len(keep))
+	for _, name := range keep {
+		keepSet[name] = true
+	}
 	for _, container := range containers {
 		labels, err := container.Labels(ctx)
 		if err != nil {
 			return fmt.Errorf("reading workload ownership: %w", err)
 		}
-		if labels[unitLabel] != unitName {
+		if labels[unitLabel] != unitName || keepSet[labels[containerLabel]] {
 			continue
 		}
 		if err := removeContainer(ctx, container); err != nil {
+			return err
+		}
+		if err := r.removeCharmContainerMirror(names.NewUnitTag(unitName).String(), labels[containerLabel]); err != nil {
 			return err
 		}
 	}
@@ -226,10 +269,10 @@ func workloadLabels(spec ContainerSpec, imageDigest string) (map[string]string, 
 	}
 	digest := sha256.Sum256(data)
 	return map[string]string{
-		unitLabel: spec.UnitName,
+		unitLabel:      spec.UnitName,
 		containerLabel: spec.Name,
-		imageLabel: imageDigest,
-		specLabel: hex.EncodeToString(digest[:]),
+		imageLabel:     imageDigest,
+		specLabel:      hex.EncodeToString(digest[:]),
 	}, nil
 }
 
@@ -248,7 +291,7 @@ func ensureWorkloadDirs(spec ContainerSpec) error {
 
 	for _, dir := range []string{
 		filepath.Join(spec.ContainersDir, spec.Name),
-		filepath.Join(spec.StateDir, spec.Name, "pebble"),
+		filepath.Join(spec.StateDir, spec.Name),
 	} {
 		if err := os.MkdirAll(dir, 0777); err != nil {
 			return fmt.Errorf("creating workload directory %q: %w", dir, err)
@@ -258,6 +301,99 @@ func ensureWorkloadDirs(spec ContainerSpec) error {
 		if err := os.Chmod(dir, 0777); err != nil {
 			return fmt.Errorf("setting workload permissions %q: %w", dir, err)
 		}
+	}
+	return nil
+}
+
+// mirrorCharmContainerLayout makes the machine host present the paths a
+// Kubernetes charm container would: the workload's Pebble socket at
+// <CharmLayoutDir>/containers/<name>/pebble.socket, resolved directly by
+// charm code, and the Pebble binary at <CharmLayoutDir>/bin/pebble. The
+// mirror stays private to the machine agent, like the socket directory it
+// points into.
+func (r ContainerdRuntime) mirrorCharmContainerLayout(spec ContainerSpec) error {
+	if r.CharmLayoutDir == "" {
+		return nil
+	}
+	socketLink := filepath.Join(r.CharmLayoutDir, charmLayoutContainersSubdir, spec.Name, pebbleSocketName)
+	socketTarget := filepath.Join(spec.ContainersDir, spec.Name, pebbleSocketName)
+	if err := ensureOwnedSymlink(socketLink, socketTarget); err != nil {
+		return fmt.Errorf("mirroring Pebble socket for container %q: %w", spec.Name, err)
+	}
+
+	// The Pebble binary is identical for every unit on the machine, so an
+	// existing mirror is tolerated rather than treated as a conflict.
+	pebbleLink := filepath.Join(r.CharmLayoutDir, charmLayoutBinSubdir, "pebble")
+	if err := ensureSymlink(pebbleLink, spec.PebbleBinary); err != nil {
+		return fmt.Errorf("mirroring Pebble binary: %w", err)
+	}
+	return nil
+}
+
+// ensureSymlink points link at target, creating it if absent. An existing
+// entry is left alone: the mirrored Pebble binary is identical for every
+// unit, and repointing it would serve no one.
+func ensureSymlink(link, target string) error {
+	if _, err := os.Readlink(link); err == nil {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(link), 0700); err != nil {
+		return fmt.Errorf("creating mirror parent %q: %w", filepath.Dir(link), err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		// Another unit mirrored first; the binaries are identical.
+		if _, err := os.Readlink(link); err == nil {
+			return nil
+		}
+		return fmt.Errorf("creating mirror %q: %w", link, err)
+	}
+	return nil
+}
+
+// ensureOwnedSymlink points link at target, creating it if absent. Unlike
+// ensureSymlink, an existing entry pointing elsewhere is an error: a socket
+// mirror belongs to exactly one unit, and silently repointing it would
+// connect another unit's charm to this unit's workload.
+func ensureOwnedSymlink(link, target string) error {
+	switch existing, err := os.Readlink(link); {
+	case err == nil:
+		if existing != target {
+			return fmt.Errorf("mirror %q already points at %q", link, existing)
+		}
+		return nil
+	case errors.Is(err, fs.ErrNotExist):
+		if err := os.MkdirAll(filepath.Dir(link), 0700); err != nil {
+			return fmt.Errorf("creating mirror parent %q: %w", filepath.Dir(link), err)
+		}
+		if err := os.Symlink(target, link); err != nil {
+			return fmt.Errorf("creating mirror %q: %w", link, err)
+		}
+		return nil
+	default:
+		// The path exists but is not a symlink.
+		return fmt.Errorf("mirror %q exists and is not a symlink", link)
+	}
+}
+
+// removeCharmContainerMirror removes the mirrored socket link of the named
+// container of the named unit. Links pointing into another unit's socket
+// directory are left alone, so same-named containers of other units keep
+// their mirrors.
+func (r ContainerdRuntime) removeCharmContainerMirror(unitTag, containerName string) error {
+	if r.CharmLayoutDir == "" {
+		return nil
+	}
+	link := filepath.Join(r.CharmLayoutDir, charmLayoutContainersSubdir, containerName, pebbleSocketName)
+	target, err := os.Readlink(link)
+	if err != nil {
+		// Absent, or foreign content this unit never owned.
+		return nil
+	}
+	if !strings.Contains(target, filepath.Join("agents", unitTag, "containers")) {
+		return nil
+	}
+	if err := os.RemoveAll(filepath.Join(r.CharmLayoutDir, charmLayoutContainersSubdir, containerName)); err != nil {
+		return fmt.Errorf("removing Pebble socket mirror for container %q: %w", containerName, err)
 	}
 	return nil
 }
@@ -285,11 +421,15 @@ func createWorkload(ctx context.Context, conn ContainerdClient, id string, spec 
 // pebbleSpecOptions mirror the K8s workload's command, environment and
 // shared mounts. The caller applies image configuration first, then these
 // overrides, so the image entrypoint cannot replace Pebble as PID 1.
+//
+// Like a Kubernetes workload container, nothing is mounted at
+// /var/lib/pebble: images bake their Pebble layers there, and
+// PEBBLE_COPY_ONCE seeds them into $PEBBLE, which points into the mounted
+// socket directory and so persists on the host.
 func pebbleSpecOptions(spec ContainerSpec) []oci.SpecOpts {
 	mounts := []specs.Mount{
 		{Destination: "/charm/bin/pebble", Type: "bind", Source: spec.PebbleBinary, Options: []string{"rbind", "ro"}},
 		{Destination: "/charm/container", Type: "bind", Source: filepath.Join(spec.ContainersDir, spec.Name), Options: []string{"rbind", "rw"}},
-		{Destination: "/var/lib/pebble/default", Type: "bind", Source: filepath.Join(spec.StateDir, spec.Name, "pebble"), Options: []string{"rbind", "rw"}},
 	}
 	options := []oci.SpecOpts{
 		oci.WithProcessArgs("/charm/bin/pebble", "run", "--create-dirs", "--hold", "--verbose"),

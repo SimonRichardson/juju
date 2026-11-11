@@ -302,8 +302,15 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			CharmDirName:  charmDirName,
 			Clock:         config.Clock,
 			Logger:        config.LoggerContext.GetLogger("juju.worker.ociworkload"),
+			NewClients:    ociworkload.NewUnitClients,
 			Puller:        ociworkload.Puller{NewClient: ociworkload.NewContainerdClient},
-			Runtime:       ociworkload.ContainerdRuntime{NewClient: ociworkload.NewContainerdClient},
+			// Machine workloads present the same layout a Kubernetes
+			// charm container would, so unmodified sidecar charms
+			// resolve their Pebble sockets.
+			Runtime: ociworkload.ContainerdRuntime{
+				NewClient:      ociworkload.NewContainerdClient,
+				CharmLayoutDir: "/charm",
+			},
 		})),
 
 		traceName: trace.Manifold(trace.ManifoldConfig{

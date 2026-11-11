@@ -54,20 +54,20 @@ func TestWorkerSuite(t *testing.T) {
 }
 
 type workerFixture struct {
-	application *MockApplication
-	resources   *MockResourceReader
-	puller      *MockImagePuller
-	runtime     *MockContainerRuntime
-	guest       *MockGuest
-	changes     chan struct{}
-	watch       *watchertest.MockNotifyWatcher
-	queries     chan struct{}
-	clock       clock.Clock
-	charmDir    string
-	worker      worker.Worker
-	customGuest bool
+	application   *MockApplication
+	resources     *MockResourceReader
+	puller        *MockImagePuller
+	runtime       *MockContainerRuntime
+	guest         *MockGuest
+	changes       chan struct{}
+	watch         *watchertest.MockNotifyWatcher
+	queries       chan struct{}
+	clock         clock.Clock
+	charmDir      string
+	worker        worker.Worker
+	customGuest   bool
 	customRuntime bool
-	logger      logger.Logger
+	logger        logger.Logger
 }
 
 func newWorkerFixture(c *tc.C, metadata string) *workerFixture {
@@ -360,4 +360,67 @@ func (s *workerSuite) TestWatcherFailureStopsWorker(c *tc.C) {
 	f.start(c)
 	f.watch.KillErr(errors.New("watch failed"))
 	c.Check(f.worker.Wait(), tc.ErrorMatches, "watch failed")
+}
+
+const imageMetadataTwoContainers = `name: redis-k8s
+summary: Redis workload
+description: Redis workload
+containers:
+  redis:
+    resource: redis-image
+  mysql:
+    resource: mysql-image
+resources:
+  redis-image:
+    type: oci-image
+    description: Redis image
+  mysql-image:
+    type: oci-image
+    description: MySQL image
+`
+
+// TestRetiresContainersRemovedFromMetadata checks a charm upgrade dropping
+// one of several containers retires exactly the removed workload, like
+// Kubernetes recreating a pod with only the declared containers.
+func (s *workerSuite) TestRetiresContainersRemovedFromMetadata(c *tc.C) {
+	f := newWorkerFixture(c, imageMetadataTwoContainers)
+	// The kept container is re-read on every reconcile; the removed one
+	// only before the upgrade.
+	f.resources.EXPECT().GetResource(gomock.Any(), "redis-image").Return(imageResource(
+		`{"ImageName":"docker.io/library/redis:7"}`, charmresource.TypeContainerImage)).Times(2)
+	f.resources.EXPECT().GetResource(gomock.Any(), "mysql-image").Return(imageResource(
+		`{"ImageName":"docker.io/library/mysql:8"}`, charmresource.TypeContainerImage))
+	pulled := make(chan string, 2)
+	f.puller.EXPECT().Pull(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, image docker.DockerImageDetails) error {
+		pulled <- image.RegistryPath
+		return nil
+	}).Times(2)
+	// The upgraded metadata keeps redis, so mysql is retired.
+	retired := make(chan []string, 1)
+	f.runtime.EXPECT().RemoveContainers(gomock.Any(), "redis/0", []string{"redis"}).DoAndReturn(
+		func(_ context.Context, _ string, keep []string) error {
+			retired <- keep
+			return nil
+		})
+
+	f.start(c)
+	defer f.stop(c)
+	f.changes <- struct{}{}
+	for range 2 {
+		select {
+		case <-pulled:
+		case <-c.Context().Done():
+			c.Fatal("initial images were not pulled")
+		}
+	}
+
+	// Upgrade the charm to metadata declaring only redis.
+	c.Assert(os.WriteFile(filepath.Join(f.charmDir, "metadata.yaml"), []byte(imageMetadata), 0644), tc.ErrorIsNil)
+	f.changes <- struct{}{}
+	select {
+	case keep := <-retired:
+		c.Check(keep, tc.DeepEquals, []string{"redis"})
+	case <-c.Context().Done():
+		c.Fatal("removed container was not retired")
+	}
 }

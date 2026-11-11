@@ -8,8 +8,8 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/containerd/containerd/v2/core/remotes/docker"
 	"github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/remotes/docker"
 	"github.com/distribution/reference"
 	"github.com/juju/errors"
 

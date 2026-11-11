@@ -177,9 +177,10 @@ type MockContainerRuntime struct {
 
 // MockContainerRuntimeMockRecorder is the mock recorder for MockContainerRuntime.
 type MockContainerRuntimeMockRecorder struct {
-	mock              *MockContainerRuntime
-	ensureExpects     []*gomock.Call2_1[context.Context, ociworkload.ContainerSpec, error]
-	removeUnitExpects []*gomock.Call2_1[context.Context, string, error]
+	mock                    *MockContainerRuntime
+	ensureExpects           []*gomock.Call2_1[context.Context, ociworkload.ContainerSpec, error]
+	removeContainersExpects []*gomock.Call3_1[context.Context, string, []string, error]
+	removeUnitExpects       []*gomock.Call2_1[context.Context, string, error]
 }
 
 // NewMockContainerRuntime creates a new mock instance.
@@ -211,6 +212,24 @@ func (mr *MockContainerRuntimeMockRecorder) Ensure(arg0, arg1 any) *MockContaine
 
 // MockContainerRuntimeEnsureCall is the typed call wrapper for Ensure.
 type MockContainerRuntimeEnsureCall = gomock.Call2_1[context.Context, ociworkload.ContainerSpec, error]
+
+// RemoveContainers mocks base method.
+func (m *MockContainerRuntime) RemoveContainers(arg0 context.Context, arg1 string, arg2 []string) error {
+	m.ctrl.T.Helper()
+	return gomock.Dispatch3_1(&m.recorder.removeContainersExpects, m.ctrl, m, "RemoveContainers", arg0, arg1, arg2)
+}
+
+// RemoveContainers indicates an expected call of RemoveContainers.
+func (mr *MockContainerRuntimeMockRecorder) RemoveContainers(arg0, arg1, arg2 any) *MockContainerRuntimeRemoveContainersCall {
+	mr.mock.ctrl.T.Helper()
+	call := gomock.NewCall3_1[context.Context, string, []string, error](mr.mock.ctrl.T, mr.mock, "RemoveContainers", gomock.EnsureMatcher(arg0), gomock.EnsureMatcher(arg1), gomock.EnsureMatcher(arg2))
+	mr.removeContainersExpects = append(mr.removeContainersExpects, call)
+	mr.mock.ctrl.Track(call.Call)
+	return call
+}
+
+// MockContainerRuntimeRemoveContainersCall is the typed call wrapper for RemoveContainers.
+type MockContainerRuntimeRemoveContainersCall = gomock.Call3_1[context.Context, string, []string, error]
 
 // RemoveUnit mocks base method.
 func (m *MockContainerRuntime) RemoveUnit(arg0 context.Context, arg1 string) error {
