@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"syscall"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
@@ -125,6 +126,9 @@ type Uniter struct {
 	// charmContainerNames, if non-nil, derives the workload container names
 	// from the deployed charm; see UniterParams.CharmContainerNames.
 	charmContainerNames func(charmDir string) ([]string, error)
+	// hookCredential, if non-nil, derives the user hook processes run as
+	// from the deployed charm; see UniterParams.HookCredential.
+	hookCredential func(charmDir string) (*syscall.Credential, error)
 	// updateWorkloadContainers forwards container set changes of a deployed
 	// charm to the workload monitor. It is nil until the uniter finishes
 	// initialising, before which no charm can be deployed.
@@ -196,9 +200,15 @@ type UniterParams struct {
 	// installs and upgrades, while pod-hosted units are replaced with
 	// their containers whenever the set changes.
 	CharmContainerNames func(charmDir string) ([]string, error)
-	PebbleSocketDir     string
-	NewPebbleClient     NewPebbleClientFunc
-	Tracer              coretrace.Tracer
+	// HookCredential, if non-nil, derives the user hook processes run as
+	// from the charm deployed at a charm directory. Machine manifolds use
+	// it so hook processes follow the deployed charm's charm-user, while
+	// pod-hosted units leave it nil: their container user is already set
+	// through the pod security context.
+	HookCredential  func(charmDir string) (*syscall.Credential, error)
+	PebbleSocketDir string
+	NewPebbleClient NewPebbleClientFunc
+	Tracer          coretrace.Tracer
 }
 
 // NewOperationExecutorFunc is a func which returns an operations.Executor.
@@ -251,6 +261,7 @@ func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
 			enforcedCharmModifiedVersion: uniterParams.EnforcedCharmModifiedVersion,
 			containerNames:               uniterParams.ContainerNames,
 			charmContainerNames:          uniterParams.CharmContainerNames,
+			hookCredential:               uniterParams.HookCredential,
 			pebbleSocketDir:              uniterParams.PebbleSocketDir,
 			newPebbleClient:              uniterParams.NewPebbleClient,
 			shutdownChannel:              make(chan bool, 1),
@@ -786,6 +797,7 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 			charmContainers: u.charmContainerNames,
 			containers:      func() []string { return u.containerNames },
 			onChange:        u.setCharmContainers,
+			hookCredential:  u.hookCredential,
 			logger:          u.logger.Child("charm"),
 		}
 	}
@@ -806,7 +818,7 @@ func (u *Uniter) init(ctx stdcontext.Context, unitTag names.UnitTag) (err error)
 		return err
 	}
 	runnerFactory, err := runner.NewFactory(
-		u.paths, contextFactory, u.newProcessRunner,
+		u.paths, contextFactory, u.newProcessRunner, u.hookCredential,
 	)
 	if err != nil {
 		return errors.Trace(err)

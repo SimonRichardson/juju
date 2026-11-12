@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 	"github.com/juju/juju/internal/worker/uniter/runner/context"
 	"github.com/juju/juju/internal/worker/uniter/runner/debug"
 	"github.com/juju/juju/internal/worker/uniter/runner/jujuc"
+	"github.com/juju/juju/juju/sockets"
 )
 
 // Logger is here to stop the desire of creating a package level Logger.
@@ -93,13 +95,23 @@ type NewRunnerFunc func(context context.Context, paths context.Paths, options ..
 type Option func(*options)
 
 type options struct {
-	executor ExecFunc
+	executor   ExecFunc
+	credential *syscall.Credential
 }
 
 // WithExecutor passes a custom executor to the runner.
 func WithExecutor(executor ExecFunc) Option {
 	return func(o *options) {
 		o.executor = executor
+	}
+}
+
+// WithProcessCredential passes the credential charm hook processes are run
+// under. A nil credential leaves hook processes running as the unit agent
+// user.
+func WithProcessCredential(credential *syscall.Credential) Option {
+	return func(o *options) {
+		o.credential = credential
 	}
 }
 
@@ -116,9 +128,10 @@ func NewRunner(context context.Context, paths context.Paths, options ...Option) 
 		option(opts)
 	}
 	return &runner{
-		context:  context,
-		paths:    paths,
-		executor: opts.executor,
+		context:    context,
+		paths:      paths,
+		executor:   opts.executor,
+		credential: opts.credential,
 	}
 }
 
@@ -165,6 +178,9 @@ type runner struct {
 	paths   context.Paths
 	// executor executes commands on a remote workload pod for CAAS.
 	executor ExecFunc
+	// credential is the user charm hook processes run as; nil leaves them
+	// running as the unit agent user.
+	credential *syscall.Credential
 }
 
 func (runner *runner) logger() corelogger.Logger {
@@ -451,6 +467,9 @@ const (
 // Check still tested
 func (runner *runner) runCharmProcessOnLocal(hook, hookName, charmDir string, env []string) error {
 	ps := exec.Command(hook)
+	if credential := runner.processCredential(); credential != nil {
+		ps.SysProcAttr = &syscall.SysProcAttr{Credential: credential}
+	}
 	ps.Env = env
 	ps.Dir = charmDir
 	outReader, outWriter, err := os.Pipe()
@@ -574,12 +593,55 @@ func (runner *runner) startJujucServer(ctx stdcontext.Context) (*jujuc.Server, e
 
 	socket := runner.paths.GetJujucServerSocket()
 	runner.logger().Debugf(ctx, "starting jujuc server %v", socket)
-	srv, err := jujuc.NewServer(ctx, getCmd, socket)
+	listener, err := sockets.Listen(socket)
 	if err != nil {
+		return nil, errors.Annotate(err, "listening to jujuc socket")
+	}
+	if err := runner.grantHookUserSocket(listener); err != nil {
+		_ = listener.Close()
+		return nil, errors.Annotate(err, "granting hook user access to jujuc socket")
+	}
+	srv, err := jujuc.NewServer(ctx, getCmd, listener)
+	if err != nil {
+		_ = listener.Close()
 		return nil, errors.Annotate(err, "starting jujuc server")
 	}
+	// Run must start before Close is ever called, as Close blocks until
+	// Run returns.
 	go func() { _ = srv.Run() }()
 	return srv, nil
+}
+
+// processCredential returns the credential to run charm hook processes
+// under, or nil when the unit agent already runs as the required user. A
+// credential equal to the agent's own user cannot be applied without group
+// manipulation privileges, and would leave the process as it is anyway.
+func (runner *runner) processCredential() *syscall.Credential {
+	if runner.credential == nil {
+		return nil
+	}
+	if runner.credential.Uid == uint32(os.Geteuid()) &&
+		runner.credential.Gid == uint32(os.Getegid()) {
+		return nil
+	}
+	return runner.credential
+}
+
+// grantHookUserSocket hands the jujuc socket to the user hook processes run
+// as. The socket is created private to the unit agent user, so without this
+// a hook running as the charm user cannot reach its own hook tool commands.
+func (runner *runner) grantHookUserSocket(listener net.Listener) error {
+	if runner.credential == nil {
+		return nil
+	}
+	addr, ok := listener.Addr().(*net.UnixAddr)
+	if !ok || strings.HasPrefix(addr.Name, "@") {
+		return nil
+	}
+	if err := os.Chown(addr.Name, int(runner.credential.Uid), int(runner.credential.Gid)); err != nil {
+		return errors.Trace(err)
+	}
+	return errors.Trace(os.Chmod(addr.Name, 0o660))
 }
 
 // getLogger returns the logger for a particular unit's hook.

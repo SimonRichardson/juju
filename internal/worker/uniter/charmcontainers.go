@@ -7,7 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"syscall"
 
 	"github.com/juju/juju/core/logger"
 	charmmeta "github.com/juju/juju/domain/deployment/charm"
@@ -53,13 +56,20 @@ type charmContainerDeployer struct {
 	// onChange records a changed container set with the uniter and its
 	// workload monitor.
 	onChange func([]string)
-	logger   logger.Logger
+	// hookCredential derives the user hook processes run as from the
+	// charm deployed in charmDir. A nil credential leaves the deployed
+	// files owned by the unit agent user.
+	hookCredential func(charmDir string) (*syscall.Credential, error)
+	logger         logger.Logger
 }
 
 // Deploy deploys the staged charm, then reconciles the uniter's container
 // names with the deployed charm metadata.
 func (d *charmContainerDeployer) Deploy() error {
 	if err := d.Deployer.Deploy(); err != nil {
+		return err
+	}
+	if err := d.reconcileCharmOwnership(); err != nil {
 		return err
 	}
 	names, err := d.charmContainers(d.charmDir)
@@ -73,4 +83,39 @@ func (d *charmContainerDeployer) Deploy() error {
 		d.onChange(names)
 	}
 	return nil
+}
+
+// reconcileCharmOwnership hands the deployed charm to the user its hook
+// processes run as. Hooks run as the charm user only when the charm
+// declares itself through charm-user, and the deployed files must be
+// writable by that user for the charm to run at all; every deploy
+// reconciles the ownership so a changed charm-user takes effect on
+// upgrade.
+func (d *charmContainerDeployer) reconcileCharmOwnership() error {
+	if d.hookCredential == nil {
+		return nil
+	}
+	credential, err := d.hookCredential(d.charmDir)
+	if err != nil {
+		return fmt.Errorf("deriving hook user of deployed charm: %w", err)
+	}
+	if credential == nil {
+		return nil
+	}
+	if err := chownTree(d.charmDir, int(credential.Uid), int(credential.Gid)); err != nil {
+		return fmt.Errorf("granting charm to hook user %d:%d: %w",
+			credential.Uid, credential.Gid, err)
+	}
+	return nil
+}
+
+// chownTree changes the owner of every file under dir without following
+// symlinks.
+func chownTree(dir string, uid, gid int) error {
+	return filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Lchown(path, uid, gid)
+	})
 }

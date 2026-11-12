@@ -293,6 +293,7 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			TranslateResolverErr:  uniter.TranslateFortressErrors,
 			Logger:                config.LoggerContext.GetLogger("juju.worker.uniter"),
 			CharmContainerNames:   uniter.CharmDirContainerNames,
+			HookCredential:        uniter.CharmDirHookCredential,
 			PebbleSocketDir:       config.PebbleSocketDir,
 		})),
 
