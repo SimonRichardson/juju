@@ -279,6 +279,8 @@ func (b *buildSuite) setUpFakeBinaries(c *tc.C, versionFile string) string {
 	c.Assert(err, tc.ErrorIsNil)
 	err = os.WriteFile(filepath.Join(dir, "jujuagentd"), []byte(fakeBinary), 0755)
 	c.Assert(err, tc.ErrorIsNil)
+	err = os.WriteFile(filepath.Join(dir, "pebble"), []byte(fakeBinary), 0755)
+	c.Assert(err, tc.ErrorIsNil)
 	if versionFile != "" {
 		err = os.WriteFile(filepath.Join(dir, "jujuagentd-versions.yaml"), []byte(versionFile), 0755)
 		c.Assert(err, tc.ErrorIsNil)
@@ -358,6 +360,64 @@ func (b *buildSuite) TestBundleToolsIncludesJujudCompatShim(c *tc.C) {
 		c.Assert(string(content), tc.Equals, string(tools.JujudCompatShim))
 	}
 	c.Assert(found, tc.IsTrue)
+}
+
+// TestBundleToolsIncludesPebble checks that machine agent tarballs carry the
+// Pebble binary, which machine-hosted sidecar workloads launch as PID 1.
+func (b *buildSuite) TestBundleToolsIncludesPebble(c *tc.C) {
+	thisArch := arch.HostArch()
+	thisHost := coreos.HostOSTypeName()
+	b.patchExecCommand(c, thisHost, thisArch)
+	dir := b.setUpFakeBinaries(c, "")
+
+	bundleFile, err := os.Create(filepath.Join(dir, "bundle"))
+	c.Assert(err, tc.ErrorIsNil)
+
+	_, _, _, _, err = tools.BundleTools(false, bundleFile,
+		func(localBinaryVersion semversion.Number) semversion.Number { return semversion.MustParse("1.2.3.1") },
+	)
+	c.Assert(err, tc.ErrorIsNil)
+
+	_, err = bundleFile.Seek(0, 0)
+	c.Assert(err, tc.ErrorIsNil)
+	gzr, err := gzip.NewReader(bundleFile)
+	c.Assert(err, tc.ErrorIsNil)
+	r := tar.NewReader(gzr)
+
+	found := false
+	for {
+		hdr, err := r.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		c.Assert(err, tc.ErrorIsNil)
+		if hdr.Name != "pebble" {
+			continue
+		}
+		found = true
+		c.Assert(hdr.Typeflag, tc.Equals, byte(tar.TypeReg))
+		c.Assert(hdr.Mode, tc.Equals, int64(0755))
+	}
+	c.Assert(found, tc.IsTrue)
+}
+
+// TestBundleToolsToleratesMissingPebble checks that a Pebble binary absent
+// beside the client does not break bootstrapping, so controllers built before
+// Pebble was packaged keep working.
+func (b *buildSuite) TestBundleToolsToleratesMissingPebble(c *tc.C) {
+	thisArch := arch.HostArch()
+	thisHost := coreos.HostOSTypeName()
+	b.patchExecCommand(c, thisHost, thisArch)
+	dir := b.setUpFakeBinaries(c, "")
+	c.Assert(os.Remove(filepath.Join(dir, "pebble")), tc.ErrorIsNil)
+
+	bundleFile, err := os.Create(filepath.Join(dir, "bundle"))
+	c.Assert(err, tc.ErrorIsNil)
+
+	_, _, _, _, err = tools.BundleTools(false, bundleFile,
+		func(localBinaryVersion semversion.Number) semversion.Number { return semversion.MustParse("1.2.3.1") },
+	)
+	c.Assert(err, tc.ErrorIsNil)
 }
 
 func (b *buildSuite) TestJujudVersion(c *tc.C) {

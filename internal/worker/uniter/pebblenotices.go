@@ -24,6 +24,7 @@ type pebbleNoticer struct {
 	workloadEventChan chan string
 	workloadEvents    container.WorkloadEvents
 	newPebbleClient   NewPebbleClientFunc
+	socketDir         string
 
 	tomb tomb.Tomb
 }
@@ -34,6 +35,7 @@ func NewPebbleNoticer(
 	logger logger.Logger,
 	clock clock.Clock,
 	containerNames []string,
+	socketDir string,
 	workloadEventChan chan string,
 	workloadEvents container.WorkloadEvents,
 	newPebbleClient NewPebbleClientFunc,
@@ -46,6 +48,7 @@ func NewPebbleNoticer(
 	noticer := &pebbleNoticer{
 		logger:            logger,
 		clock:             clock,
+		socketDir:         socketDir,
 		workloadEventChan: workloadEventChan,
 		workloadEvents:    workloadEvents,
 		newPebbleClient:   newPebbleClient,
@@ -80,7 +83,7 @@ func (n *pebbleNoticer) run(containerName string) (err error) {
 	n.logger.Debugf(ctx, "container %q: pebbleNoticer starting", containerName)
 	defer n.logger.Debugf(ctx, "container %q: pebbleNoticer stopped, error %v", containerName, err)
 
-	config := newPebbleConfig(containerName)
+	config := newPebbleConfig(n.socketDir, containerName)
 	pebbleClient, err := n.newPebbleClient(config)
 	if err != nil {
 		return errors.Trace(err)

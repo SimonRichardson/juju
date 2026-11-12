@@ -36,6 +36,7 @@ import (
 	"github.com/juju/juju/internal/worker/lokiendpointupdater"
 	"github.com/juju/juju/internal/worker/migrationflag"
 	"github.com/juju/juju/internal/worker/migrationminion"
+	"github.com/juju/juju/internal/worker/ociworkload"
 	"github.com/juju/juju/internal/worker/retrystrategy"
 	"github.com/juju/juju/internal/worker/secretsdrainworker"
 	"github.com/juju/juju/internal/worker/trace"
@@ -88,6 +89,10 @@ type UnitManifoldsConfig struct {
 
 	// PrometheusRegisterer registers metrics for unit-scoped workers.
 	PrometheusRegisterer prometheus.Registerer
+
+	// PebbleSocketDir is the host directory shared with the unit's OCI
+	// workload containers.
+	PebbleSocketDir string
 }
 
 // UnitManifolds returns a set of co-configured manifolds covering the various
@@ -267,7 +272,13 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 		// relations; creates subordinate units; runs all the hooks; sends
 		// metrics; etc etc etc. We expect to break it up further in the
 		// coming weeks, and to need one per unit in a consolidated agent
-		// (and probably one for each component broken out).
+		// (and probably one for each component broken out of it).
+		//
+		// Machine units host their workload containers beside the unit
+		// agent, so the container set follows the deployed charm rather
+		// than arriving with a pod: the uniter adopts the names from the
+		// charm directory and re-derives them on charm installs and
+		// upgrades.
 		uniterName: ifNotMigrating(uniter.Manifold(uniter.ManifoldConfig{
 			AgentName:             agentName,
 			ModelType:             model.IAAS,
@@ -281,6 +292,25 @@ func UnitManifolds(config UnitManifoldsConfig) dependency.Manifolds {
 			HookRetryStrategyName: hookRetryStrategyName,
 			TranslateResolverErr:  uniter.TranslateFortressErrors,
 			Logger:                config.LoggerContext.GetLogger("juju.worker.uniter"),
+			CharmContainerNames:   uniter.CharmDirContainerNames,
+			HookCredential:        uniter.CharmDirHookCredential,
+			PebbleSocketDir:       config.PebbleSocketDir,
+		})),
+
+		ociWorkloadName: ifNotMigrating(ociworkload.Manifold(ociworkload.ManifoldConfig{
+			AgentName:     agentName,
+			APICallerName: apiCallerName,
+			Clock:         config.Clock,
+			Logger:        config.LoggerContext.GetLogger("juju.worker.ociworkload"),
+			NewClients:    ociworkload.NewUnitClients,
+			Puller:        ociworkload.Puller{NewClient: ociworkload.NewContainerdClient},
+			// Machine workloads present the same layout a Kubernetes
+			// charm container would, so unmodified sidecar charms
+			// resolve their Pebble sockets.
+			Runtime: ociworkload.ContainerdRuntime{
+				NewClient:      ociworkload.NewContainerdClient,
+				CharmLayoutDir: "/charm",
+			},
 		})),
 
 		traceName: trace.Manifold(trace.ManifoldConfig{
@@ -341,6 +371,7 @@ const (
 	leadershipTrackerName = "leadership-tracker"
 	hookRetryStrategyName = "hook-retry-strategy"
 	uniterName            = "uniter"
+	ociWorkloadName       = "oci-workload"
 	upgraderName          = "upgrader"
 	traceName             = "trace"
 

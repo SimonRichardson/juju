@@ -5,6 +5,7 @@ package runner
 
 import (
 	stdcontext "context"
+	"syscall"
 
 	"github.com/juju/errors"
 	"github.com/juju/names/v6"
@@ -39,6 +40,7 @@ func NewFactory(
 	paths context.Paths,
 	contextFactory context.ContextFactory,
 	newProcessRunner NewRunnerFunc,
+	hookCredential func(charmDir string) (*syscall.Credential, error),
 ) (
 	Factory, error,
 ) {
@@ -46,6 +48,7 @@ func NewFactory(
 		paths:            paths,
 		contextFactory:   contextFactory,
 		newProcessRunner: newProcessRunner,
+		hookCredential:   hookCredential,
 	}
 
 	return f, nil
@@ -57,6 +60,27 @@ type factory struct {
 	// Fields that shouldn't change in a factory's lifetime.
 	paths            context.Paths
 	newProcessRunner NewRunnerFunc
+	// hookCredential derives the user charm hook processes run as from
+	// the charm deployed in the charm dir; nil leaves hooks running as
+	// the unit agent user.
+	hookCredential func(charmDir string) (*syscall.Credential, error)
+}
+
+// charmProcessOptions returns the runner options for charm hook and action
+// processes. Hook and action processes run as the charm user; command
+// processes keep running as the unit agent user.
+func (f *factory) charmProcessOptions() ([]Option, error) {
+	if f.hookCredential == nil {
+		return nil, nil
+	}
+	credential, err := f.hookCredential(f.paths.GetCharmDir())
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	if credential == nil {
+		return nil, nil
+	}
+	return []Option{WithProcessCredential(credential)}, nil
 }
 
 // NewCommandRunner exists to satisfy the Factory interface.
@@ -79,7 +103,11 @@ func (f *factory) NewHookRunner(stdCtx stdcontext.Context, hookInfo hook.Info) (
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	runner := f.newProcessRunner(ctx, f.paths)
+	options, err := f.charmProcessOptions()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	runner := f.newProcessRunner(ctx, f.paths, options...)
 	return runner, nil
 }
 
@@ -119,6 +147,10 @@ func (f *factory) NewActionRunner(stdCtx stdcontext.Context, action *uniter.Acti
 	if err != nil {
 		return nil, charmrunner.NewBadActionError(name, err.Error())
 	}
-	runner := f.newProcessRunner(ctx, f.paths)
+	options, err := f.charmProcessOptions()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	runner := f.newProcessRunner(ctx, f.paths, options...)
 	return runner, nil
 }

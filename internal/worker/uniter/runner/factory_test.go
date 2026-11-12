@@ -4,7 +4,13 @@
 package runner_test
 
 import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/canonical/gomock/gomock"
@@ -419,4 +425,79 @@ func (s *FactorySuite) TestNewActionRunnerWithCancel(c *tc.C) {
 	c.Assert(combined, tc.Matches, `(^|.*\|)JUJU_ACTION_NAME=`+actionName+`(\|.*|$)`)
 	c.Assert(combined, tc.Matches, `(^|.*\|)JUJU_ACTION_UUID=`+actionTag.ID+`(\|.*|$)`)
 	c.Assert(combined, tc.Matches, `(^|.*\|)JUJU_ACTION_TAG=`+actionTag.String()+`(\|.*|$)`)
+}
+
+// TestNewHookRunnerWithProcessCredential checks hook runners produced by a
+// factory run hooks under the charm credential derived from the charm dir.
+// The test user stands in for the charm user: applying a different user
+// needs a root test process.
+func (s *FactorySuite) TestNewHookRunnerWithProcessCredential(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+	s.setupFactory(c, ctrl)
+	s.unit.EXPECT().CommitHookChanges(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	charmDir := s.paths.GetCharmDir()
+	makeCharmMetadata(c, charmDir)
+	hooksDir := filepath.Join(charmDir, "hooks")
+	c.Assert(os.Mkdir(hooksDir, 0755), tc.ErrorIsNil)
+	uidFile := filepath.Join(charmDir, "hook-uid")
+	hookScript := fmt.Sprintf("#!/bin/bash\necho $UID > %s\n", uidFile)
+	c.Assert(os.WriteFile(filepath.Join(hooksDir, "config-changed"), []byte(hookScript), 0755), tc.ErrorIsNil)
+
+	var derived string
+	factory, err := runner.NewFactory(s.paths, s.contextFactory, runner.NewRunner,
+		func(dir string) (*syscall.Credential, error) {
+			derived = dir
+			return &syscall.Credential{
+				Uid: uint32(os.Getuid()),
+				Gid: uint32(os.Getgid()),
+			}, nil
+		})
+	c.Assert(err, tc.ErrorIsNil)
+
+	rnr, err := factory.NewHookRunner(c.Context(), hook.Info{Kind: hooks.ConfigChanged})
+	c.Assert(err, tc.ErrorIsNil)
+	_, err = rnr.RunHook(c.Context(), "config-changed")
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(derived, tc.Equals, charmDir)
+
+	uid, err := os.ReadFile(uidFile)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(strings.TrimSpace(string(uid)), tc.Equals, strconv.Itoa(os.Getuid()))
+}
+
+// TestNewHookRunnerCredentialError checks a hook user derivation failure
+// fails the runner creation rather than running the hook as the wrong user.
+func (s *FactorySuite) TestNewHookRunnerCredentialError(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+	s.setupFactory(c, ctrl)
+
+	factory, err := runner.NewFactory(s.paths, s.contextFactory, runner.NewRunner,
+		func(string) (*syscall.Credential, error) {
+			return nil, errors.New("no such user")
+		})
+	c.Assert(err, tc.ErrorIsNil)
+
+	_, err = factory.NewHookRunner(c.Context(), hook.Info{Kind: hooks.ConfigChanged})
+	c.Assert(err, tc.ErrorMatches, "no such user")
+}
+
+// TestNewCommandRunnerIgnoresCredential checks command runners never ask
+// for the charm credential: they keep running as the unit agent user.
+func (s *FactorySuite) TestNewCommandRunnerIgnoresCredential(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+	s.setupFactory(c, ctrl)
+
+	factory, err := runner.NewFactory(s.paths, s.contextFactory, runner.NewRunner,
+		func(string) (*syscall.Credential, error) {
+			return nil, errors.New("must not be consulted")
+		})
+	c.Assert(err, tc.ErrorIsNil)
+
+	rnr, err := factory.NewCommandRunner(c.Context(), context.CommandInfo{RelationId: -1})
+	c.Assert(err, tc.ErrorIsNil)
+	s.AssertPaths(c, rnr)
 }

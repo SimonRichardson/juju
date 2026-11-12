@@ -65,6 +65,7 @@ func (s *ManifoldsSuite) TestManifoldNames(c *tc.C) {
 		"migration-inactive-flag",
 		"migration-minion",
 		"uniter",
+		"oci-workload",
 		"upgrader",
 		"secret-drain-worker",
 		"trace",
@@ -207,6 +208,13 @@ var expectedUnitManifoldsWithDependencies = map[string][]string{
 		"migration-fortress",
 		"migration-inactive-flag",
 		"trace",
+	},
+	"oci-workload": {
+		"agent",
+		"api-caller",
+		"api-config-watcher",
+		"migration-fortress",
+		"migration-inactive-flag",
 	},
 
 	"upgrader": {

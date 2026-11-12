@@ -6,6 +6,7 @@ package context_test
 import (
 	"slices"
 	"sort"
+	"strings"
 	stdtesting "testing"
 
 	"github.com/canonical/gomock/gomock"
@@ -288,6 +289,50 @@ func (s *EnvSuite) TestHookVarsIncludeW3CTraceContext(c *tc.C) {
 	c.Check(slices.Contains(vars, "JUJU_TRACE_ID=80f198ee56343ba864fe8b2a57d3eff7"), tc.IsTrue)
 	c.Check(slices.Contains(vars, "JUJU_SPAN_ID=ff00000000000000"), tc.IsTrue)
 	c.Check(slices.Contains(vars, "JUJU_TRACE_FLAGS=1"), tc.IsTrue)
+}
+
+// TestWorkloadHookPebbleSocket checks that workload hooks on machine units
+// point PEBBLE_SOCKET at the host side of the shared socket directory, while
+// the Kubernetes layout, which has no host directory, leaves the variable to
+// the container's own environment.
+func (s *EnvSuite) TestWorkloadHookPebbleSocket(c *tc.C) {
+	environmenter := context.NewRemoteEnvironmenter(
+		func() []string { return nil },
+		func(string) string { return "" },
+		func(string) (string, bool) { return "", false },
+	)
+
+	machine := context.NewModelHookContext(c, context.ModelHookContextParams{
+		PebbleSocketDir: "/var/lib/juju/agents/unit-this-unit-123/containers",
+	})
+	context.SetEnvironmentHookContextWorkload(machine, "wrk")
+
+	paths, _ := s.getPaths()
+	vars, err := machine.HookVars(c.Context(), paths, environmenter)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(slices.Contains(vars,
+		"PEBBLE_SOCKET=/var/lib/juju/agents/unit-this-unit-123/containers/wrk/pebble.socket"), tc.IsTrue)
+
+	// Non-workload hooks never carry a socket override.
+	plain := context.NewModelHookContext(c, context.ModelHookContextParams{
+		PebbleSocketDir: "/var/lib/juju/agents/unit-this-unit-123/containers",
+	})
+	vars, err = plain.HookVars(c.Context(), paths, environmenter)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(slices.ContainsFunc(vars, func(v string) bool {
+		return strings.HasPrefix(v, "PEBBLE_SOCKET=")
+	}), tc.IsFalse)
+
+	// The Kubernetes layout keeps the variable unset so hooks inherit the
+	// container's own socket path.
+	kubernetes := context.NewModelHookContext(c, context.ModelHookContextParams{})
+	context.SetEnvironmentHookContextWorkload(kubernetes, "wrk")
+	vars, err = kubernetes.HookVars(c.Context(), paths, environmenter)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(slices.Contains(vars, "JUJU_WORKLOAD_NAME=wrk"), tc.IsTrue)
+	c.Check(slices.ContainsFunc(vars, func(v string) bool {
+		return strings.HasPrefix(v, "PEBBLE_SOCKET=")
+	}), tc.IsFalse)
 }
 
 func (s *EnvSuite) TestContextDependentDoesNotIncludeUnSet(c *tc.C) {

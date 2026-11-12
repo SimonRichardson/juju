@@ -48,7 +48,31 @@ func (s *pebbleNoticerSuite) setUpWorker(c *tc.C, containerNames []string) {
 		matches := pebbleSocketPathRegexp.FindAllStringSubmatch(cfg.Socket, 1)
 		return s.clients[matches[0][1]], nil
 	}
-	s.worker = uniter.NewPebbleNoticer(loggertesting.WrapCheckLog(c), s.clock, containerNames, s.workloadEventChan, s.workloadEvents, newClient)
+	s.worker = uniter.NewPebbleNoticer(loggertesting.WrapCheckLog(c), s.clock, containerNames, "", s.workloadEventChan, s.workloadEvents, newClient)
+}
+
+func (s *pebbleNoticerSuite) TestMachineWorkloadSocket(c *tc.C) {
+	sockets := make(chan string, 1)
+	pebbleClient := &fakePebbleClient{
+		clock:       testclock.NewClock(time.Time{}),
+		noticeAdded: make(chan *client.Notice, 1),
+	}
+	newClient := func(cfg *client.Config) (uniter.PebbleClient, error) {
+		sockets <- cfg.Socket
+		return pebbleClient, nil
+	}
+	worker := uniter.NewPebbleNoticer(loggertesting.WrapCheckLog(c),
+		testclock.NewClock(time.Time{}), []string{"redis"},
+		"/var/lib/juju/units/redis-0/containers", make(chan string),
+		container.NewWorkloadEvents(), newClient)
+	defer workertest.CleanKill(c, worker)
+
+	select {
+	case socket := <-sockets:
+		c.Check(socket, tc.Equals, "/var/lib/juju/units/redis-0/containers/redis/pebble.socket")
+	case <-c.Context().Done():
+		c.Fatal("Pebble client was not created")
+	}
 }
 
 func (s *pebbleNoticerSuite) waitWorkloadEvent(c *tc.C, expected container.WorkloadEvent) {
