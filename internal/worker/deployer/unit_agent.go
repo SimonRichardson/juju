@@ -5,6 +5,7 @@ package deployer
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -216,6 +217,7 @@ func (a *UnitAgent) start(ctx context.Context) (worker.Worker, error) {
 		Clock:                a.clock,
 		HTTPClientGetter:     a.httpClientGetter,
 		PrometheusRegisterer: a.prometheusRegistry,
+		PebbleSocketDir:      filepath.Join(agent.Dir(a.agentConf.DataDir(), a.tag), "containers"),
 	})
 	depEngineConfig := a.unitEngineConfig()
 	// TODO: tweak IsFatal error func, maybe?

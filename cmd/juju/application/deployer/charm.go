@@ -6,6 +6,7 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	jujuclock "github.com/juju/clock"
@@ -66,10 +67,31 @@ func checkCharmFormat(ctx context.Context, m ModelCommand, charmInfo *apicharms.
 	return nil
 }
 
+// checkContainerMountsSupported rejects charm containers requesting storage
+// mounts on machine models, where sidecar workloads run as containerd tasks
+// without storage passthrough.
+func checkContainerMountsSupported(ctx context.Context, m ModelCommand, meta *charm.Meta) error {
+	modelType, err := m.ModelType(ctx)
+	if err != nil || modelType != model.IAAS {
+		return errors.Trace(err)
+	}
+	names := make([]string, 0, len(meta.Containers))
+	for name, container := range meta.Containers {
+		if len(container.Mounts) > 0 {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return errors.NotSupportedf("storage mounts for OCI container %q on a machine model", names[0])
+}
+
 // modelTypeMismatch checks the charm's type against the type of the model it
-// is being deployed to: a Kubernetes charm on a machine model is rejected with
-// an error, while a charm declaring no containers on a Kubernetes model only
-// yields an advisory warning.
+// is being deployed to. Sidecar charms run their workloads on both Kubernetes
+// and machine models, so only a charm declaring no containers on a
+// Kubernetes model is flagged, with an advisory warning.
 func modelTypeMismatch(ctx context.Context, m ModelCommand, meta *charm.Meta) (string, error) {
 	if meta == nil {
 		return "", nil
@@ -97,15 +119,15 @@ func (d *deployCharm) deploy(
 	if err != nil {
 		return err
 	}
-	// A Kubernetes charm can never run its workload on a machine model, so it
-	// is rejected outright unless --force is given; the inverse direction
-	// cannot be determined with certainty, so it only warns.
 	warning, mismatchErr := modelTypeMismatch(ctx, d.model, charmInfo.Meta)
 	if mismatchErr != nil {
 		if !d.force {
 			return mismatchErr
 		}
 		ctx.Warningf("%s", mismatchErr.Error())
+	}
+	if err := checkContainerMountsSupported(ctx, d.model, charmInfo.Meta); err != nil {
+		return err
 	}
 	if warning != "" {
 		ctx.Warningf("%s", warning)

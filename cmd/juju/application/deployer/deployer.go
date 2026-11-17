@@ -28,7 +28,6 @@ import (
 	"github.com/juju/juju/core/crossmodel"
 	"github.com/juju/juju/core/devices"
 	"github.com/juju/juju/core/instance"
-	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/storage"
 	"github.com/juju/juju/domain/deployment/charm"
 	charmresource "github.com/juju/juju/domain/deployment/charm/resource"
@@ -669,16 +668,9 @@ func charmValidationError(name string, err error) error {
 }
 
 func (d *factory) validateResourcesNeededForLocalDeploy(ctx context.Context, charmMeta *charm.Meta) error {
-	modelType, err := d.model.ModelType(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	// If the target model is IAAS, then we don't need to validate the resources
-	// for a given deploy.
-	if modelType == model.IAAS {
-		return nil
-	}
-
+	// OCI image resources are required wherever sidecar workloads run: the
+	// image reference is the only source of the workload on both Kubernetes
+	// and machine models.
 	var missingImages []string
 	for resName, resMeta := range charmMeta.Resources {
 		if resMeta.Type == charmresource.TypeContainerImage {

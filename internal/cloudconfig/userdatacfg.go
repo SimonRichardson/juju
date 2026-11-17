@@ -329,6 +329,10 @@ func (w *userdataConfig) ConfigureJuju() error {
 	); err != nil {
 		return errors.Trace(err)
 	}
+	// Machine workloads use containerd independently of the charm. Package
+	// installation precedes run commands for both cloud-init and SSH setup.
+	// Images are pulled only after a unit is assigned to this machine.
+	w.conf.AddRunCmd("systemctl enable --now containerd")
 
 	// Write out the normal proxy settings so that the settings are
 	// sourced by bash, and ssh through that.

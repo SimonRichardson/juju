@@ -5,6 +5,7 @@ package uniter
 
 import (
 	stdcontext "context"
+	"syscall"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
@@ -58,6 +59,14 @@ type ManifoldConfig struct {
 	Sidecar                      bool
 	EnforcedCharmModifiedVersion int
 	ContainerNames               []string
+	// CharmContainerNames, if non-nil, derives the unit's workload
+	// container names from the deployed charm; see
+	// UniterParams.CharmContainerNames.
+	CharmContainerNames func(charmDir string) ([]string, error)
+	// HookCredential, if non-nil, derives the user hook processes run as
+	// from the deployed charm; see UniterParams.HookCredential.
+	HookCredential  func(charmDir string) (*syscall.Credential, error)
+	PebbleSocketDir string
 }
 
 // Validate ensures all the required values for the config are set.
@@ -217,6 +226,9 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				Sidecar:                      config.Sidecar,
 				EnforcedCharmModifiedVersion: config.EnforcedCharmModifiedVersion,
 				ContainerNames:               config.ContainerNames,
+				CharmContainerNames:          config.CharmContainerNames,
+				HookCredential:               config.HookCredential,
+				PebbleSocketDir:              config.PebbleSocketDir,
 				Tracer:                       tracer,
 			})
 			if err != nil {

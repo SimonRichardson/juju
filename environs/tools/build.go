@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -248,6 +249,24 @@ func copyExistingJujus(ctx context.Context, dir string) error {
 			return errors.Trace(err)
 		}
 	}
+	// Machine-hosted sidecar workloads launch Pebble as PID 1 from the
+	// unit agent's tools, so the binary ships with the agent. An absent
+	// binary is tolerated for controllers that never host machine units,
+	// like those bootstrapped before Pebble was packaged.
+	pebbleLocation := filepath.Join(jujuDir, "pebble")
+	pebbleTarget := filepath.Join(dir, "pebble")
+	pebbleInfo, err := os.Stat(pebbleLocation)
+	if os.IsNotExist(err) {
+		logger.Infof(ctx, "pebble not found at %s, not including", pebbleLocation)
+	} else if err != nil {
+		return errors.Trace(err)
+	} else {
+		logger.Infof(ctx, "target pebble: %v", pebbleTarget)
+		err = copyFileWithMode(ctx, pebbleLocation, pebbleTarget, pebbleInfo.Mode())
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
 	// If there's a version file beside the jujud binary or in the
 	// fallback location, include that.
 	versionTarget := filepath.Join(dir, names.JujuVersions)
@@ -306,9 +325,14 @@ func buildJujus(ctx context.Context, dir string) error {
 		return lastErr
 	}
 
-	// Build binaries.
+	// Build binaries. Pebble is only packaged for Linux, matching the
+	// simplestreams packaging: machine-hosted sidecar workloads run only
+	// on Linux machines.
 	cmds := [][]string{
 		{"make", "jujuagentd"},
+	}
+	if runtime.GOOS == "linux" {
+		cmds = append(cmds, []string{"make", "pebble"})
 	}
 	for _, args := range cmds {
 		cmd := exec.Command(args[0], args[1:]...)

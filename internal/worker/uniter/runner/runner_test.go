@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	stdtesting "testing"
 	"time"
 
@@ -222,6 +224,49 @@ func (s *RunHookSuite) TestRunHook(c *tc.C) {
 		}
 		ctrl.Finish()
 	}
+}
+
+// TestRunHookWithProcessCredential checks a hook run with a process
+// credential equal to the agent's own user runs as that user, and that a
+// credential for a different user reaches the hook process machinery. The
+// test user stands in for the charm user throughout: applying a different
+// user needs a root test process, which is not available here.
+func (s *RunHookSuite) TestRunHookWithProcessCredential(c *tc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+	s.setupFactory(c, ctrl)
+
+	ctx, err := s.contextFactory.HookContext(c.Context(), hook.Info{Kind: hooks.ConfigChanged})
+	c.Assert(err, tc.ErrorIsNil)
+
+	paths := runnertesting.NewRealPaths(c)
+	charmDir := paths.GetCharmDir()
+	makeCharmMetadata(c, charmDir)
+	hooksDir := filepath.Join(charmDir, "hooks")
+	c.Assert(os.Mkdir(hooksDir, 0755), tc.ErrorIsNil)
+	uidFile := filepath.Join(charmDir, "hook-uid")
+	hookScript := fmt.Sprintf("#!/bin/bash\necho $UID > %s\n", uidFile)
+	c.Assert(os.WriteFile(filepath.Join(hooksDir, "something-happened"), []byte(hookScript), 0755), tc.ErrorIsNil)
+
+	credential := &syscall.Credential{
+		Uid: uint32(os.Getuid()),
+		Gid: uint32(os.Getgid()),
+	}
+	rnr := runner.NewRunner(ctx, paths, runner.WithProcessCredential(credential))
+	_, err = rnr.RunHook(c.Context(), "something-happened")
+	c.Assert(err, tc.ErrorIsNil)
+
+	uid, err := os.ReadFile(uidFile)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(strings.TrimSpace(string(uid)), tc.Equals, strconv.Itoa(os.Getuid()))
+
+	if os.Geteuid() == 0 {
+		c.Skip("a different user is applied verbatim under root; see the live machine tests")
+	}
+	other := &syscall.Credential{Uid: uint32(os.Getuid()) + 1, Gid: uint32(os.Getgid()) + 1}
+	rnr = runner.NewRunner(ctx, paths, runner.WithProcessCredential(other))
+	_, err = rnr.RunHook(c.Context(), "something-happened")
+	c.Assert(err, tc.ErrorMatches, ".*operation not permitted")
 }
 
 func (s *RunHookSuite) TestRunHookDispatchingHookHandler(c *tc.C) {

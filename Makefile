@@ -394,7 +394,7 @@ ${JUJU_METADATA_SOURCE}/tools/${JUJU_PUBLISH_STREAM}/juju-${JUJU_VERSION}-%.tgz:
 	@mkdir -p ${JUJU_METADATA_SOURCE}/tools/${JUJU_PUBLISH_STREAM}
 	@cp $(PROJECT_DIR)/environs/tools/jujud-shim.sh $(call bin_platform_paths,$(subst -,/,$*))/jujud
 	@chmod 0755 $(call bin_platform_paths,$(subst -,/,$*))/jujud
-	@tar czf "$@" -C $(call bin_platform_paths,$(subst -,/,$*)) jujuagentd jujuc jujud
+	@tar czf "$@" -C $(call bin_platform_paths,$(subst -,/,$*)) jujuagentd jujuc jujud $(if $(filter linux%,$*),pebble)
 
 .PHONY: simplestreams
 simplestreams: juju juju-metadata ${SIMPLESTREAMS_TARGETS}

@@ -91,6 +91,10 @@ type contextFactory struct {
 	clock      Clock
 	zone       string
 	principal  string
+	// pebbleSocketDir is the host directory holding the unit's workload
+	// container pebble sockets. It is empty for the Kubernetes default
+	// layout, where socket paths resolve inside each container.
+	pebbleSocketDir string
 
 	// Callback to get relation state snapshot.
 	getRelationInfos RelationsFunc
@@ -110,6 +114,11 @@ type FactoryConfig struct {
 	Paths                Paths
 	Clock                Clock
 	Logger               logger.Logger
+	// PebbleSocketDir is the host directory shared between the unit agent
+	// and its workload containers' pebble daemons. An empty directory
+	// retains the Kubernetes layout, in which hooks run inside the
+	// workload container and inherit its socket paths.
+	PebbleSocketDir string
 }
 
 // NewContextFactory returns a ContextFactory capable of creating execution contexts backed
@@ -166,6 +175,7 @@ func NewContextFactory(ctx context.Context, config FactoryConfig) (ContextFactor
 		zone:                 zone,
 		principal:            principal,
 		modelType:            modelType,
+		pebbleSocketDir:      config.PebbleSocketDir,
 	}
 	return f, nil
 }
@@ -204,6 +214,7 @@ func (f *contextFactory) coreContext(stdCtx context.Context) (*HookContext, erro
 		logger:               f.logger,
 		availabilityZone:     f.zone,
 		principal:            f.principal,
+		pebbleSocketDir:      f.pebbleSocketDir,
 		ResourcesHookContext: &resources.ResourcesHookContext{
 			Client:       f.resources,
 			ResourcesDir: f.paths.GetResourcesDir(),

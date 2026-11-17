@@ -73,19 +73,20 @@ func (s *charmSuite) TestSimpleCharmDeploy(c *tc.C) {
 	c.Assert(err, tc.ErrorIsNil)
 }
 
-func (s *charmSuite) TestModelTypeMismatchK8sCharmOnMachineModel(c *tc.C) {
+func (s *charmSuite) TestModelTypeMismatchSidecarCharmOnMachineModel(c *tc.C) {
 	ctrl := gomock.NewController(c)
 	defer ctrl.Finish()
 	m := mocks.NewMockModelCommand(ctrl)
 	m.EXPECT().ModelType(gomock.Any()).Return(model.IAAS, nil)
 	m.EXPECT().ModelDetails(gomock.Any()).Return("machinemodel", nil, nil)
 
-	// A sidecar charm on a machine model is unambiguous: error.
+	// A sidecar charm's workloads run alongside the unit agent on machine
+	// models too: no warning, no error.
 	meta := &charm.Meta{Name: "redis-k8s", Containers: map[string]charm.Container{"redis": {}}}
 	warning, err := modelTypeMismatch(c.Context(), m, meta)
 
+	c.Assert(err, tc.ErrorIsNil)
 	c.Check(warning, tc.Equals, "")
-	c.Check(err, tc.ErrorIs, coreerrors.NotSupported)
 }
 
 func (s *charmSuite) TestModelTypeMismatchMachineCharmOnK8sModel(c *tc.C) {
@@ -135,44 +136,61 @@ func (s *charmSuite) TestModelTypeMismatchModelNameFallback(c *tc.C) {
 	ctrl := gomock.NewController(c)
 	defer ctrl.Finish()
 	m := mocks.NewMockModelCommand(ctrl)
-	m.EXPECT().ModelType(gomock.Any()).Return(model.IAAS, nil)
+	m.EXPECT().ModelType(gomock.Any()).Return(model.CAAS, nil)
 	// ModelDetails failing must not produce an empty quoted model name.
 	m.EXPECT().ModelDetails(gomock.Any()).Return("", nil, errors.New("boom"))
 
-	meta := &charm.Meta{Name: "redis-k8s", Containers: map[string]charm.Container{"redis": {}}}
-	_, err := modelTypeMismatch(c.Context(), m, meta)
+	meta := &charm.Meta{Name: "mysql"}
+	warning, err := modelTypeMismatch(c.Context(), m, meta)
 
-	c.Assert(err, tc.NotNil)
-	c.Check(strings.Contains(err.Error(), "the target model"), tc.IsTrue)
-	c.Check(strings.Contains(err.Error(), `""`), tc.IsFalse)
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(strings.Contains(warning, "the target model"), tc.IsTrue)
+	c.Check(strings.Contains(warning, `""`), tc.IsFalse)
 }
 
-func (s *charmSuite) TestDeployK8sCharmOnMachineModelRejected(c *tc.C) {
-	defer s.setupMocks(c).Finish()
-
-	// The model type from setupMocks is IAAS; a charm declaring containers
-	// must be rejected before the deploy is attempted.
-	s.charmInfo.Meta.Containers = map[string]charm.Container{"redis": {}}
-
-	err := s.newDeployCharm().deploy(s.ctx, s.deployerAPI)
-	c.Check(err, tc.ErrorIs, coreerrors.NotSupported)
-}
-
-func (s *charmSuite) TestDeployK8sCharmOnMachineModelForced(c *tc.C) {
+func (s *charmSuite) TestDeploySidecarCharmOnMachineModel(c *tc.C) {
 	defer s.setupMocks(c).Finish()
 	s.modelCommand.EXPECT().Filesystem().Return(s.filesystem).AnyTimes()
 	s.configFlag.EXPECT().AbsoluteFileNames(gomock.Any()).Return(nil, nil)
 	s.configFlag.EXPECT().ReadConfigPairs(gomock.Any()).Return(nil, nil)
 	s.deployerAPI.EXPECT().Deploy(gomock.Any(), gomock.Any()).Return(nil)
 
-	// With --force the rejection is downgraded to a warning and the deploy
-	// proceeds.
+	// A charm declaring containers deploys to a machine model: its workload
+	// runs as a containerd task beside the unit agent.
+	s.charmInfo.Meta.Containers = map[string]charm.Container{"redis": {}}
+
+	err := s.newDeployCharm().deploy(s.ctx, s.deployerAPI)
+	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *charmSuite) TestDeploySidecarCharmOnMachineModelForced(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+	s.modelCommand.EXPECT().Filesystem().Return(s.filesystem).AnyTimes()
+	s.configFlag.EXPECT().AbsoluteFileNames(gomock.Any()).Return(nil, nil)
+	s.configFlag.EXPECT().ReadConfigPairs(gomock.Any()).Return(nil, nil)
+	s.deployerAPI.EXPECT().Deploy(gomock.Any(), gomock.Any()).Return(nil)
+
+	// --force remains a no-op for sidecar charms on machine models, since the
+	// placement is supported.
 	s.charmInfo.Meta.Containers = map[string]charm.Container{"redis": {}}
 	dCharm := s.newDeployCharm()
 	dCharm.force = true
 
 	err := dCharm.deploy(s.ctx, s.deployerAPI)
 	c.Assert(err, tc.ErrorIsNil)
+}
+
+func (s *charmSuite) TestDeployContainerMountsOnMachineModelRejected(c *tc.C) {
+	defer s.setupMocks(c).Finish()
+
+	// Machine models do not yet support storage mounts for OCI containers;
+	// the deploy must be rejected before reaching the API.
+	s.charmInfo.Meta.Containers = map[string]charm.Container{
+		"redis": {Mounts: []charm.Mount{{Storage: "data", Location: "/data"}}},
+	}
+
+	err := s.newDeployCharm().deploy(s.ctx, s.deployerAPI)
+	c.Check(err, tc.ErrorIs, coreerrors.NotSupported)
 }
 
 func (s *charmSuite) TestRepositoryCharmDeployDryRunDefaultSeriesForce(c *tc.C) {

@@ -149,6 +149,7 @@ func (s *ContextSuite) setupFactory(c *tc.C, ctrl *gomock.Controller) {
 		s.paths,
 		s.contextFactory,
 		runner.NewRunner,
+		nil,
 	)
 	c.Assert(err, tc.ErrorIsNil)
 	s.factory = factory

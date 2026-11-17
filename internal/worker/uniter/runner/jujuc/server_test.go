@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -81,9 +82,10 @@ func factory(contextId, cmdName string) (cmd.Command, error) {
 
 type ServerSuite struct {
 	testing.BaseSuite
-	server *jujuc.Server
-	socket sockets.Socket
-	err    chan error
+	server   *jujuc.Server
+	socket   sockets.Socket
+	listener net.Listener
+	err      chan error
 }
 
 func TestServerSuite(t *stdtesting.T) {
@@ -99,7 +101,10 @@ func (s *ServerSuite) osDependentSockPath(c *tc.C) sockets.Socket {
 func (s *ServerSuite) SetUpTest(c *tc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.socket = s.osDependentSockPath(c)
-	srv, err := jujuc.NewServer(context.Background(), factory, s.socket)
+	listener, err := sockets.Listen(s.socket)
+	c.Assert(err, tc.ErrorIsNil)
+	s.listener = listener
+	srv, err := jujuc.NewServer(context.Background(), factory, listener)
 	c.Assert(err, tc.ErrorIsNil)
 	c.Assert(srv, tc.NotNil)
 	s.server = srv

@@ -36,6 +36,7 @@ type pebblePoller struct {
 	clock           clock.Clock
 	tomb            tomb.Tomb
 	newPebbleClient NewPebbleClientFunc
+	socketDir       string
 
 	workloadEventChan chan string
 	workloadEvents    container.WorkloadEvents
@@ -53,6 +54,7 @@ const (
 func NewPebblePoller(logger logger.Logger,
 	clock clock.Clock,
 	containerNames []string,
+	socketDir string,
 	workloadEventChan chan string,
 	workloadEvents container.WorkloadEvents,
 	newPebbleClient NewPebbleClientFunc) worker.Worker {
@@ -64,6 +66,7 @@ func NewPebblePoller(logger logger.Logger,
 	p := &pebblePoller{
 		logger:            logger,
 		clock:             clock,
+		socketDir:         socketDir,
 		workloadEventChan: workloadEventChan,
 		workloadEvents:    workloadEvents,
 		newPebbleClient:   newPebbleClient,
@@ -111,14 +114,19 @@ func (p *pebblePoller) run(containerName string) error {
 	}
 }
 
-func newPebbleConfig(containerName string) *client.Config {
+// newPebbleConfig locates a workload socket in the directory shared with the
+// unit agent. An empty directory retains the Kubernetes layout.
+func newPebbleConfig(socketDir, containerName string) *client.Config {
+	if socketDir == "" {
+		socketDir = "/charm/containers"
+	}
 	return &client.Config{
-		Socket: path.Join("/charm/containers", containerName, "pebble.socket"),
+		Socket: path.Join(socketDir, containerName, "pebble.socket"),
 	}
 }
 
 func (p *pebblePoller) poll(containerName string) error {
-	config := newPebbleConfig(containerName)
+	config := newPebbleConfig(p.socketDir, containerName)
 	pc, err := p.newPebbleClient(config)
 	if err != nil {
 		return errors.Annotate(err, "failed to create Pebble client")

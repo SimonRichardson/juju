@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/juju/errors"
@@ -22,7 +23,6 @@ import (
 	jujucmd "github.com/juju/juju/cmd"
 	"github.com/juju/juju/cmd/cmd"
 	internallogger "github.com/juju/juju/internal/logger"
-	"github.com/juju/juju/juju/sockets"
 )
 
 // This logger is fine being package level as this jujuc executable
@@ -291,7 +291,6 @@ func (j *Jujuc) Main(req Request, resp *exec.ExecResponse) error {
 // Server implements a server that serves command invocations via
 // a unix domain socket.
 type Server struct {
-	socket   sockets.Socket
 	listener net.Listener
 	server   *rpc.Server
 	closed   chan bool
@@ -299,21 +298,20 @@ type Server struct {
 	wg       sync.WaitGroup
 }
 
-// NewServer creates an RPC server bound to socketPath, which can execute
-// remote command invocations against an appropriate Context. It will not
-// actually do so until Run is called. The provided ctx is used to propagate
-// trace context to hook tool commands.
-func NewServer(ctx context.Context, getCmd CmdGetter, socket sockets.Socket) (*Server, error) {
+// NewServer creates an RPC server serving command invocations against an
+// appropriate Context on the supplied listener. It will not actually do so
+// until Run is called. The provided ctx is used to propagate trace context
+// to hook tool commands.
+//
+// The listener, and with it ownership of the socket file, stays with the
+// caller: whoever creates it is responsible for its permissions, and the
+// server closes it together with itself.
+func NewServer(ctx context.Context, getCmd CmdGetter, listener net.Listener) (*Server, error) {
 	server := rpc.NewServer()
 	if err := server.Register(&Jujuc{getCmd: getCmd, ctx: ctx}); err != nil {
 		return nil, err
 	}
-	listener, err := sockets.Listen(socket)
-	if err != nil {
-		return nil, errors.Annotate(err, "listening to jujuc socket")
-	}
 	s := &Server{
-		socket:   socket,
 		listener: listener,
 		server:   server,
 		closed:   make(chan bool),
@@ -361,7 +359,9 @@ func (s *Server) Close() {
 	// Ignore error as we can't do much here
 	// anyway and remove the path if we start the
 	// server again.
-	_ = os.Remove(s.socket.Address)
+	if addr, ok := s.listener.Addr().(*net.UnixAddr); ok && !strings.HasPrefix(addr.Name, "@") {
+		_ = os.Remove(addr.Name)
+	}
 	<-s.closed
 }
 

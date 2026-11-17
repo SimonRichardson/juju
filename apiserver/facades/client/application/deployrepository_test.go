@@ -13,7 +13,6 @@ import (
 	"github.com/juju/tc"
 
 	corecharm "github.com/juju/juju/core/charm"
-	coreerrors "github.com/juju/juju/core/errors"
 	coremodel "github.com/juju/juju/core/model"
 	applicationservice "github.com/juju/juju/domain/application/service"
 	"github.com/juju/juju/domain/deployment/charm"
@@ -248,17 +247,18 @@ func (s *deployRepositorySuite) expectValidator(expectedModelConfigCalls int) de
 	return validator
 }
 
-func (s *deployRepositorySuite) TestModelTypeMismatchK8sCharmOnMachineModel(c *tc.C) {
+func (s *deployRepositorySuite) TestModelTypeMismatchSidecarCharmOnMachineModel(c *tc.C) {
 	v := deployFromRepositoryValidator{
 		modelInfo: coremodel.ModelInfo{Type: coremodel.IAAS, Name: "machinemodel"},
 		logger:    loggertesting.WrapCheckLog(c),
 	}
-	// A sidecar charm on a machine model is unambiguous: error.
+	// A sidecar charm's workloads run alongside the unit agent on machine
+	// models too: no warning, no error.
 	meta := &charm.Meta{Name: "redis-k8s", Containers: map[string]charm.Container{"redis": {}}}
 	warning, err := v.modelTypeMismatch(c.Context(), meta)
 
+	c.Assert(err, tc.ErrorIsNil)
 	c.Check(warning, tc.Equals, "")
-	c.Check(err, tc.ErrorIs, coreerrors.NotSupported)
 }
 
 func (s *deployRepositorySuite) TestModelTypeMismatchMachineCharmOnK8sModel(c *tc.C) {

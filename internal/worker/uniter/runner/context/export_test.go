@@ -262,6 +262,8 @@ type ModelHookContextParams struct {
 
 	MachineTag names.MachineTag
 
+	PebbleSocketDir string
+
 	Uniter api.UniterClient
 	Unit   HookUnit
 }
@@ -286,6 +288,7 @@ func NewModelHookContext(c *tc.C, p ModelHookContextParams) *HookContext {
 		logger:                 loggertesting.WrapCheckLog(c),
 		uniter:                 p.Uniter,
 		unit:                   p.Unit,
+		pebbleSocketDir:        p.PebbleSocketDir,
 		storageAttachmentCache: make(map[names.StorageTag]jujuc.ContextStorageAttachment),
 	}
 }

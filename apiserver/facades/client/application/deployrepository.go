@@ -594,10 +594,10 @@ func validateAndParseAttachStorage(input []string, numUnits int) ([]names.Storag
 	return attachStorage, errs
 }
 
-// modelTypeMismatch checks the charm's type against the model type: a
-// Kubernetes charm on a machine model is rejected with an error, while a
-// charm declaring no containers on a Kubernetes model only yields an advisory
-// warning, which is also logged for clients that do not render result
+// modelTypeMismatch checks the charm's type against the model type. Sidecar
+// charms run their workloads on both Kubernetes and machine models, so only a
+// charm declaring no containers on a Kubernetes model is flagged, with an
+// advisory warning that is also logged for clients that do not render result
 // warnings.
 func (v *deployFromRepositoryValidator) modelTypeMismatch(ctx context.Context, meta *charm.Meta) (string, error) {
 	if meta == nil {
@@ -688,9 +688,6 @@ func (v *deployFromRepositoryValidator) resolvedCharmValidation(ctx context.Cont
 		v.logger.Warningf(ctx, "proceeding with deployment of application even though the charm feature requirements could not be met as --force was specified")
 	}
 
-	// A Kubernetes charm can never run its workload on a machine model, so it
-	// is rejected outright unless --force is given; the inverse direction
-	// cannot be determined with certainty, so it only warns.
 	warning, mismatchErr := v.modelTypeMismatch(ctx, resolvedCharm.Meta())
 	if mismatchErr != nil {
 		if !arg.Force {
@@ -773,6 +770,21 @@ func (v iaasDeployFromRepositoryValidator) ValidateArg(ctx context.Context, arg 
 	dt, errs := v.validator.validate(ctx, arg)
 	if len(errs) > 0 {
 		return dt, errs
+	}
+	// Sidecar workloads run as containerd tasks on machine models, which do
+	// not yet support storage mounts. Block them here rather than failing
+	// during workload reconciliation.
+	names := make([]string, 0, len(dt.charm.Meta().Containers))
+	for name, container := range dt.charm.Meta().Containers {
+		if len(container.Mounts) > 0 {
+			names = append(names, name)
+		}
+	}
+	if len(names) > 0 {
+		sort.Strings(names)
+		for _, name := range names {
+			errs = append(errs, errors.NotSupportedf("storage mounts for OCI container %q on a machine model", name))
+		}
 	}
 	attachStorage, attachStorageErrs := validateAndParseAttachStorage(arg.AttachStorage, dt.numUnits)
 	if len(attachStorageErrs) > 0 {
